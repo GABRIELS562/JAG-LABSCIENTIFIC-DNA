@@ -1,0 +1,185 @@
+import { useState, useMemo } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import PaternityTestForm from './components/PaternityTestForm';
+import LabCarousel from './components/LabCarousel';
+import ThemeToggle from './components/ThemeToggle';
+import Sidebar from './components/Sidebar';
+import Reports from './components/Reports';
+import { 
+  Box, 
+  CssBaseline, 
+  ThemeProvider, 
+  createTheme,
+} from '@mui/material';
+
+function App() {
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  const theme = useMemo(
+    () =>
+      createTheme({
+        palette: {
+          mode: isDarkMode ? 'dark' : 'light',
+          primary: {
+            main: '#1e4976',
+          },
+          background: {
+            default: isDarkMode ? '#121212' : '#ffffff',
+            paper: isDarkMode ? '#1e1e1e' : '#ffffff',
+          },
+        },
+        components: {
+          MuiTableCell: {
+            styleOverrides: {
+              root: {
+                borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+              },
+            },
+          },
+          MuiPaper: {
+            styleOverrides: {
+              root: {
+                backgroundImage: 'none',
+              },
+            },
+          },
+          MuiTextField: {
+            styleOverrides: {
+              root: {
+                '& .MuiOutlinedInput-root': {
+                  '& fieldset': {
+                    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.23)' : 'rgba(0, 0, 0, 0.23)',
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+    [isDarkMode]
+  );
+
+  const handleThemeToggle = () => {
+    setIsDarkMode((prev) => !prev);
+  };
+
+  const mainBackground = isDarkMode
+    ? 'linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 100%)'
+    : 'linear-gradient(145deg, #e6e9f0 0%, #eef1f5 100%)';
+
+  const containerBackground = isDarkMode
+    ? 'rgba(0, 0, 0, 0.7)'
+    : 'rgba(255, 255, 255, 0.7)';
+
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Router>
+        <Box sx={{ display: 'flex', height: '100vh', width: '100vw' }}>
+          <Sidebar />
+          <Box
+            component="main"
+            sx={{
+              flexGrow: 1,
+              background: mainBackground,
+              overflowY: 'auto',
+              padding: 0,
+              width: '100%',
+              transition: 'background 0.3s ease',
+            }}
+          >
+            <ThemeToggle onToggle={handleThemeToggle} isDarkMode={isDarkMode} />
+            <Routes>
+              <Route 
+                path="/" 
+                element={
+                  <Box 
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minHeight: '100vh',
+                      width: '100%',
+                      padding: 0,
+                      background: containerBackground,
+                      backdropFilter: 'blur(10px)',
+                      transition: 'background 0.3s ease',
+                    }}
+                  >
+                    <Box 
+                      sx={{ 
+                        width: '100%', 
+                        maxWidth: '1200px',
+                        p: 4,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Box 
+                        component="h1"
+                        sx={{ 
+                          color: isDarkMode ? '#fff' : '#1e4976',
+                          fontSize: '2.5rem',
+                          fontWeight: 'bold',
+                          textAlign: 'center',
+                          mb: 6,
+                          mt: 0,
+                          transition: 'color 0.3s ease',
+                        }}
+                      >
+                        Welcome to LabDNA Scientific
+                      </Box>
+                      <LabCarousel />
+                    </Box>
+                  </Box>
+                } 
+              />
+              <Route 
+                path="/register-client" 
+                element={
+                  <Box sx={{ 
+                    background: containerBackground,
+                    minHeight: '100vh',
+                    transition: 'background 0.3s ease',
+                  }}>
+                    <PaternityTestForm />
+                  </Box>
+                } 
+              />
+              <Route 
+                path="/reports" 
+                element={
+                  <Box sx={{ 
+                    background: containerBackground,
+                    minHeight: '100vh',
+                    transition: 'background 0.3s ease',
+                  }}>
+                    <Reports />
+                  </Box>
+                } 
+              />
+              <Route 
+                path="/assign-lab-number" 
+                element={
+                  <Box sx={{ 
+                    background: containerBackground,
+                    minHeight: '100vh',
+                    p: 3,
+                    transition: 'background 0.3s ease',
+                  }}>
+                    <div>Assign Lab Number Page</div>
+                  </Box>
+                } 
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Box>
+        </Box>
+      </Router>
+    </ThemeProvider>
+  );
+}
+
+export default App;
