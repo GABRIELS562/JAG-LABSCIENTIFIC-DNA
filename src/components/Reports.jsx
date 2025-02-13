@@ -13,13 +13,18 @@ import {
   TableCell,
   TableContainer,
   TableRow,
+  Chip
 } from '@mui/material';
 import { Search, Print, Download } from '@mui/icons-material';
 
 const Reports = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  // Dummy data - replace with actual data from your backend
+  // Updated dummy data to match new structure
   const reportData = {
+    testInfo: {
+      refKitNumber: 'KIT2024001',
+      submissionDate: '2024-01-15',
+    },
     childDetails: {
       labNo: '2024_001',
       name: 'John',
@@ -27,46 +32,70 @@ const Reports = () => {
       idDob: 'ID123456',
       collectionDate: '2024-01-15',
     },
-    fatherDetails: {
+    motherDetails: {
       labNo: '2024_002',
-      name: 'Mike',
+      name: 'Jane',
       surname: 'Doe',
       idDob: 'ID789012',
       collectionDate: '2024-01-15',
+      email: 'jane.doe@example.com'
+    },
+    fatherDetails: {
+      labNo: '2024_003',
+      name: 'Mike',
+      surname: 'Smith',
+      idDob: 'ID345678',
+      collectionDate: '2024-01-15',
+      email: 'mike.smith@example.com',
+      notTested: false
     },
     additionalInfo: {
-      submissionDate: '2024-01-15',
-      motherPresent: 'NO',
-      emailContact: 'john@example.com',
+      motherPresent: 'YES',
+      emailContact: 'contact@example.com',
       phoneContact: '1234567890',
       addressArea: '123 Street, City',
-      comments: 'Standard paternity test',
+      comments: 'Standard paternity test'
     }
   };
 
-  const ReportSection = ({ title, data }) => (
+  const ReportSection = ({ title, data, isParentSection = false }) => (
     <TableContainer component={Paper} elevation={0} sx={{ mb: 3 }}>
-      <Typography variant="h6" sx={{ color: '#1e4976', mb: 2, px: 2, pt: 2 }}>
-        {title}
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2, pt: 2 }}>
+        <Typography variant="h6" sx={{ color: '#1e4976', mb: 2 }}>
+          {title}
+        </Typography>
+        {isParentSection && data.notTested && (
+          <Chip 
+            label="NOT TESTED" 
+            color="error" 
+            variant="outlined" 
+            sx={{ mb: 2 }}
+          />
+        )}
+      </Box>
       <Table>
         <TableBody>
-          {Object.entries(data).map(([key, value]) => (
-            <TableRow key={key}>
-              <TableCell 
-                component="th" 
-                scope="row"
-                sx={{ 
-                  width: '30%',
-                  backgroundColor: 'rgba(30, 73, 118, 0.05)',
-                  fontWeight: 'medium'
-                }}
-              >
-                {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-              </TableCell>
-              <TableCell>{value}</TableCell>
-            </TableRow>
-          ))}
+          {Object.entries(data).map(([key, value]) => {
+            // Skip displaying the notTested field
+            if (key === 'notTested') return null;
+            
+            return (
+              <TableRow key={key}>
+                <TableCell 
+                  component="th" 
+                  scope="row"
+                  sx={{ 
+                    width: '30%',
+                    backgroundColor: 'rgba(30, 73, 118, 0.05)',
+                    fontWeight: 'medium'
+                  }}
+                >
+                  {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                </TableCell>
+                <TableCell>{value?.toString() || 'N/A'}</TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </TableContainer>
@@ -87,7 +116,7 @@ const Reports = () => {
       >
         <TextField
           fullWidth
-          placeholder="Search by Lab No, Name, or ID..."
+          placeholder="Search by Kit No, Lab No, Name, or ID..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           InputProps={{
@@ -119,18 +148,26 @@ const Reports = () => {
 
         <Grid container spacing={3}>
           <Grid item xs={12}>
+            <ReportSection title="Test Information" data={reportData.testInfo} />
+          </Grid>
+
+          <Grid item xs={12}>
             <ReportSection title="Child Details" data={reportData.childDetails} />
           </Grid>
 
           <Grid item xs={12}>
-            <ReportSection title="Father Details" data={reportData.fatherDetails} />
+            <ReportSection title="Mother Details" data={reportData.motherDetails} isParentSection />
+          </Grid>
+
+          <Grid item xs={12}>
+            <ReportSection title="Alleged Father Details" data={reportData.fatherDetails} isParentSection />
           </Grid>
 
           <Grid item xs={12}>
             <ReportSection title="Additional Information" data={reportData.additionalInfo} />
           </Grid>
 
-          {/* Results Section - Add your actual results structure here */}
+          {/* Results Section */}
           <Grid item xs={12}>
             <Paper elevation={0} sx={{ p: 3, bgcolor: 'rgba(30, 73, 118, 0.05)' }}>
               <Typography variant="h6" sx={{ color: '#1e4976', mb: 2 }}>

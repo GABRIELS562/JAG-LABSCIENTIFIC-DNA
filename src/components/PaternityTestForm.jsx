@@ -10,27 +10,85 @@ import {
   RadioGroup,
   FormControlLabel,
   Radio,
+  Switch,
   Divider,
   Snackbar,
   Alert,
   CircularProgress
 } from '@mui/material';
-import { validateForm } from '../utils/validationUtils';
 
-// Initial form state
+// Initial form state with matching fields across all sections
 const initialFormState = {
-  childLabNo: '',
-  childName: '',
-  childSurname: '',
-  childIdDob: '',
-  childCollectionDate: '',
-  fatherLabNo: '',
-  fatherName: '',
-  fatherSurname: '',
-  fatherIdDob: '',
-  fatherCollectionDate: '',
+  refKitNumber: '',
   submissionDate: new Date().toISOString().split('T')[0],
   motherPresent: 'NO',
+  
+  // Mother section
+  mother: {
+    labNo: '',
+    name: '',
+    surname: '',
+    idDob: '',
+    dateOfBirth: '',
+    placeOfBirth: '',
+    nationality: '',
+    occupation: '',
+    address: '',
+    phoneNumber: '',
+    email: '',
+    idNumber: '',
+    idType: '',
+    maritalStatus: '',
+    ethnicity: '',
+    collectionDate: '',
+    additionalNotes: ''
+  },
+  motherNotAvailable: false,
+
+  // Father section
+  father: {
+    labNo: '',
+    name: '',
+    surname: '',
+    idDob: '',
+    dateOfBirth: '',
+    placeOfBirth: '',
+    nationality: '',
+    occupation: '',
+    address: '',
+    phoneNumber: '',
+    email: '',
+    idNumber: '',
+    idType: '',
+    maritalStatus: '',
+    ethnicity: '',
+    collectionDate: '',
+    additionalNotes: ''
+  },
+  fatherNotTested: false,
+
+  // Additional Information section
+  additionalInfo: {
+    labNo: '',
+    name: '',
+    surname: '',
+    idDob: '',
+    dateOfBirth: '',
+    placeOfBirth: '',
+    nationality: '',
+    occupation: '',
+    address: '',
+    phoneNumber: '',
+    email: '',
+    idNumber: '',
+    idType: '',
+    maritalStatus: '',
+    ethnicity: '',
+    collectionDate: '',
+    additionalNotes: ''
+  },
+  additionalInfoNotAvailable: false,
+  
   emailContact: '',
   addressArea: '',
   phoneContact: '',
@@ -47,14 +105,29 @@ const PaternityTestForm = () => {
     severity: 'success'
   });
 
-  // Handle form field changes
-  const handleChange = (event) => {
+  const handleChange = (section, field, value) => {
+    setFormData(prevState => ({
+      ...prevState,
+      [section]: {
+        ...prevState[section],
+        [field]: value
+      }
+    }));
+    
+    if (errors[`${section}.${field}`]) {
+      setErrors(prevState => ({
+        ...prevState,
+        [`${section}.${field}`]: ''
+      }));
+    }
+  };
+
+  const handleTopLevelChange = (event) => {
     const { name, value } = event.target;
     setFormData(prevState => ({
       ...prevState,
       [name]: value
     }));
-    // Clear error when field is edited
     if (errors[name]) {
       setErrors(prevState => ({
         ...prevState,
@@ -63,42 +136,55 @@ const PaternityTestForm = () => {
     }
   };
 
-  // Generate lab numbers
+  // Handle section availability toggles
+  const handleSectionToggle = (section) => {
+    setFormData(prevState => ({
+      ...prevState,
+      [`${section}NotAvailable`]: !prevState[`${section}NotAvailable`],
+      [section]: prevState[`${section}NotAvailable`] ? 
+        { ...initialFormState[section] } : 
+        { ...prevState[section], name: '', surname: '', idDob: '', dateOfBirth: '', collectionDate: '' }
+    }));
+  };
+
+  // Handle father not tested switch (keeping original functionality)
+  const handleFatherNotTestedChange = () => {
+    setFormData(prevState => ({
+      ...prevState,
+      fatherNotTested: !prevState.fatherNotTested,
+      father: prevState.fatherNotTested ? 
+        { ...initialFormState.father } : 
+        { ...prevState.father, name: '', surname: '', idDob: '', dateOfBirth: '', collectionDate: '' }
+    }));
+  };
+
   const generateLabNumbers = async () => {
     try {
-      console.log('Fetching last lab number...');
-      const response = await fetch('http://localhost:3001/api/get-last-lab-number');
-      console.log('Lab number response:', response.status);
-      
-      const data = await response.json();
-      console.log('Lab number data:', data);
-      
       const year = new Date().getFullYear();
-      const lastNumber = data.lastNumber || 0;
-      const nextNumber = lastNumber + 1;
-      
       return {
-        childLabNo: `${year}_${nextNumber}`,
-        fatherLabNo: `${year}_${nextNumber + 1}`
+        motherLabNo: `${year}_001`,
+        fatherLabNo: `${year}_002`,
+        additionalInfoLabNo: `${year}_003`
       };
     } catch (error) {
       console.error('Error generating lab numbers:', error);
       return {
-        childLabNo: `${new Date().getFullYear()}_ERR`,
-        fatherLabNo: `${new Date().getFullYear()}_ERR`
+        motherLabNo: `${new Date().getFullYear()}_ERR`,
+        fatherLabNo: `${new Date().getFullYear()}_ERR`,
+        additionalInfoLabNo: `${new Date().getFullYear()}_ERR`
       };
     }
   };
 
-  // Initialize lab numbers on component mount
   useEffect(() => {
     const initializeLabNumbers = async () => {
       try {
-        const { childLabNo, fatherLabNo } = await generateLabNumbers();
+        const { motherLabNo, fatherLabNo, additionalInfoLabNo } = await generateLabNumbers();
         setFormData(prevState => ({
           ...prevState,
-          childLabNo,
-          fatherLabNo
+          mother: { ...prevState.mother, labNo: motherLabNo },
+          father: { ...prevState.father, labNo: fatherLabNo },
+          additionalInfo: { ...prevState.additionalInfo, labNo: additionalInfoLabNo }
         }));
       } catch (error) {
         console.error('Error initializing lab numbers:', error);
@@ -113,451 +199,466 @@ const PaternityTestForm = () => {
     initializeLabNumbers();
   }, []);
 
-  // Handle form submission
+  const renderSection = (title, section, disabled = false) => {
+    return (
+      <>
+        <Grid item xs={12}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6" sx={{ color: '#1e4976', mb: 2, mt: 2 }}>
+              {title}
+            </Typography>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={section === 'father' ? formData.fatherNotTested : formData[`${section}NotAvailable`]}
+                  onChange={() => section === 'father' ? handleFatherNotTestedChange() : handleSectionToggle(section)}
+                  name={`${section}NotAvailable`}
+                />
+              }
+              label={section === 'father' ? "NOT TESTED" : "NOT AVAILABLE"}
+            />
+          </Box>
+          <Divider sx={{ mb: 2 }} />
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Lab No"
+            value={formData[section].labNo}
+            disabled
+          />
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Name"
+            value={formData[section].name}
+            onChange={(e) => handleChange(section, 'name', e.target.value)}
+            disabled={disabled || (section === 'father' ? formData.fatherNotTested : formData[`${section}NotAvailable`])}
+            required
+          />
+        </Grid>
+
+        {/* Continue with all other fields, adding the disabled check */}
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Surname"
+            value={formData[section].surname}
+            onChange={(e) => handleChange(section, 'surname', e.target.value)}
+            disabled={disabled || (section === 'father' ? formData.fatherNotTested : formData[`${section}NotAvailable`])}
+            required
+          />
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="ID/DOB"
+            value={formData[section].idDob}
+            onChange={(e) => handleChange(section, 'idDob', e.target.value)}
+            disabled={disabled || (section === 'father' ? formData.fatherNotTested : formData[`${section}NotAvailable`])}
+            required
+          />
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Date of Birth"
+            type="date"
+            value={formData[section].dateOfBirth}
+            onChange={(e) => handleChange(section, 'dateOfBirth', e.target.value)}
+            disabled={disabled || (section === 'father' ? formData.fatherNotTested : formData[`${section}NotAvailable`])}
+            InputLabelProps={{ shrink: true }}
+            required
+          />
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Place of Birth"
+            value={formData[section].placeOfBirth}
+            onChange={(e) => handleChange(section, 'placeOfBirth', e.target.value)}
+            disabled={disabled || (section === 'father' ? formData.fatherNotTested : formData[`${section}NotAvailable`])}
+          />
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Nationality"
+            value={formData[section].nationality}
+            onChange={(e) => handleChange(section, 'nationality', e.target.value)}
+            disabled={disabled || (section === 'father' ? formData.fatherNotTested : formData[`${section}NotAvailable`])}
+          />
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Occupation"
+            value={formData[section].occupation}
+            onChange={(e) => handleChange(section, 'occupation', e.target.value)}
+            disabled={disabled || (section === 'father' ? formData.fatherNotTested : formData[`${section}NotAvailable`])}
+          />
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Address"
+            value={formData[section].address}
+            onChange={(e) => handleChange(section, 'address', e.target.value)}
+            disabled={disabled || (section === 'father' ? formData.fatherNotTested : formData[`${section}NotAvailable`])}
+          />
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Phone Number"
+            value={formData[section].phoneNumber}
+            onChange={(e) => handleChange(section, 'phoneNumber', e.target.value)}
+            disabled={disabled || (section === 'father' ? formData.fatherNotTested : formData[`${section}NotAvailable`])}
+          />
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Email"
+            type="email"
+            value={formData[section].email}
+            onChange={(e) => handleChange(section, 'email', e.target.value)}
+            disabled={disabled || (section === 'father' ? formData.fatherNotTested : formData[`${section}NotAvailable`])}
+          />
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="ID Number"
+            value={formData[section].idNumber}
+            onChange={(e) => handleChange(section, 'idNumber', e.target.value)}
+            disabled={disabled || (section === 'father' ? formData.fatherNotTested : formData[`${section}NotAvailable`])}
+          />
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="ID Type"
+            value={formData[section].idType}
+            onChange={(e) => handleChange(section, 'idType', e.target.value)}
+            disabled={disabled || (section === 'father' ? formData.fatherNotTested : formData[`${section}NotAvailable`])}
+            select
+            SelectProps={{ native: true }}
+          >
+            <option value="">Select ID Type</option>
+            <option value="passport">Passport</option>
+            <option value="nationalId">National ID</option>
+            <option value="driversLicense">Driver's License</option>
+          </TextField>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Marital Status"
+            value={formData[section].maritalStatus}
+            onChange={(e) => handleChange(section, 'maritalStatus', e.target.value)}
+            disabled={disabled || (section === 'father' ? formData.fatherNotTested : formData[`${section}NotAvailable`])}
+            select
+            SelectProps={{ native: true }}
+          >
+            <option value="">Select Marital Status</option>
+            <option value="single">Single</option>
+            <option value="married">Married</option>
+            <option value="divorced">Divorced</option>
+            <option value="widowed">Widowed</option>
+          </TextField>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Ethnicity"
+            value={formData[section].ethnicity}
+            onChange={(e) => handleChange(section, 'ethnicity', e.target.value)}
+            disabled={disabled || (section === 'father' ? formData.fatherNotTested : formData[`${section}NotAvailable`])}
+          />
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Collection Date"
+            type="date"
+            value={formData[section].collectionDate}
+            onChange={(e) => handleChange(section, 'collectionDate', e.target.value)}
+            disabled={disabled || (section === 'father' ? formData.fatherNotTested : formData[`${section}NotAvailable`])}
+            InputLabelProps={{ shrink: true }}
+            required
+          />
+        </Grid>
+
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Additional Notes"
+            value={formData[section].additionalNotes}
+            onChange={(e) => handleChange(section, 'additionalNotes', e.target.value)}
+            disabled={disabled || (section === 'father' ? formData.fatherNotTested : formData[`${section}NotAvailable`])}
+            multiline
+            rows={2}
+          />
+        </Grid>
+      </>
+    );
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setIsSubmitting(true);
-
+    
     try {
-      // Validate form
-      const { isValid, errors: validationErrors } = validateForm(formData);
-      if (!isValid) {
-        setErrors(validationErrors);
-        setSnackbar({
-          open: true,
-          message: 'Please correct all errors before submitting',
-          severity: 'error'
-        });
-        return;
-      }
-
-      // Prepare request data
-      const requestData = {
-        childRow: {
-          labNo: formData.childLabNo,
-          name: formData.childName,
-          surname: formData.childSurname,
-          idDob: formData.childIdDob,
-          relation: 'Child',
-          collectionDate: formData.childCollectionDate,
-          submissionDate: formData.submissionDate,
-          motherPresent: formData.motherPresent,
-          emailContact: formData.emailContact,
-          addressArea: formData.addressArea,
-          phoneContact: formData.phoneContact,
-          comments: formData.comments
-        },
-        fatherRow: {
-          labNo: formData.fatherLabNo,
-          name: formData.fatherName,
-          surname: formData.fatherSurname,
-          idDob: formData.fatherIdDob,
-          relation: 'Alleged Father',
-          collectionDate: formData.fatherCollectionDate,
-          submissionDate: formData.submissionDate,
-          motherPresent: formData.motherPresent,
-          emailContact: formData.emailContact,
-          addressArea: formData.addressArea,
-          phoneContact: formData.phoneContact,
-          comments: formData.comments
-        }
-      };
-
-      console.log('Submitting data:', JSON.stringify(requestData, null, 2));
-
-      // Submit data
-      const response = await fetch('http://localhost:3001/api/submit-test', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData)
+      console.log('Form data:', formData);
+      
+      setSnackbar({
+        open: true,
+        message: 'Form submitted successfully!',
+        severity: 'success'
       });
-
-      // Get response text first
-      const responseText = await response.text();
-      console.log('Raw response:', responseText);
-
-      // Try to parse as JSON
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch (e) {
-        console.error('Failed to parse response:', e);
-        throw new Error('Invalid response from server');
-      }
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Server error occurred');
-      }
-
-      // Handle success
-      if (result.success) {
-        // Get new lab numbers
-        const newLabNumbers = await generateLabNumbers();
-        
-        // Reset form with new lab numbers
-        setFormData({
-          ...initialFormState,
-          childLabNo: newLabNumbers.childLabNo,
-          fatherLabNo: newLabNumbers.fatherLabNo,
-          submissionDate: new Date().toISOString().split('T')[0]
-        });
-
-        setSnackbar({
-          open: true,
-          message: 'Registration submitted successfully!',
-          severity: 'success'
-        });
-      }
+      
+      handleReset();
     } catch (error) {
       console.error('Submission error:', error);
       setSnackbar({
         open: true,
-        message: `Error: ${error.message}`,
+        message: 'Error submitting form',
         severity: 'error'
       });
     } finally {
       setIsSubmitting(false);
-    }
-  };
+    }};
 
-  // Handle snackbar close
-  const handleCloseSnackbar = () => {
-    setSnackbar(prevState => ({
-      ...prevState,
-      open: false
-    }));
-  };
-
-  // Handle form reset
-  const handleReset = async () => {
-    try {
-      const newLabNumbers = await generateLabNumbers();
-      setFormData({
-        ...initialFormState,
-        childLabNo: newLabNumbers.childLabNo,
-        fatherLabNo: newLabNumbers.fatherLabNo,
-        submissionDate: new Date().toISOString().split('T')[0]
-      });
-      
-      setErrors({});
-      setSnackbar({
-        open: true,
-        message: 'Form has been reset',
-        severity: 'info'
-      });
-    } catch (error) {
-      console.error('Error resetting form:', error);
-      setSnackbar({
-        open: true,
-        message: 'Error resetting form',
-        severity: 'error'
-      });
-    }
-  };
-
-  return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
-      <Paper elevation={2} sx={{ p: 4 }}>
-        <Typography variant="h5" sx={{ mb: 4, color: '#1e4976', fontWeight: 'bold' }}>
-          Paternity Test Registration
-        </Typography>
-
-        <form onSubmit={handleSubmit}>
-          <Grid container spacing={3}>
-            {/* Child Details Section */}
-            <Grid item xs={12}>
-              <Typography variant="h6" sx={{ color: '#1e4976', mb: 2 }}>
-                Child Details
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-            </Grid>
-
-            <Grid item xs={12} md={3}>
-              <TextField
-                fullWidth
-                label="Lab No"
-                value={formData.childLabNo}
-                disabled
-              />
-            </Grid>
-
-            <Grid item xs={12} md={4.5}>
-              <TextField
-                fullWidth
-                label="Name"
-                name="childName"
-                value={formData.childName}
-                onChange={handleChange}
-                error={!!errors.childName}
-                helperText={errors.childName}
-                required
-              />
-            </Grid>
-
-            <Grid item xs={12} md={4.5}>
-              <TextField
-                fullWidth
-                label="Surname"
-                name="childSurname"
-                value={formData.childSurname}
-                onChange={handleChange}
-                error={!!errors.childSurname}
-                helperText={errors.childSurname}
-                required
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="ID/DOB"
-                name="childIdDob"
-                value={formData.childIdDob}
-                onChange={handleChange}
-                error={!!errors.childIdDob}
-                helperText={errors.childIdDob}
-                required
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Collection Date"
-                name="childCollectionDate"
-                type="date"
-                value={formData.childCollectionDate}
-                onChange={handleChange}
-                error={!!errors.childCollectionDate}
-                helperText={errors.childCollectionDate}
-                InputLabelProps={{ shrink: true }}
-                required
-              />
-            </Grid>
-
-            {/* Father Details Section */}
-            <Grid item xs={12}>
-              <Typography variant="h6" sx={{ color: '#1e4976', mb: 2, mt: 2 }}>
-                Alleged Father Details
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-            </Grid>
-
-            <Grid item xs={12} md={3}>
-              <TextField
-                fullWidth
-                label="Lab No"
-                value={formData.fatherLabNo}
-                disabled
-              />
-            </Grid>
-
-            <Grid item xs={12} md={4.5}>
-              <TextField
-                fullWidth
-                label="Name"
-                name="fatherName"
-                value={formData.fatherName}
-                onChange={handleChange}
-                error={!!errors.fatherName}
-                helperText={errors.fatherName}
-                required
-              />
-            </Grid>
-
-            <Grid item xs={12} md={4.5}>
-              <TextField
-                fullWidth
-                label="Surname"
-                name="fatherSurname"
-                value={formData.fatherSurname}
-                onChange={handleChange}
-                error={!!errors.fatherSurname}
-                helperText={errors.fatherSurname}
-                required
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="ID/DOB"
-                name="fatherIdDob"
-                value={formData.fatherIdDob}
-                onChange={handleChange}
-                error={!!errors.fatherIdDob}
-                helperText={errors.fatherIdDob}
-                required
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Collection Date"
-                name="fatherCollectionDate"
-                type="date"
-                value={formData.fatherCollectionDate}
-                onChange={handleChange}
-                error={!!errors.fatherCollectionDate}
-                helperText={errors.fatherCollectionDate}
-                InputLabelProps={{ shrink: true }}
-                required
-              />
-            </Grid>
-
-            {/* Common Details Section */}
-            <Grid item xs={12}>
-              <Typography variant="h6" sx={{ color: '#1e4976', mb: 2, mt: 2 }}>
-                Additional Information
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Submission Date"
-                name="submissionDate"
-                type="date"
-                value={formData.submissionDate}
-                onChange={handleChange}
-                error={!!errors.submissionDate}
-                helperText={errors.submissionDate}
-                InputLabelProps={{ shrink: true }}
-                required
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <FormControl component="fieldset">
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                  Mother Present
+    const handleReset = async () => {
+      try {
+        const { motherLabNo, fatherLabNo, additionalInfoLabNo } = await generateLabNumbers();
+        setFormData({
+          ...initialFormState,
+          mother: { ...initialFormState.mother, labNo: motherLabNo },
+          father: { ...initialFormState.father, labNo: fatherLabNo },
+          additionalInfo: { ...initialFormState.additionalInfo, labNo: additionalInfoLabNo },
+          submissionDate: new Date().toISOString().split('T')[0]
+        });
+        
+        setErrors({});
+        setSnackbar({
+          open: true,
+          message: 'Form has been reset',
+          severity: 'info'
+        });
+      } catch (error) {
+        console.error('Error resetting form:', error);
+        setSnackbar({
+          open: true,
+          message: 'Error resetting form',
+          severity: 'error'
+        });
+      }
+    };
+  
+    const handleCloseSnackbar = () => {
+      setSnackbar(prevState => ({
+        ...prevState,
+        open: false
+      }));
+    };
+  
+    return (
+      <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
+        <Paper elevation={2} sx={{ p: 4 }}>
+          <Typography variant="h5" sx={{ mb: 4, color: '#1e4976', fontWeight: 'bold' }}>
+            Paternity Test Registration
+          </Typography>
+  
+          <form onSubmit={handleSubmit}>
+            <Grid container spacing={3}>
+              {/* Test Information Section */}
+              <Grid item xs={12}>
+                <Typography variant="h6" sx={{ color: '#1e4976', mb: 2 }}>
+                  Test Information
                 </Typography>
-                <RadioGroup
-                  row
-                  name="motherPresent"
-                  value={formData.motherPresent}
-                  onChange={handleChange}
+                <Divider sx={{ mb: 2 }} />
+              </Grid>
+  
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Reference Kit Number"
+                  name="refKitNumber"
+                  value={formData.refKitNumber}
+                  onChange={handleTopLevelChange}
+                  required
+                />
+              </Grid>
+  
+              {/* Mother Section */}
+              {renderSection('Mother Information', 'mother')}
+  
+              {/* Father Section */}
+              {renderSection('Alleged Father Information', 'father')}
+  
+              {/* Additional Information Section */}
+              {renderSection('Additional Information', 'additionalInfo')}
+  
+              {/* Contact Information */}
+              <Grid item xs={12}>
+                <Typography variant="h6" sx={{ color: '#1e4976', mb: 2, mt: 2 }}>
+                  Contact Information
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+              </Grid>
+  
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Email Contact"
+                  name="emailContact"
+                  value={formData.emailContact}
+                  onChange={handleTopLevelChange}
+                  type="email"
+                />
+              </Grid>
+  
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Phone Contact"
+                  name="phoneContact"
+                  value={formData.phoneContact}
+                  onChange={handleTopLevelChange}
+                  required
+                />
+              </Grid>
+  
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Submission Date"
+                  name="submissionDate"
+                  type="date"
+                  value={formData.submissionDate}
+                  onChange={handleTopLevelChange}
+                  InputLabelProps={{ shrink: true }}
+                  required
+                />
+              </Grid>
+  
+              <Grid item xs={12} md={6}>
+                <FormControl component="fieldset">
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    Mother Present
+                  </Typography>
+                  <RadioGroup
+                    row
+                    name="motherPresent"
+                    value={formData.motherPresent}
+                    onChange={handleTopLevelChange}
+                  >
+                    <FormControlLabel value="YES" control={<Radio />} label="Yes" />
+                    <FormControlLabel value="NO" control={<Radio />} label="No" />
+                  </RadioGroup>
+                </FormControl>
+              </Grid>
+  
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Address Area"
+                  name="addressArea"
+                  value={formData.addressArea}
+                  onChange={handleTopLevelChange}
+                  multiline
+                  rows={2}
+                />
+              </Grid>
+  
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Comments"
+                  name="comments"
+                  value={formData.comments}
+                  onChange={handleTopLevelChange}
+                  multiline
+                  rows={2}
+                />
+              </Grid>
+  
+              {/* Submit Buttons */}
+              <Grid item xs={12} sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                <Button
+                  variant="outlined"
+                  onClick={handleReset}
+                  disabled={isSubmitting}
+                  sx={{
+                    color: '#1e4976',
+                    borderColor: '#1e4976',
+                    '&:hover': {
+                      borderColor: '#16365b',
+                      backgroundColor: 'rgba(30, 73, 118, 0.04)',
+                    }
+                  }}
                 >
-                  <FormControlLabel value="YES" control={<Radio />} label="Yes" />
-                  <FormControlLabel value="NO" control={<Radio />} label="No" />
-                </RadioGroup>
-              </FormControl>
+                  Clear Form
+                </Button>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  disabled={isSubmitting}
+                  sx={{
+                    bgcolor: '#1e4976',
+                    '&:hover': {
+                      bgcolor: '#16365b'
+                    },
+                    minWidth: 120
+                  }}
+                >
+                  {isSubmitting ? (
+                    <CircularProgress size={24} color="inherit" />
+                  ) : (
+                    'Submit Registration'
+                  )}
+                </Button>
+              </Grid>
             </Grid>
-
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Email Contact"
-                name="emailContact"
-                value={formData.emailContact}
-                onChange={handleChange}
-                error={!!errors.emailContact}
-                helperText={errors.emailContact}
-                type="email"
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Phone Contact"
-                name="phoneContact"
-                value={formData.phoneContact}
-                onChange={handleChange}
-                error={!!errors.phoneContact}
-                helperText={errors.phoneContact}
-                required
-              />
-            </Grid>
-
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Address Area"
-                name="addressArea"
-                value={formData.addressArea}
-                onChange={handleChange}
-                error={!!errors.addressArea}
-                helperText={errors.addressArea}
-                multiline
-                rows={2}
-                required
-              />
-            </Grid>
-
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Comments"
-                name="comments"
-                value={formData.comments}
-                onChange={handleChange}
-                multiline
-                rows={2}
-              />
-            </Grid>
-
-            {/* Submit Buttons */}
-            <Grid item xs={12} sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-              <Button
-                variant="outlined"
-                onClick={handleReset}
-                disabled={isSubmitting}
-                sx={{
-                  color: '#1e4976',
-                  borderColor: '#1e4976',
-                  '&:hover': {
-                    borderColor: '#16365b',
-                    backgroundColor: 'rgba(30, 73, 118, 0.04)',
-                  }
-                }}
-              >
-                Clear Form
-              </Button>
-              <Button
-                type="submit"
-                variant="contained"
-                disabled={isSubmitting}
-                sx={{
-                  bgcolor: '#1e4976',
-                  '&:hover': {
-                    bgcolor: '#16365b'
-                  },
-                  minWidth: 120
-                }}
-              >{isSubmitting ? (
-                <CircularProgress size={24} color="inherit" />
-              ) : (
-                'Submit Registration'
-              )}
-            </Button>
-          </Grid>
-        </Grid>
-      </form>
-    </Paper>
-
-    {/* Success/Error Snackbar */}
-    <Snackbar
-      open={snackbar.open}
-      autoHideDuration={6000}
-      onClose={handleCloseSnackbar}
-      anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-    >
-      <Alert
-        onClose={handleCloseSnackbar}
-        severity={snackbar.severity}
-        variant="filled"
-        sx={{ width: '100%' }}
-      >
-        {snackbar.message}
-      </Alert>
-    </Snackbar>
-  </Box>
-);
-};
-
-export default PaternityTestForm;
+          </form>
+        </Paper>
+  
+        {/* Success/Error Snackbar */}
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={6000}
+          onClose={handleCloseSnackbar}
+          anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        >
+          <Alert
+            onClose={handleCloseSnackbar}
+            severity={snackbar.severity}
+            variant="filled"
+            sx={{ width: '100%' }}
+          >
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
+      </Box>
+    );
+  };
+  
+  export default PaternityTestForm;

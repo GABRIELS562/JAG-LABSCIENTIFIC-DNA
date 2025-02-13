@@ -43,18 +43,20 @@ const Sidebar = () => {
       hasSubMenu: false,
       onClick: () => navigate('/register-client')
     },
+
+    { 
+      icon: <Science />, 
+      label: 'Generate Batch',
+      hasSubMenu: false,
+      onClick: () => navigate('/generate-batch')
+    },
     { 
       icon: <Description />, // Changed icon for Reports
       label: 'Reports',
       hasSubMenu: false,
       onClick: () => navigate('/reports') // Updated path
     },
-    { 
-      icon: <AssignmentTurnedIn />, 
-      label: 'Assign Lab Number',
-      hasSubMenu: false,
-      onClick: () => navigate('/assign-lab-number')
-    },
+    
     { 
       icon: <Science />, 
       label: 'Sample Login',

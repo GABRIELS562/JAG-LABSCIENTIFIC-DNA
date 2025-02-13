@@ -5,6 +5,7 @@ import LabCarousel from './components/LabCarousel';
 import ThemeToggle from './components/ThemeToggle';
 import Sidebar from './components/Sidebar';
 import Reports from './components/Reports';
+import GenerateBatch from './components/GenerateBatch';
 import { 
   Box, 
   CssBaseline, 
@@ -157,6 +158,18 @@ function App() {
                     transition: 'background 0.3s ease',
                   }}>
                     <Reports />
+                  </Box>
+                } 
+              />
+              <Route 
+                path="/generate-batch" 
+                element={
+                  <Box sx={{ 
+                    background: containerBackground,
+                    minHeight: '100vh',
+                    transition: 'background 0.3s ease',
+                  }}>
+                    <GenerateBatch />
                   </Box>
                 } 
               />
