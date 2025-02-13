@@ -32,4 +32,4 @@ yarn-error.log*
 .vscode
 *.swp
 *.swo
-EOL
+EOLsrc/backend/config/credentials.json
