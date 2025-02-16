@@ -1,68 +1,16 @@
-import { useState, useMemo } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import PaternityTestForm from './components/PaternityTestForm';
-import LabCarousel from './components/LabCarousel';
-import ThemeToggle from './components/ThemeToggle';
-import Sidebar from './components/Sidebar';
-import Reports from './components/Reports';
-import GenerateBatch from './components/GenerateBatch';
-import { 
-  Box, 
-  CssBaseline, 
-  ThemeProvider, 
-  createTheme,
-} from '@mui/material';
+import PaternityTestForm from './components/forms/PaternityTestForm';
+import LabCarousel from './components/ui/LabCarousel';
+import ThemeToggle from './components/ui/ThemeToggle';
+import Sidebar from './components/layout/Sidebar';
+import Reports from './components/features/Reports';
+import GenerateBatch from './components/features/GenerateBatch';
+import { Box, CssBaseline } from '@mui/material';
+import { ThemeProvider as MuiThemeProvider } from '@mui/material';
+import { ThemeProvider, useThemeContext } from './contexts/ThemeContext';
 
-function App() {
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  const theme = useMemo(
-    () =>
-      createTheme({
-        palette: {
-          mode: isDarkMode ? 'dark' : 'light',
-          primary: {
-            main: '#1e4976',
-          },
-          background: {
-            default: isDarkMode ? '#121212' : '#ffffff',
-            paper: isDarkMode ? '#1e1e1e' : '#ffffff',
-          },
-        },
-        components: {
-          MuiTableCell: {
-            styleOverrides: {
-              root: {
-                borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-              },
-            },
-          },
-          MuiPaper: {
-            styleOverrides: {
-              root: {
-                backgroundImage: 'none',
-              },
-            },
-          },
-          MuiTextField: {
-            styleOverrides: {
-              root: {
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': {
-                    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.23)' : 'rgba(0, 0, 0, 0.23)',
-                  },
-                },
-              },
-            },
-          },
-        },
-      }),
-    [isDarkMode]
-  );
-
-  const handleThemeToggle = () => {
-    setIsDarkMode((prev) => !prev);
-  };
+function AppContent() {
+  const { theme, isDarkMode, toggleTheme } = useThemeContext();
 
   const mainBackground = isDarkMode
     ? 'linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 100%)'
@@ -73,7 +21,7 @@ function App() {
     : 'rgba(255, 255, 255, 0.7)';
 
   return (
-    <ThemeProvider theme={theme}>
+    <MuiThemeProvider theme={theme}>
       <CssBaseline />
       <Router>
         <Box sx={{ display: 'flex', height: '100vh', width: '100vw' }}>
@@ -89,7 +37,7 @@ function App() {
               transition: 'background 0.3s ease',
             }}
           >
-            <ThemeToggle onToggle={handleThemeToggle} isDarkMode={isDarkMode} />
+            <ThemeToggle onToggle={toggleTheme} isDarkMode={isDarkMode} />
             <Routes>
               <Route 
                 path="/" 
@@ -191,6 +139,14 @@ function App() {
           </Box>
         </Box>
       </Router>
+    </MuiThemeProvider>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
     </ThemeProvider>
   );
 }

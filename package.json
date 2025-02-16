@@ -8,8 +8,9 @@
     "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "server": "cd backend && node server.js",
-    "dev:all": "concurrently \"npm run dev\" \"npm run server\""
+    "server": "node backend/server.js",
+    "dev:all": "concurrently \"npm run dev\" \"npm run server\"",
+    "init-sheets": "node backend/scripts/initializeSheets.js"
   },
   "dependencies": {
     "@emotion/react": "^11.11.3",
@@ -24,6 +25,7 @@
     "googleapis": "^129.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-responsive-carousel": "^3.2.23",
     "react-router-dom": "^6.22.0"
   },
   "devDependencies": {
