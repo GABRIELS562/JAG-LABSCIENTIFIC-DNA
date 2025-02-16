@@ -1,42 +1,32 @@
-cat > .gitignore << EOL
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
+# Dependencies
+node_modules/
+package-lock.json
 
-# testing
-/coverage
-
-# production
-/build
-/dist
-
-# misc
-.DS_Store
+# Environment
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*.local
 
-# Sensitive files
+# Credentials
 backend/config/credentials.json
-backend/.env
+/Users/user/Downloads/labdna-lims-cdd47a45b968.json
 
+# Build output
+dist/
+build/
+
+# Logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# IDE specific files
-.idea
-.vscode
+# Editor directories
+.idea/
+.vscode/
 *.swp
 *.swo
-EOLsrc/backend/config/credentials.json
-# Environment and secrets
-.env
-*.env
-**/credentials.json
-**/GoogleSheetsConfig.js
-backend/config/credentials.json
-backend/config/GoogleSheetsConfig.jsbackend/config/credentials.json
+
+# OS files
+.DS_Store
+Thumbs.db
