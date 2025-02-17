@@ -5,6 +5,9 @@ import ThemeToggle from './components/ui/ThemeToggle';
 import Sidebar from './components/layout/Sidebar';
 import Reports from './components/features/Reports';
 import GenerateBatch from './components/features/GenerateBatch';
+import SampleSearch from './components/features/SampleSearch';
+import Statistics from './components/features/Statistics';
+import QualityControl from './components/features/QualityControl';
 import { Box, CssBaseline } from '@mui/material';
 import { ThemeProvider as MuiThemeProvider } from '@mui/material';
 import { ThemeProvider, useThemeContext } from './contexts/ThemeContext';
@@ -131,6 +134,20 @@ function AppContent() {
                     transition: 'background 0.3s ease',
                   }}>
                     <div>Assign Lab Number Page</div>
+                  </Box>
+                } 
+              />
+              <Route path="/sample-search" element={<SampleSearch />} />
+              <Route path="/statistics" element={<Statistics />} />
+              <Route 
+                path="/quality-control" 
+                element={
+                  <Box sx={{ 
+                    background: containerBackground,
+                    minHeight: '100vh',
+                    transition: 'background 0.3s ease',
+                  }}>
+                    <QualityControl />
                   </Box>
                 } 
               />

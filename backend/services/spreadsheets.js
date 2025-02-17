@@ -136,6 +136,27 @@ const SHEETS = {
       },
     },
   },
+  QC_DATA: {
+    name: "Quality Control",
+    columns: {
+      DATE: "Date",
+      BATCH_ID: "Batch ID",
+      CONTROL_TYPE: "Control Type",
+      RESULT: "Result",
+      OPERATOR: "Operator",
+      COMMENTS: "Comments",
+    },
+  },
+  EQUIPMENT_DATA: {
+    name: "Equipment",
+    columns: {
+      EQUIPMENT_ID: "Equipment ID",
+      TYPE: "Type",
+      LAST_CALIBRATION: "Last Calibration",
+      NEXT_CALIBRATION: "Next Calibration",
+      STATUS: "Status",
+    },
+  },
 };
 
 const setupSheetStructure = async () => {

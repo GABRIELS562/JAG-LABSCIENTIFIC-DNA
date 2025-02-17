@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Drawer, 
   List, 
@@ -23,12 +23,15 @@ import {
   TableChart,
   ExitToApp,
   Search,
-  Description // Added for Reports icon
+  Description, // Added for Reports icon
+  Assessment
 } from '@mui/icons-material';
+import Logo from '../ui/Logo';
 
 const Sidebar = () => {
   const navigate = useNavigate();
   const theme = useTheme();
+  const location = useLocation();
 
   const menuItems = [
     {
@@ -43,7 +46,6 @@ const Sidebar = () => {
       hasSubMenu: false,
       onClick: () => navigate('/register-client')
     },
-
     { 
       icon: <Science />, 
       label: 'Generate Batch',
@@ -51,41 +53,34 @@ const Sidebar = () => {
       onClick: () => navigate('/generate-batch')
     },
     { 
-      icon: <Description />, // Changed icon for Reports
+      icon: <Science />, 
+      label: 'Lab Results',
+      hasSubMenu: false,
+      onClick: () => navigate('/lab-results')
+    },
+    { 
+      icon: <Description />,
       label: 'Reports',
       hasSubMenu: false,
-      onClick: () => navigate('/reports') // Updated path
-    },
-    
-    { 
-      icon: <Science />, 
-      label: 'Sample Login',
-      hasSubMenu: false,
-      onClick: () => navigate('/sample-login')
+      onClick: () => navigate('/reports')
     },
     { 
-      icon: <Visibility />, 
-      label: 'View Sample',
-      hasSubMenu: false,
-      onClick: () => navigate('/view-sample')
-    },
-    { 
-      icon: <EditNote />, 
-      label: 'Enter Results',
-      hasSubMenu: false,
-      onClick: () => navigate('/enter-results')
-    },
-    { 
-      icon: <Storage />, 
-      label: 'Manage Tables',
+      icon: <Assessment />, 
+      label: 'Quality Control',
       hasSubMenu: true,
-      onClick: () => navigate('/manage-tables')
+      onClick: () => navigate('/quality-control')
+    },
+    { 
+      icon: <Search />, 
+      label: 'Sample Search',
+      hasSubMenu: false,
+      onClick: () => navigate('/sample-search')
     },
     { 
       icon: <TableChart />, 
-      label: 'Explore Tables',
+      label: 'Statistics',
       hasSubMenu: false,
-      onClick: () => navigate('/explore-tables')
+      onClick: () => navigate('/statistics')
     },
     { 
       icon: <ExitToApp />, 
@@ -118,7 +113,7 @@ const Sidebar = () => {
           borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
           display: 'flex',
           alignItems: 'center',
-          gap: 1,
+          justifyContent: 'center',
           cursor: 'pointer',
           '&:hover': {
             backgroundColor: theme.palette.mode === 'dark' 
@@ -127,18 +122,7 @@ const Sidebar = () => {
           },
         }}
       >
-        <Science sx={{ fontSize: 32 }} />
-        <Typography 
-          variant="h6" 
-          component="div" 
-          sx={{ 
-            fontWeight: 'bold',
-            fontSize: '1.1rem',
-            letterSpacing: '0.5px'
-          }}
-        >
-          LABDNA SCIENTIFIC
-        </Typography>
+        <Logo />
       </Box>
 
       <Box sx={{ p: 2 }}>
@@ -182,9 +166,16 @@ const Sidebar = () => {
           >
             <ListItemButton
               onClick={item.onClick}
+              selected={location.pathname === item.onClick.toString().match(/['"]([^'"]*)['"]/)[1]}
               sx={{
                 minHeight: 48,
                 px: 2.5,
+                '&.Mui-selected': {
+                  bgcolor: 'rgba(255, 255, 255, 0.12)',
+                  '&:hover': {
+                    bgcolor: 'rgba(255, 255, 255, 0.15)',
+                  },
+                },
                 '&:hover': {
                   backgroundColor: theme.palette.mode === 'dark' 
                     ? 'rgba(255, 255, 255, 0.05)' 
