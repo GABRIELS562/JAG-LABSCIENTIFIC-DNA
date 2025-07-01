@@ -4,6 +4,8 @@ const cors = require("cors");
 const path = require("path");
 const dotenv = require("dotenv");
 const apiRoutes = require("./routes/api");
+const authRoutes = require("./routes/auth");
+const dbViewerRoutes = require("./routes/database-viewer");
 
 // Load environment variables from root
 const envPath = path.resolve(__dirname, "../.env");
@@ -16,7 +18,9 @@ app.use(cors());
 app.use(express.json());
 
 // Use routes
+app.use("/api/auth", authRoutes);
 app.use("/api", apiRoutes);
+app.use("/api/db", dbViewerRoutes);
 
 // Test endpoint
 app.get("/test", (req, res) => {

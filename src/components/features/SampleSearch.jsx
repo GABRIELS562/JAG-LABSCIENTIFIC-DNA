@@ -1,125 +1,133 @@
-import React, { useState } from 'react';
-import {
-  Box,
-  Paper,
-  TextField,
-  Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Typography,
-  InputAdornment,
-  Chip
-} from '@mui/material';
-import { Search } from '@mui/icons-material';
+import React, { useState, useEffect } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
+import { api } from '../../services/api';
 
-const SampleSearch = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  // Dummy data
-  const sampleData = [
-    {
-      labNo: '2024_001',
-      name: 'John',
-      surname: 'Doe',
-      submissionDate: '2024-02-15',
-      status: 'Pending',
-      type: 'Paternity'
-    },
-    {
-      labNo: '2024_002',
-      name: 'Jane',
-      surname: 'Smith',
-      submissionDate: '2024-02-14',
-      status: 'Completed',
-      type: 'Paternity'
-    },
-    {
-      labNo: '2024_003',
-      name: 'Mike',
-      surname: 'Johnson',
-      submissionDate: '2024-02-13',
-      status: 'In Progress',
-      type: 'Relationship'
-    }
-  ];
+export default function SampleSearch() {
+  const [query, setQuery] = useState('');
+  const [samples, setSamples] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Completed': return 'success';
-      case 'Pending': return 'warning';
-      case 'In Progress': return 'info';
-      default: return 'default';
+  // Load all samples on component mount
+  useEffect(() => {
+    loadAllSamples();
+  }, []);
+
+  const loadAllSamples = async () => {
+    try {
+      setLoading(true);
+      const response = await api.getSamples();
+      if (response.success) {
+        setSamples(response.data);
+      } else {
+        setError('Failed to load samples');
+      }
+    } catch (error) {
+      setError('Error loading samples');
+      console.error('Error loading samples:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleSearch = async (searchQuery) => {
+    setQuery(searchQuery);
+    
+    if (!searchQuery.trim()) {
+      loadAllSamples();
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await api.searchSamples(searchQuery);
+      if (response.success) {
+        setSamples(response.data);
+      } else {
+        setError('Failed to search samples');
+      }
+    } catch (error) {
+      setError('Error searching samples');
+      console.error('Error searching samples:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
   return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
-      <Paper elevation={2} sx={{ p: 4 }}>
-        <Typography variant="h5" sx={{ mb: 4, color: '#1e4976', fontWeight: 'bold' }}>
-          Sample Search
-        </Typography>
-
-        <Box sx={{ mb: 4 }}>
-          <TextField
-            fullWidth
-            placeholder="Search by Lab Number, Name, or Surname..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search />
-                </InputAdornment>
-              ),
-            }}
+    <div className="flex justify-center p-8">
+      <Card className="w-full max-w-4xl">
+        <CardHeader>
+          <CardTitle>Sample Search</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Input
+            placeholder="Search by Lab Number, Name, or Surname"
+            value={query}
+            onChange={e => handleSearch(e.target.value)}
+            className="mb-4"
           />
-        </Box>
+          
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              {error}
+            </div>
+          )}
+          
+          {loading && (
+            <div className="mb-4 text-center">
+              <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <span className="ml-2">Loading samples...</span>
+            </div>
+          )}
 
-        <TableContainer>
+          <div className="mb-4 text-sm text-gray-600">
+            Found {samples.length} sample{samples.length !== 1 ? 's' : ''}
+          </div>
+
           <Table>
-            <TableHead>
+            <TableHeader>
               <TableRow>
-                <TableCell>Lab No</TableCell>
-                <TableCell>Name</TableCell>
-                <TableCell>Surname</TableCell>
-                <TableCell>Submission Date</TableCell>
-                <TableCell>Type</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Actions</TableCell>
+                <TableHead>Lab Number</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Surname</TableHead>
+                <TableHead>Relation</TableHead>
+                <TableHead>Collection Date</TableHead>
+                <TableHead>Status</TableHead>
               </TableRow>
-            </TableHead>
+            </TableHeader>
             <TableBody>
-              {sampleData.map((sample) => (
-                <TableRow key={sample.labNo}>
-                  <TableCell>{sample.labNo}</TableCell>
-                  <TableCell>{sample.name}</TableCell>
-                  <TableCell>{sample.surname}</TableCell>
-                  <TableCell>{sample.submissionDate}</TableCell>
-                  <TableCell>{sample.type}</TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={sample.status}
-                      color={getStatusColor(sample.status)}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Button size="small" variant="outlined">
-                      View Details
-                    </Button>
+              {samples.length === 0 && !loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                    {query ? 'No samples found matching your search' : 'No samples available'}
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                samples.map((sample) => (
+                  <TableRow key={sample.id}>
+                    <TableCell className="font-medium">{sample.lab_number}</TableCell>
+                    <TableCell>{sample.name}</TableCell>
+                    <TableCell>{sample.surname}</TableCell>
+                    <TableCell>{sample.relation}</TableCell>
+                    <TableCell>{sample.collection_date}</TableCell>
+                    <TableCell>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        sample.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        sample.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {sample.status}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
-        </TableContainer>
-      </Paper>
-    </Box>
+        </CardContent>
+      </Card>
+    </div>
   );
-};
-
-export default SampleSearch; 
+} 

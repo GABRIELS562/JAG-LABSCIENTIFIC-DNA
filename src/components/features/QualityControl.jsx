@@ -1,474 +1,276 @@
-import React, { useState } from 'react';
-import {
-  Box,
-  Paper,
-  Grid,
-  Typography,
-  Tabs,
-  Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Button,
-  Chip,
-  Card,
-  CardContent,
-  Alert,
-  LinearProgress,
-  IconButton,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  TextField,
-  Stack
-} from '@mui/material';
-import {
-  Assessment,
-  Warning,
-  CheckCircle,
-  PendingActions,
-  Download,
-  Print
-} from '@mui/icons-material';
+import React, { useState, useEffect } from 'react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
+import { api } from '../../services/api';
 
-const QualityControl = () => {
-  const [activeTab, setActiveTab] = useState(0);
-  const [selectedEquipment, setSelectedEquipment] = useState('');
+export default function QualityControl() {
+  const [tab, setTab] = useState('dashboard');
+  const [qcRecords, setQcRecords] = useState([]);
+  const [equipment, setEquipment] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const qualityMetrics = {
-    batchControls: [
-      {
-        id: 'AL1',
-        type: 'Allelic Ladder',
-        criteria: 'All expected alleles present and correctly sized',
-        frequency: 'Every batch',
-        status: 'Pass',
-        lastChecked: '2024-02-20',
-        operator: 'John Doe'
-      },
-      {
-        id: 'PC1',
-        type: 'Positive Control',
-        criteria: 'Expected genotype matches reference',
-        frequency: 'Every batch',
-        status: 'Pass',
-        lastChecked: '2024-02-20',
-        operator: 'John Doe'
+  useEffect(() => {
+    loadQualityControlData();
+  }, []);
+
+  const loadQualityControlData = async () => {
+    try {
+      setLoading(true);
+      const [qcResponse, equipmentResponse] = await Promise.all([
+        api.getQualityControl(),
+        api.getEquipment()
+      ]);
+
+      if (qcResponse.success) {
+        setQcRecords(qcResponse.data);
       }
-    ],
-    calibrationChecks: [
-      {
-        id: 'CAL1',
-        equipment: 'Thermal Cycler 1',
-        lastCheck: '2024-02-15',
-        nextDue: '2024-05-15',
-        status: 'Current',
-        temperature: '98.6°C',
-        tolerance: '±0.5°C'
+      if (equipmentResponse.success) {
+        setEquipment(equipmentResponse.data);
       }
-    ],
-    documents: [
-      {
-        id: 'DOC1',
-        title: 'SOP-QC-001',
-        description: 'Quality Control Procedures',
-        lastUpdated: '2024-01-01',
-        status: 'Active',
-        version: '2.1'
-      }
-    ],
-    equipmentList: [
-      {
-        id: 'EQ1',
-        name: 'Thermal Cycler 1',
-        model: 'ProFlex™ PCR',
-        serialNumber: 'TC123456',
-        calibrationDue: '2024-05-15',
-        maintenanceSchedule: 'Monthly',
-        status: 'Operational'
-      },
-      {
-        id: 'EQ2',
-        name: 'Genetic Analyzer',
-        model: '3500xL',
-        serialNumber: 'GA789012',
-        calibrationDue: '2024-04-20',
-        maintenanceSchedule: 'Weekly',
-        status: 'Maintenance Due'
-      }
-    ],
-    standardsList: [
-      {
-        id: 'STD1',
-        name: 'Allelic Ladder',
-        lotNumber: 'AL202401',
-        expiryDate: '2025-01-01',
-        status: 'In Use'
-      },
-      {
-        id: 'STD2',
-        name: 'Size Standard',
-        lotNumber: 'SS202402',
-        expiryDate: '2025-02-01',
-        status: 'In Use'
-      }
-    ],
-    auditTrail: [
-      {
-        id: 'AUD1',
-        date: '2024-02-20',
-        user: 'John Doe',
-        action: 'Equipment Calibration',
-        details: 'Thermal Cycler 1 calibration completed'
-      },
-      {
-        id: 'AUD2',
-        date: '2024-02-19',
-        user: 'Jane Smith',
-        action: 'Standard Verification',
-        details: 'New Allelic Ladder lot verified'
-      }
-    ]
+    } catch (error) {
+      setError('Failed to load quality control data');
+      console.error('Error loading QC data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const renderDashboard = () => (
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          2 calibrations due within 30 days
-        </Alert>
-      </Grid>
+  const getQCSummary = () => {
+    const total = qcRecords.length;
+    const passed = qcRecords.filter(qc => qc.result === 'Passed').length;
+    const failed = qcRecords.filter(qc => qc.result === 'Failed').length;
+    return { total, passed, failed };
+  };
 
-      <Grid item xs={12} md={6}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Recent Quality Metrics
-            </Typography>
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" color="textSecondary">
-                Overall Quality Score
-              </Typography>
-              <LinearProgress 
-                variant="determinate" 
-                value={98} 
-                sx={{ height: 10, borderRadius: 5 }}
-              />
-              <Typography variant="body2" sx={{ mt: 1 }}>
-                98% - Excellent
-              </Typography>
-            </Box>
+  const getCalibrationStatus = () => {
+    const today = new Date();
+    return equipment.map(eq => {
+      const nextCalibration = new Date(eq.next_calibration);
+      const daysUntilCalibration = Math.ceil((nextCalibration - today) / (1000 * 60 * 60 * 24));
+      const status = daysUntilCalibration < 0 ? 'Overdue' : 
+                   daysUntilCalibration < 30 ? 'Due Soon' : 'Current';
+      return { ...eq, daysUntilCalibration, status };
+    });
+  };
+  const summary = getQCSummary();
+  const calibrationData = getCalibrationStatus();
+
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <Card className="w-full max-w-4xl">
+          <CardContent className="p-8 text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p className="mt-2">Loading quality control data...</p>
           </CardContent>
         </Card>
-      </Grid>
-
-      <Grid item xs={12} md={6}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Latest Batch Controls
-            </Typography>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Control</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Date</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {qualityMetrics.batchControls.map((control) => (
-                    <TableRow key={control.id}>
-                      <TableCell>{control.type}</TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={control.status}
-                          color={control.status === 'Pass' ? 'success' : 'error'}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell>{control.lastChecked}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
-  );
-
-  const renderEquipmentTab = () => (
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <Card>
-          <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-              <Typography variant="h6">Equipment Management</Typography>
-              <Button variant="contained" color="primary">
-                Add New Equipment
-              </Button>
-            </Box>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Equipment Name</TableCell>
-                    <TableCell>Model</TableCell>
-                    <TableCell>Serial Number</TableCell>
-                    <TableCell>Calibration Due</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {qualityMetrics.equipmentList.map((equipment) => (
-                    <TableRow key={equipment.id}>
-                      <TableCell>{equipment.name}</TableCell>
-                      <TableCell>{equipment.model}</TableCell>
-                      <TableCell>{equipment.serialNumber}</TableCell>
-                      <TableCell>{equipment.calibrationDue}</TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={equipment.status}
-                          color={equipment.status === 'Operational' ? 'success' : 'warning'}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Button size="small">View Log</Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
-  );
-
-  const renderStandardsTab = () => (
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>Standards and Controls</Typography>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Standard Name</TableCell>
-                    <TableCell>Lot Number</TableCell>
-                    <TableCell>Expiry Date</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {qualityMetrics.standardsList.map((standard) => (
-                    <TableRow key={standard.id}>
-                      <TableCell>{standard.name}</TableCell>
-                      <TableCell>{standard.lotNumber}</TableCell>
-                      <TableCell>{standard.expiryDate}</TableCell>
-                      <TableCell>
-                        <Chip label={standard.status} color="primary" />
-                      </TableCell>
-                      <TableCell>
-                        <Button size="small">View History</Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
-  );
-
-  const renderAuditTrail = () => (
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>Audit Trail</Typography>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Date</TableCell>
-                    <TableCell>User</TableCell>
-                    <TableCell>Action</TableCell>
-                    <TableCell>Details</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {qualityMetrics.auditTrail.map((audit) => (
-                    <TableRow key={audit.id}>
-                      <TableCell>{audit.date}</TableCell>
-                      <TableCell>{audit.user}</TableCell>
-                      <TableCell>{audit.action}</TableCell>
-                      <TableCell>{audit.details}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
-  );
-
-  const renderBatchControls = () => (
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <Card>
-          <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-              <Typography variant="h6">Batch Control Management</Typography>
-              <Button variant="contained" color="primary">
-                Add New Control
-              </Button>
-            </Box>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Control ID</TableCell>
-                    <TableCell>Type</TableCell>
-                    <TableCell>Criteria</TableCell>
-                    <TableCell>Last Checked</TableCell>
-                    <TableCell>Operator</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {qualityMetrics.batchControls.map((control) => (
-                    <TableRow key={control.id}>
-                      <TableCell>{control.id}</TableCell>
-                      <TableCell>{control.type}</TableCell>
-                      <TableCell>{control.criteria}</TableCell>
-                      <TableCell>{control.lastChecked}</TableCell>
-                      <TableCell>{control.operator}</TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={control.status}
-                          color={control.status === 'Pass' ? 'success' : 'error'}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Stack direction="row" spacing={1}>
-                          <Button size="small" variant="outlined">
-                            View Details
-                          </Button>
-                          <Button size="small" variant="outlined" color="primary">
-                            Log Check
-                          </Button>
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
-      </Grid>
-
-      {/* Control History Section */}
-      <Grid item xs={12}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Control History
-            </Typography>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Date</TableCell>
-                    <TableCell>Control</TableCell>
-                    <TableCell>Result</TableCell>
-                    <TableCell>Operator</TableCell>
-                    <TableCell>Comments</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  <TableRow>
-                    <TableCell>2024-02-20</TableCell>
-                    <TableCell>Allelic Ladder</TableCell>
-                    <TableCell>
-                      <Chip label="Pass" color="success" size="small" />
-                    </TableCell>
-                    <TableCell>John Doe</TableCell>
-                    <TableCell>All peaks within expected range</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>2024-02-20</TableCell>
-                    <TableCell>Positive Control</TableCell>
-                    <TableCell>
-                      <Chip label="Pass" color="success" size="small" />
-                    </TableCell>
-                    <TableCell>John Doe</TableCell>
-                    <TableCell>Expected genotype confirmed</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
-  );
+      </div>
+    );
+  }
 
   return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
-      <Paper elevation={2} sx={{ p: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-          <Typography variant="h5" sx={{ color: '#1e4976', fontWeight: 'bold' }}>
-            Quality Management System
-          </Typography>
-          <Box>
-            <IconButton title="Download Report">
-              <Download />
-            </IconButton>
-            <IconButton title="Print Report">
-              <Print />
-            </IconButton>
-          </Box>
-        </Box>
+    <div className="flex justify-center p-8">
+      <Card className="w-full max-w-4xl">
+        <CardHeader>
+          <CardTitle>Quality Control</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              {error}
+            </div>
+          )}
 
-        <Tabs 
-          value={activeTab} 
-          onChange={(e, newValue) => setActiveTab(newValue)}
-          sx={{ mb: 3 }}
-        >
-          <Tab label="Dashboard" />
-          <Tab label="Equipment" />
-          <Tab label="Standards" />
-          <Tab label="Batch Controls" />
-          <Tab label="Audit Trail" />
-        </Tabs>
+          <Tabs value={tab} onValueChange={setTab} className="w-full">
+            <TabsList className="mb-4">
+              <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+              <TabsTrigger value="batch-controls">Batch Controls</TabsTrigger>
+              <TabsTrigger value="calibration">Calibration Status</TabsTrigger>
+              <TabsTrigger value="maintenance">Maintenance Logs</TabsTrigger>
+              <TabsTrigger value="docs">Documentation</TabsTrigger>
+            </TabsList>
 
-        {activeTab === 0 && renderDashboard()}
-        {activeTab === 1 && renderEquipmentTab()}
-        {activeTab === 2 && renderStandardsTab()}
-        {activeTab === 3 && renderBatchControls()}
-        {activeTab === 4 && renderAuditTrail()}
-      </Paper>
-    </Box>
+            <TabsContent value="dashboard">
+              <div className="grid grid-cols-3 gap-4 mb-6">
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <div className="text-2xl font-bold text-blue-600">{summary.total}</div>
+                    <div className="text-sm text-gray-600">Total QC Records</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <div className="text-2xl font-bold text-green-600">{summary.passed}</div>
+                    <div className="text-sm text-gray-600">Controls Passed</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <div className="text-2xl font-bold text-red-600">{summary.failed}</div>
+                    <div className="text-sm text-gray-600">Controls Failed</div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="mt-4">
+                <h3 className="text-lg font-semibold mb-2">Recent QC Records</h3>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Control Type</TableHead>
+                      <TableHead>Result</TableHead>
+                      <TableHead>Operator</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {qcRecords.slice(0, 5).map((qc) => (
+                      <TableRow key={qc.id}>
+                        <TableCell>{qc.date}</TableCell>
+                        <TableCell>{qc.control_type}</TableCell>
+                        <TableCell>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            qc.result === 'Passed' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          }`}>
+                            {qc.result}
+                          </span>
+                        </TableCell>
+                        <TableCell>{qc.operator}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="batch-controls">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Batch ID</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Control Type</TableHead>
+                    <TableHead>Result</TableHead>
+                    <TableHead>Operator</TableHead>
+                    <TableHead>Comments</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {qcRecords.map((qc) => (
+                    <TableRow key={qc.id}>
+                      <TableCell>{qc.batch_id || 'N/A'}</TableCell>
+                      <TableCell>{qc.date}</TableCell>
+                      <TableCell>{qc.control_type}</TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          qc.result === 'Passed' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {qc.result}
+                        </span>
+                      </TableCell>
+                      <TableCell>{qc.operator}</TableCell>
+                      <TableCell className="max-w-xs truncate">{qc.comments}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TabsContent>
+
+            <TabsContent value="calibration">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Equipment ID</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Last Calibration</TableHead>
+                    <TableHead>Next Calibration</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Days Until Due</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {calibrationData.map((eq) => (
+                    <TableRow key={eq.id}>
+                      <TableCell className="font-medium">{eq.equipment_id}</TableCell>
+                      <TableCell>{eq.type}</TableCell>
+                      <TableCell>{eq.last_calibration || 'N/A'}</TableCell>
+                      <TableCell>{eq.next_calibration || 'N/A'}</TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          eq.status === 'Current' ? 'bg-green-100 text-green-800' :
+                          eq.status === 'Due Soon' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {eq.status}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {eq.daysUntilCalibration < 0 ? 
+                          `${Math.abs(eq.daysUntilCalibration)} days overdue` :
+                          `${eq.daysUntilCalibration} days`
+                        }
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TabsContent>
+
+            <TabsContent value="maintenance">
+              <div className="space-y-4">
+                <p className="text-gray-600">Maintenance logs functionality coming soon...</p>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Equipment</TableHead>
+                      <TableHead>Activity</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {equipment.filter(eq => eq.status === 'maintenance').map((eq) => (
+                      <TableRow key={eq.id}>
+                        <TableCell>{new Date().toLocaleDateString()}</TableCell>
+                        <TableCell>{eq.equipment_id}</TableCell>
+                        <TableCell>Maintenance required</TableCell>
+                        <TableCell>
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            {eq.status}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="docs">
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Standard Operating Procedures</h3>
+                <ul className="list-disc pl-5 space-y-2">
+                  <li>SOP-001: Sample Processing and Quality Control</li>
+                  <li>SOP-002: Equipment Calibration and Maintenance</li>
+                  <li>SOP-003: DNA Extraction Quality Standards</li>
+                  <li>SOP-004: PCR Quality Control Procedures</li>
+                  <li>SOP-005: Electrophoresis Quality Assurance</li>
+                </ul>
+                
+                <h3 className="text-lg font-semibold mt-6">Quality Control Guidelines</h3>
+                <ul className="list-disc pl-5 space-y-2">
+                  <li>Positive Control: Must amplify all expected alleles</li>
+                  <li>Negative Control: No amplification products detected</li>
+                  <li>Allelic Ladder: All expected peaks present and sized correctly</li>
+                  <li>Sample Quality: RFU values above threshold for all loci</li>
+                </ul>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
   );
-};
-
-export default QualityControl; 
+} 

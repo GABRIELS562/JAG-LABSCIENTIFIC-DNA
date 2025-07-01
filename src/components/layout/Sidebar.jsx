@@ -24,7 +24,8 @@ import {
   ExitToApp,
   Search,
   Description, // Added for Reports icon
-  Assessment
+  Assessment,
+  Group
 } from '@mui/icons-material';
 import Logo from '../ui/Logo';
 
@@ -45,6 +46,18 @@ const Sidebar = () => {
       label: 'Register Client',
       hasSubMenu: false,
       onClick: () => navigate('/register-client')
+    },
+    { 
+      icon: <Group />, 
+      label: 'Samples',
+      hasSubMenu: false,
+      onClick: () => navigate('/client-register')
+    },
+    { 
+      icon: <EditNote />, 
+      label: 'PCR Plate',
+      hasSubMenu: false,
+      onClick: () => navigate('/pcr-plate')
     },
     { 
       icon: <Science />, 

@@ -1,361 +1,170 @@
-import React, { useState } from 'react';
-import {
-  Box,
-  Paper,
-  TextField,
-  Typography,
-  Grid,
-  Button,
-  Card,
-  CardContent,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Chip,
-  Tabs,
-  Tab,
-  IconButton,
-  Divider,
-  Alert,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  InputAdornment
-} from '@mui/material';
-import {
-  Search,
-  Download,
-  Print,
-  Email,
-  FilterList,
-  CalendarToday
-} from '@mui/icons-material';
+import React, { useState, useEffect } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
+import { api } from '../../services/api';
 
-const Reports = () => {
-  const [activeTab, setActiveTab] = useState(0);
-  const [selectedReport, setSelectedReport] = useState(null);
-  const [dateRange, setDateRange] = useState('week');
+export default function Reports() {
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Dummy data to match registration form
-  const reportsData = [
-    {
-      labNo: '2024_001',
-      testType: 'Paternity Test',
-      submissionDate: '2024-02-20',
-      status: 'Completed',
-      client: {
-        name: 'John',
-        surname: 'Doe',
-        idNumber: '8501015012345',
-        contact: '0123456789',
-        email: 'john@example.com'
-      },
-      mother: {
-        name: 'Jane',
-        surname: 'Doe',
-        idNumber: '8601015012345',
-        present: true
-      },
-      child: {
-        name: 'Baby',
-        surname: 'Doe',
-        idNumber: '2301015012345'
-      },
-      allegedFather: {
-        name: 'James',
-        surname: 'Smith',
-        idNumber: '8401015012345'
-      },
-      results: {
-        probability: '99.99%',
-        conclusion: 'Inclusion',
-        date: '2024-02-22'
+  useEffect(() => {
+    loadReports();
+  }, []);
+
+  const loadReports = async () => {
+    try {
+      setLoading(true);
+      const response = await api.getReports();
+      if (response.success) {
+        setReports(response.data);
+      } else {
+        setError('Failed to load reports');
       }
-    },
-    // Add more dummy reports...
-  ];
+    } catch (error) {
+      setError('Error loading reports');
+      console.error('Error loading reports:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const renderSearchSection = () => (
-    <Card sx={{ mb: 3 }}>
-      <CardContent>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              placeholder="Search by Lab Number, Name, or ID..."
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search />
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <FormControl fullWidth>
-              <InputLabel>Date Range</InputLabel>
-              <Select
-                value={dateRange}
-                label="Date Range"
-                onChange={(e) => setDateRange(e.target.value)}
-              >
-                <MenuItem value="today">Today</MenuItem>
-                <MenuItem value="week">This Week</MenuItem>
-                <MenuItem value="month">This Month</MenuItem>
-                <MenuItem value="custom">Custom Range</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <FormControl fullWidth>
-              <InputLabel>Test Type</InputLabel>
-              <Select
-                defaultValue=""
-                label="Test Type"
-              >
-                <MenuItem value="paternity">Paternity Test</MenuItem>
-                <MenuItem value="maternity">Maternity Test</MenuItem>
-                <MenuItem value="relationship">Relationship Test</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} md={2}>
-            <Button
-              fullWidth
-              variant="contained"
-              startIcon={<FilterList />}
-            >
-              Filter
-            </Button>
-          </Grid>
-        </Grid>
-      </CardContent>
-    </Card>
+  const filteredReports = reports.filter(report =>
+    report.report_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    report.report_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    report.status.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const renderReportsList = () => (
-    <TableContainer component={Paper}>
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell>Lab No</TableCell>
-            <TableCell>Client Name</TableCell>
-            <TableCell>Test Type</TableCell>
-            <TableCell>Submission Date</TableCell>
-            <TableCell>Status</TableCell>
-            <TableCell>Actions</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {reportsData.map((report) => (
-            <TableRow 
-              key={report.labNo}
-              hover
-              onClick={() => setSelectedReport(report)}
-              sx={{ cursor: 'pointer' }}
-            >
-              <TableCell>{report.labNo}</TableCell>
-              <TableCell>{`${report.client.name} ${report.client.surname}`}</TableCell>
-              <TableCell>{report.testType}</TableCell>
-              <TableCell>{report.submissionDate}</TableCell>
-              <TableCell>
-                <Chip 
-                  label={report.status}
-                  color={report.status === 'Completed' ? 'success' : 'warning'}
-                  size="small"
-                />
-              </TableCell>
-              <TableCell>
-                <IconButton title="Download Report">
-                  <Download />
-                </IconButton>
-                <IconButton title="Print Report">
-                  <Print />
-                </IconButton>
-                <IconButton title="Email Report">
-                  <Email />
-                </IconButton>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
-  );
+  const getStatusColor = (status) => {
+    switch (status.toLowerCase()) {
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'sent':
+        return 'bg-blue-100 text-blue-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
 
-  const renderReportDetails = () => (
-    selectedReport && (
-      <Card>
-        <CardContent>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-            <Typography variant="h6">Report Details</Typography>
-            <Box>
-              <Button
-                startIcon={<Download />}
-                variant="outlined"
-                sx={{ mr: 1 }}
-              >
-                Download
-              </Button>
-              <Button
-                startIcon={<Print />}
-                variant="outlined"
-                sx={{ mr: 1 }}
-              >
-                Print
-              </Button>
-              <Button
-                startIcon={<Email />}
-                variant="contained"
-              >
-                Email
-              </Button>
-            </Box>
-          </Box>
-
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <Card variant="outlined">
-                <CardContent>
-                  <Typography variant="subtitle1" gutterBottom>
-                    Test Information
-                  </Typography>
-                  <Divider sx={{ mb: 2 }} />
-                  <Grid container spacing={2}>
-                    <Grid item xs={6}>
-                      <Typography variant="body2" color="textSecondary">
-                        Lab Number
-                      </Typography>
-                      <Typography variant="body1">
-                        {selectedReport.labNo}
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Typography variant="body2" color="textSecondary">
-                        Test Type
-                      </Typography>
-                      <Typography variant="body1">
-                        {selectedReport.testType}
-                      </Typography>
-                    </Grid>
-                    {/* Add more test details */}
-                  </Grid>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Card variant="outlined">
-                <CardContent>
-                  <Typography variant="subtitle1" gutterBottom>
-                    Client Information
-                  </Typography>
-                  <Divider sx={{ mb: 2 }} />
-                  <Grid container spacing={2}>
-                    <Grid item xs={6}>
-                      <Typography variant="body2" color="textSecondary">
-                        Name
-                      </Typography>
-                      <Typography variant="body1">
-                        {`${selectedReport.client.name} ${selectedReport.client.surname}`}
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Typography variant="body2" color="textSecondary">
-                        ID Number
-                      </Typography>
-                      <Typography variant="body1">
-                        {selectedReport.client.idNumber}
-                      </Typography>
-                    </Grid>
-                    {/* Add more client details */}
-                  </Grid>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* Add sections for Mother, Child, Alleged Father */}
-            
-            <Grid item xs={12}>
-              <Card variant="outlined">
-                <CardContent>
-                  <Typography variant="subtitle1" gutterBottom>
-                    Results
-                  </Typography>
-                  <Divider sx={{ mb: 2 }} />
-                  <Grid container spacing={2}>
-                    <Grid item xs={4}>
-                      <Typography variant="body2" color="textSecondary">
-                        Probability
-                      </Typography>
-                      <Typography variant="body1">
-                        {selectedReport.results.probability}
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={4}>
-                      <Typography variant="body2" color="textSecondary">
-                        Conclusion
-                      </Typography>
-                      <Typography variant="body1">
-                        {selectedReport.results.conclusion}
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={4}>
-                      <Typography variant="body2" color="textSecondary">
-                        Date
-                      </Typography>
-                      <Typography variant="body1">
-                        {selectedReport.results.date}
-                      </Typography>
-                    </Grid>
-                  </Grid>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
-    )
-  );
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <Card className="w-full max-w-4xl">
+          <CardContent className="p-8 text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p className="mt-2">Loading reports...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
-      <Paper elevation={2} sx={{ p: 4 }}>
-        <Typography variant="h5" sx={{ mb: 4, color: '#1e4976', fontWeight: 'bold' }}>
-          Reports Management
-        </Typography>
-
-        {renderSearchSection()}
-
-        <Tabs 
-          value={activeTab} 
-          onChange={(e, newValue) => setActiveTab(newValue)}
-          sx={{ mb: 3 }}
-        >
-          <Tab label="All Reports" />
-          <Tab label="Completed" />
-          <Tab label="Pending" />
-          <Tab label="Archived" />
-        </Tabs>
-
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={selectedReport ? 6 : 12}>
-            {renderReportsList()}
-          </Grid>
-          {selectedReport && (
-            <Grid item xs={12} md={6}>
-              {renderReportDetails()}
-            </Grid>
+    <div className="flex justify-center p-8">
+      <Card className="w-full max-w-4xl">
+        <CardHeader>
+          <CardTitle>Reports</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              {error}
+            </div>
           )}
-        </Grid>
-      </Paper>
-    </Box>
-  );
-};
 
-export default Reports;
+          <div className="mb-4">
+            <Input
+              placeholder="Search reports by number, type, or status..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="max-w-sm"
+            />
+          </div>
+
+          <div className="mb-4 text-sm text-gray-600">
+            Showing {filteredReports.length} of {reports.length} reports
+          </div>
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Report Number</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Date Generated</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Case ID</TableHead>
+                <TableHead>Batch ID</TableHead>
+                <TableHead>File Path</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredReports.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                    {searchQuery ? 'No reports found matching your search' : 'No reports available'}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredReports.map((report) => (
+                  <TableRow key={report.id}>
+                    <TableCell className="font-medium">{report.report_number}</TableCell>
+                    <TableCell>{report.report_type}</TableCell>
+                    <TableCell>{report.date_generated}</TableCell>
+                    <TableCell>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(report.status)}`}>
+                        {report.status}
+                      </span>
+                    </TableCell>
+                    <TableCell>{report.case_id}</TableCell>
+                    <TableCell>{report.batch_id}</TableCell>
+                    <TableCell className="max-w-xs truncate text-sm text-gray-600">
+                      {report.file_path}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+
+          {/* Summary Statistics */}
+          <div className="grid grid-cols-4 gap-4 mt-6">
+            <Card>
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-blue-600">{reports.length}</div>
+                <div className="text-sm text-gray-600">Total Reports</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-green-600">
+                  {reports.filter(r => r.status === 'completed').length}
+                </div>
+                <div className="text-sm text-gray-600">Completed</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-yellow-600">
+                  {reports.filter(r => r.status === 'pending').length}
+                </div>
+                <div className="text-sm text-gray-600">Pending</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-blue-600">
+                  {reports.filter(r => r.status === 'sent').length}
+                </div>
+                <div className="text-sm text-gray-600">Sent</div>
+              </CardContent>
+            </Card>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

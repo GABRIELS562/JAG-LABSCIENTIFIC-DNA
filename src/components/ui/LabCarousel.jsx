@@ -1,38 +1,31 @@
 import { useState, useEffect } from 'react';
-import { Box, CircularProgress, Typography } from '@mui/material';
 import { Carousel } from 'react-responsive-carousel';
 import "react-responsive-carousel/lib/styles/carousel.min.css";
 
 const carouselData = [
   {
-    src: 'https://images.unsplash.com/photo-1579154204601-01588f351e67?q=80',
-    backupSrc: 'https://images.unsplash.com/photo-1614935151651-0bea6508db6b?q=80',
-    alt: "DNA sequence analysis and testing equipment",
+    src: '/african-american-worker-works-laboratory-conducting-experiments.jpg',
+    backupSrc: 'https://images.unsplash.com/photo-1579154204601-01588f351e67?q=80',
+    alt: "Professional laboratory worker conducting DNA experiments",
     title: "DNA Analysis"
   },
   {
-    src: 'https://images.unsplash.com/photo-1579154204914-ae2f51c3bd3a?q=80',
-    backupSrc: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?q=80',
-    alt: "Modern laboratory testing facility",
-    title: "Modern Lab"
+    src: '/woman-working-chemical-project-new-discovery.jpg',
+    backupSrc: 'https://images.unsplash.com/photo-1579154204914-ae2f51c3bd3a?q=80',
+    alt: "Scientist working on chemical research and new discoveries",
+    title: "Research & Discovery"
   },
   {
-    src: 'https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?q=80',
-    backupSrc: 'https://images.unsplash.com/photo-1581093057189-9f03c3875209?q=80',
-    alt: "Medical research laboratory with advanced equipment",
-    title: "Research Lab"
+    src: '/dna-closely.jpg',
+    backupSrc: 'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?q=80',
+    alt: "Close-up DNA structure analysis and genetic testing",
+    title: "Genetic Testing"
   },
   {
     src: 'https://images.unsplash.com/photo-1582560474992-385ebb8d81ce?q=80',
     backupSrc: 'https://images.unsplash.com/photo-1581093450021-4a7360e9a6b5?q=80',
     alt: "Professional lab technician conducting tests",
     title: "Lab Testing"
-  },
-  {
-    src: 'https://images.unsplash.com/photo-1530026405186-ed1f139313f8?q=80',
-    backupSrc: 'https://images.unsplash.com/photo-1631556097152-c39479bbff91?q=80',
-    alt: "DNA molecular structure and genetic testing",
-    title: "DNA Structure"
   },
   {
     src: 'https://images.unsplash.com/photo-1576086213369-97a306d36557?q=80',
@@ -97,7 +90,7 @@ function LabCarousel() {
   };
 
   return (
-    <Box sx={{ width: '100%', maxWidth: '1000px', margin: '0 auto' }}>
+    <div className="carousel-container">
       <Carousel
         showArrows={true}
         showStatus={false}
@@ -172,8 +165,8 @@ function LabCarousel() {
             }}
           >
             {!imagesLoaded[index] && !imageErrors[index] && (
-              <Box
-                sx={{
+              <div
+                style={{
                   position: 'absolute',
                   top: '50%',
                   left: '50%',
@@ -184,16 +177,16 @@ function LabCarousel() {
                   gap: 2
                 }}
               >
-                <CircularProgress />
-                <Typography variant="body2" color="textSecondary">
-                  Loading image...
-                </Typography>
-              </Box>
+                <div className="progress-bar">
+                  <div className="progress-fill"></div>
+                </div>
+                <p>Loading image...</p>
+              </div>
             )}
             
             {imageErrors[index] && (
-              <Box
-                sx={{
+              <div
+                style={{
                   position: 'absolute',
                   top: '50%',
                   left: '50%',
@@ -202,13 +195,9 @@ function LabCarousel() {
                   width: '80%'
                 }}
               >
-                <Typography variant="body1" color="error">
-                  Unable to load image
-                </Typography>
-                <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                  {item.alt}
-                </Typography>
-              </Box>
+                <p className="error">Unable to load image</p>
+                <p>{item.alt}</p>
+              </div>
             )}
 
             <img
@@ -224,8 +213,8 @@ function LabCarousel() {
               }}
             />
             
-            <Box
-              sx={{
+            <div
+              style={{
                 position: 'absolute',
                 bottom: 0,
                 left: 0,
@@ -236,17 +225,13 @@ function LabCarousel() {
                 textAlign: 'left'
               }}
             >
-              <Typography variant="h6">
-                {item.title}
-              </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                {item.alt}
-              </Typography>
-            </Box>
+              <h2>{item.title}</h2>
+              <p>{item.alt}</p>
+            </div>
           </div>
         ))}
       </Carousel>
-    </Box>
+    </div>
   );
 }
 

@@ -7,9 +7,19 @@ package-lock.json
 .env.local
 .env.*.local
 
-# Credentials
+# Credentials and sensitive data
 backend/config/credentials.json
 /Users/user/Downloads/labdna-lims-cdd47a45b968.json
+*.key
+*.pem
+.env*
+!.env.example
+
+# Database files
+backend/database/*.db
+backend/database/*.db-*
+*.sqlite
+*.sqlite3
 
 # Build output
 dist/

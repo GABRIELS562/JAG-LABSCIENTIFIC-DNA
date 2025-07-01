@@ -1,52 +1,50 @@
-import React, { useState } from 'react';
-import {
-  Box,
-  Paper,
-  Typography,
-  Grid,
-  ToggleButton,
-  ToggleButtonGroup,
-  Card,
-  CardContent
-} from '@mui/material';
-import { Pie } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  ArcElement,
-  Tooltip,
-  Legend,
-  Title
-} from 'chart.js';
+import React, { useState, useEffect } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from 'recharts';
+import { api } from '../../services/api';
 
-// Register ChartJS components
-ChartJS.register(ArcElement, Tooltip, Legend, Title);
+const COLORS = ['#1976d2', '#43a047', '#ff9800'];
 
-const Statistics = () => {
-  const [timeFrame, setTimeFrame] = useState('day');
+export default function Statistics() {
+  const [view, setView] = useState('daily');
+  const [statistics, setStatistics] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const dailyData = {
-    labels: ['Pending', 'In Progress', 'Completed'],
-    datasets: [{
-      data: [4, 2, 6],
-      backgroundColor: [
-        '#ffa726', // Orange for Pending
-        '#29b6f6', // Blue for In Progress
-        '#66bb6a'  // Green for Completed
-      ]
-    }]
+  useEffect(() => {
+    loadStatistics(view);
+  }, [view]);
+
+  const loadStatistics = async (period) => {
+    try {
+      setLoading(true);
+      const response = await api.getStatistics(period);
+      if (response.success) {
+        setStatistics(response.data);
+      } else {
+        setError('Failed to load statistics');
+      }
+    } catch (error) {
+      setError('Error loading statistics');
+      console.error('Error loading statistics:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const monthlyData = {
-    labels: ['Pending', 'In Progress', 'Completed'],
-    datasets: [{
-      data: [15, 8, 45],
-      backgroundColor: [
-        '#ffa726',
-        '#29b6f6',
-        '#66bb6a'
-      ]
-    }]
+  const getChartData = () => {
+    if (!statistics) return [];
+    
+    const { total_counts } = statistics;
+    return [
+      { name: 'Pending', value: total_counts.pending || 0 },
+      { name: 'Processing', value: total_counts.processing || 0 },
+      { name: 'Completed', value: total_counts.completed || 0 },
+    ].filter(item => item.value > 0);
   };
+
+  const data = getChartData();
 
   const chartOptions = {
     responsive: true,
@@ -56,108 +54,90 @@ const Statistics = () => {
       },
       title: {
         display: true,
-        text: `Sample Status Distribution (${timeFrame === 'day' ? 'Today' : 'This Month'})`
+        text: `Sample Status Distribution (${view === 'daily' ? 'Today' : 'This Month'})`
       }
     }
   };
 
-  const summaryData = timeFrame === 'day' ? {
-    total: 12,
-    pending: 4,
-    inProgress: 2,
-    completed: 6
-  } : {
-    total: 68,
-    pending: 15,
-    inProgress: 8,
-    completed: 45
-  };
-
   return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
-      <Paper elevation={2} sx={{ p: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 4 }}>
-          <Typography variant="h5" sx={{ color: '#1e4976', fontWeight: 'bold' }}>
-            Statistics Dashboard
-          </Typography>
-          
-          <ToggleButtonGroup
-            value={timeFrame}
-            exclusive
-            onChange={(e, newValue) => newValue && setTimeFrame(newValue)}
-            size="small"
-          >
-            <ToggleButton value="day">Daily</ToggleButton>
-            <ToggleButton value="month">Monthly</ToggleButton>
-          </ToggleButtonGroup>
-        </Box>
+    <div className="flex justify-center p-8">
+      <Card className="w-full max-w-2xl">
+        <CardHeader>
+          <CardTitle>Statistics</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ToggleGroup type="single" value={view} onValueChange={v => v && setView(v)} className="mb-4">
+            <ToggleGroupItem value="daily">Daily</ToggleGroupItem>
+            <ToggleGroupItem value="monthly">Monthly</ToggleGroupItem>
+          </ToggleGroup>
 
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Box sx={{ height: 400 }}>
-              <Pie 
-                data={timeFrame === 'day' ? dailyData : monthlyData}
-                options={chartOptions}
-              />
-            </Box>
-          </Grid>
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              {error}
+            </div>
+          )}
 
-          <Grid item xs={12} md={4}>
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <Card>
-                  <CardContent>
-                    <Typography color="textSecondary" gutterBottom>
-                      Total Samples
-                    </Typography>
-                    <Typography variant="h4">
-                      {summaryData.total}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12}>
-                <Card sx={{ bgcolor: '#fff3e0' }}>
-                  <CardContent>
-                    <Typography color="textSecondary" gutterBottom>
-                      Pending
-                    </Typography>
-                    <Typography variant="h4">
-                      {summaryData.pending}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12}>
-                <Card sx={{ bgcolor: '#e1f5fe' }}>
-                  <CardContent>
-                    <Typography color="textSecondary" gutterBottom>
-                      In Progress
-                    </Typography>
-                    <Typography variant="h4">
-                      {summaryData.inProgress}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12}>
-                <Card sx={{ bgcolor: '#e8f5e9' }}>
-                  <CardContent>
-                    <Typography color="textSecondary" gutterBottom>
-                      Completed
-                    </Typography>
-                    <Typography variant="h4">
-                      {summaryData.completed}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </Grid>
-        </Grid>
-      </Paper>
-    </Box>
+          {loading && (
+            <div className="mb-4 text-center">
+              <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <span className="ml-2">Loading statistics...</span>
+            </div>
+          )}
+
+          {statistics && (
+            <>
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-blue-50 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-blue-600">{statistics.total_counts.total}</div>
+                  <div className="text-sm text-gray-600">Total</div>
+                </div>
+                <div className="bg-yellow-50 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-yellow-600">{statistics.total_counts.pending}</div>
+                  <div className="text-sm text-gray-600">Pending</div>
+                </div>
+                <div className="bg-orange-50 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-orange-600">{statistics.total_counts.processing}</div>
+                  <div className="text-sm text-gray-600">Processing</div>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-green-600">{statistics.total_counts.completed}</div>
+                  <div className="text-sm text-gray-600">Completed</div>
+                </div>
+              </div>
+
+              {/* Chart */}
+              {data.length > 0 ? (
+                <div className="w-full h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={data}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        label
+                      >
+                        {data.map((entry, i) => (
+                          <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 py-8">
+                  No data available for the selected period
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
-};
-
-export default Statistics; 
+} 

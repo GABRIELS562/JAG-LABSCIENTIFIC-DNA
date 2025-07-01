@@ -58,7 +58,7 @@ const PLATE_DEFAULTS = {
 };
 
 const initialDummyData = {
-  batchNumber: '73',
+  batchNumber: '1',
   operator: 'Aysen',
   selectedTemplate: 'standard'
 };
@@ -290,7 +290,7 @@ const GenerateBatch = () => {
         wells.push({
           well: position,
           index: sampleIndex,
-          containerName: batchPrefix,
+          containerName: 'pcr batch',
           description: `${batchPrefix}_10ul_28cycle30m_5s`,
           containerType: PLATE_DEFAULTS.containerType,
           appType: PLATE_DEFAULTS.appType,
@@ -391,7 +391,7 @@ const GenerateBatch = () => {
 
     const headerRows = [
       `Container Name\tDescription\tContainerType\tAppType\tOwner\tOperator`,
-      `LDS_${batchNumber}\tLDS_${batchNumber}_10ul_28cycle30m_5s\t96-Well\tRegular\tLAB DNA\t${batchData[0].operator}`,
+      `pcr batch\tLDS_${batchNumber}_10ul_28cycle30m_5s\t96-Well\tRegular\tLAB DNA\t${batchData[0].operator}`,
       'AppServer\tAppInstance',
       `GeneMapper\tGeneMapper_1ae27b545c1511deab1400101834f966`,
       'Well\tSample Name\tComment\tPriority\tSize Standard\tSnp Set\tUser-Defined 3\tUser-Defined 2',
@@ -423,6 +423,112 @@ const GenerateBatch = () => {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
+  };
+
+  const handleExportPlate = () => {
+    try {
+      // Create header rows
+      const headerRows = [
+        'Container Name\tDescription\tContainerType\tAppType\tOwner\tOperator',
+        `pcr batch\tLDS_${batchNumber}_10ul_28cycle30m_5s\t96-Well\tRegular\tLAB DNA\t${operator}`,
+        'AppServer\tAppInstance',
+        'GeneMapper\tGeneMapper_1ae27b545c1511deab1400101834f966',
+        'Well\tSample Name\tComment\tPriority\tSize Standard\tSnp Set\tUser-Defined 3\tUser-Defined 2\tUser-Defined 1\tPanel\tStudy\tSample Type\tAnalysis Method\tResults Group 1\tInstrument Protocol 1'
+      ];
+
+      // Create well data rows
+      const wellRows = Object.entries(batchData).map(([wellId, well]) => {
+        let sampleName = '';
+        let comment = '';
+
+        switch(well.type) {
+          case 'Allelic Ladder':
+            sampleName = 'Ladder';
+            comment = 'AL';
+            break;
+          case 'Positive Control':
+            sampleName = 'PC';
+            comment = 'Pos';
+            break;
+          case 'Negative Control':
+            sampleName = 'NC';
+            comment = 'Neg';
+            break;
+          case 'Sample':
+            sampleName = well.label || `Sample_${wellId}`;
+            comment = '';
+            break;
+          case 'Blank':
+            sampleName = 'Blank';
+            comment = 'HiDi';
+            break;
+        }
+
+        return `${wellId}\t${sampleName}\t${comment}\t100\tCE_G5_IdentifilerDirect_GS500\t\t\t\t\tIdentifilerDirect_GS500_Panels_v1\t\t${well.type}\tIdentifilerDirect_AnalysisMethod_v1\tFA_Run_36cm_POP4_5s\tGMHID`;
+      });
+
+      // Combine all rows
+      const fileContent = [...headerRows, ...wellRows].join('\n');
+
+      // Create and download the file
+      const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
+      saveAs(blob, `LDS_${batchNumber}.txt`);
+
+      setSnackbar({
+        open: true,
+        message: 'Plate layout exported successfully',
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to export plate layout',
+        severity: 'error'
+      });
+    }
+  };
+
+  const handleDownloadTemplate = () => {
+    try {
+      // Create header rows for template
+      const headerRows = [
+        'Container Name\tDescription\tContainerType\tAppType\tOwner\tOperator',
+        'pcr batch\tLDS_XX_10ul_28cycle30m_5s\t96-Well\tRegular\tLAB DNA\tOperator',
+        'AppServer\tAppInstance',
+        'GeneMapper\tGeneMapper_1ae27b545c1511deab1400101834f966',
+        'Well\tSample Name\tComment\tPriority\tSize Standard\tSnp Set\tUser-Defined 3\tUser-Defined 2\tUser-Defined 1\tPanel\tStudy\tSample Type\tAnalysis Method\tResults Group 1\tInstrument Protocol 1'
+      ];
+
+      // Create example well rows
+      const exampleRows = [
+        'H03\tLadder\tAL\t100\tCE_G5_IdentifilerDirect_GS500\t\t\t\t\tIdentifilerDirect_GS500_Panels_v1\t\tAllelic Ladder\tIdentifilerDirect_AnalysisMethod_v1\tGMHID\tFA_Run_36cm_POP4_5s',
+        'A03\tPC\tPos\t100\tCE_G5_IdentifilerDirect_GS500\t\t\t\t\tIdentifilerDirect_GS500_Panels_v1\t\tPositive Control\tIdentifilerDirect_AnalysisMethod_v1\tGMHID\tFA_Run_36cm_POP4_5s',
+        'B03\tNC\tNeg\t100\tCE_G5_IdentifilerDirect_GS500\t\t\t\t\tIdentifilerDirect_GS500_Panels_v1\t\tNegative Control\tIdentifilerDirect_AnalysisMethod_v1\tGMHID\tFA_Run_36cm_POP4_5s',
+        'C03\t24_384_C_Example\tSample1\t100\tCE_G5_IdentifilerDirect_GS500\t\t\t\t\tIdentifilerDirect_GS500_Panels_v1\t\tSample\tIdentifilerDirect_AnalysisMethod_v1\tGMHID\tFA_Run_36cm_POP4_5s',
+        'H04\tBlank\tHiDi\t100\tCE_G5_IdentifilerDirect_GS500\t\t\t\t\tIdentifilerDirect_GS500_Panels_v1\t\tSample\tIdentifilerDirect_AnalysisMethod_v1\tGMHID\tFA_Run_36cm_POP4_5s'
+      ];
+
+      // Combine all rows
+      const fileContent = [...headerRows, ...exampleRows].join('\n');
+
+      // Create and download the file
+      const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
+      saveAs(blob, 'Plate_Layout_Template.txt');
+
+      setSnackbar({
+        open: true,
+        message: 'Template downloaded successfully',
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Template download error:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to download template',
+        severity: 'error'
+      });
+    }
   };
 
   const BatchSummary = ({ data }) => {
@@ -1078,6 +1184,25 @@ const GenerateBatch = () => {
                   </Grid>
                 ))}
               </Grid>
+            </Box>
+
+            {/* Add this after the Well Type Selection */}
+            <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+              <Button
+                variant="outlined"
+                startIcon={<Download />}
+                onClick={handleDownloadTemplate}
+              >
+                Download Template
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<Save />}
+                onClick={handleExportPlate}
+                disabled={Object.keys(batchData).length === 0}
+              >
+                Export Plate Layout
+              </Button>
             </Box>
 
             {/* Plate Visualization Container */}
