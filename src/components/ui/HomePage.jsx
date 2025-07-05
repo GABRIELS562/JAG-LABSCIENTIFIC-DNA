@@ -56,7 +56,6 @@ const HomePage = ({ isDarkMode }) => {
         });
       }
     } catch (error) {
-      console.error('Database refresh error:', error);
       setSnackbar({
         open: true,
         message: 'Error connecting to database',
@@ -72,35 +71,35 @@ const HomePage = ({ isDarkMode }) => {
       title: 'Database Viewer',
       description: 'View all database tables and records',
       icon: <Storage />,
-      color: '#1e4976',
+      color: '#0D488F',
       onClick: () => window.open('http://localhost:3001/api/db/viewer', '_blank')
     },
     {
       title: 'Samples Database',
       description: 'Browse all sample records',
       icon: <Science />,
-      color: '#2196f3',
+      color: '#8EC74F',
       onClick: () => window.open('http://localhost:3001/api/db/viewer/samples', '_blank')
     },
     {
       title: 'Batches Database',
       description: 'View PCR batch information',
       icon: <ViewModule />,
-      color: '#ff9800',
+      color: '#022539',
       onClick: () => window.open('http://localhost:3001/api/db/viewer/batches', '_blank')
     },
     {
       title: 'Quality Control',
       description: 'QC records and results',
       icon: <Assessment />,
-      color: '#4caf50',
+      color: '#6BA23A',
       onClick: () => window.open('http://localhost:3001/api/db/viewer/quality-control', '_blank')
     },
     {
       title: 'Equipment Database',
       description: 'Lab equipment and calibration',
       icon: <TableChart />,
-      color: '#9c27b0',
+      color: '#0D488F',
       onClick: () => window.open('http://localhost:3001/api/db/viewer/equipment', '_blank')
     }
   ];
@@ -110,28 +109,28 @@ const HomePage = ({ isDarkMode }) => {
       title: 'Register Client',
       description: 'Add new client and sample information',
       icon: <Group />,
-      color: '#e91e63',
+      color: '#8EC74F',
       onClick: () => navigate('/register-client')
     },
     {
       title: 'Sample Management',
       description: 'Manage and track samples',
       icon: <Assignment />,
-      color: '#607d8b',
+      color: '#0D488F',
       onClick: () => navigate('/client-register')
     },
     {
       title: 'PCR Plate Layout',
       description: 'Design and manage PCR plates',
       icon: <Science />,
-      color: '#795548',
+      color: '#022539',
       onClick: () => navigate('/pcr-plate')
     },
     {
       title: 'Sample Search',
       description: 'Search and filter samples',
       icon: <Search />,
-      color: '#ff5722',
+      color: '#6BA23A',
       onClick: () => navigate('/sample-search')
     }
   ];
@@ -167,30 +166,33 @@ const HomePage = ({ isDarkMode }) => {
         )}
       </Box>
 
-      {/* Database Access Section */}
+      {/* Laboratory Applications Section */}
       <Box sx={{ mb: 6 }}>
         <Typography 
           variant="h4" 
           sx={{ 
             mb: 3, 
             textAlign: 'center', 
-            color: isDarkMode ? 'white' : '#1e4976',
+            color: isDarkMode ? 'white' : '#0D488F',
             fontWeight: 'bold'
           }}
         >
-          🗄️ Database Access
+          🔬 Laboratory Applications
         </Typography>
-        <Grid container spacing={3}>
-          {databaseButtons.map((button, index) => (
-            <Grid item xs={12} sm={6} md={4} lg={2.4} key={index}>
+        <Grid container spacing={3} justifyContent="center">
+          {applicationButtons.map((button, index) => (
+            <Grid item xs={12} sm={6} md={3} key={index}>
               <Card 
                 sx={{ 
                   height: '100%',
                   cursor: 'pointer',
                   transition: 'all 0.3s ease',
+                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white',
+                  color: isDarkMode ? 'white' : 'inherit',
                   '&:hover': {
                     transform: 'translateY(-4px)',
                     boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+                    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'white',
                     '& .icon-container': {
                       transform: 'scale(1.1)',
                       backgroundColor: button.color
@@ -208,7 +210,7 @@ const HomePage = ({ isDarkMode }) => {
                       display: 'inline-flex',
                       p: 2,
                       borderRadius: '50%',
-                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(30,73,118,0.1)'
+                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(13,72,143,0.1)'
                     }}
                   >
                     {React.cloneElement(button.icon, { 
@@ -241,13 +243,13 @@ const HomePage = ({ isDarkMode }) => {
         </Grid>
       </Box>
 
-      {/* DNA Image Section */}
+      {/* DNA Video Background Section */}
       <Box sx={{ mb: 6, textAlign: 'center' }}>
         <Typography 
           variant="h4" 
           sx={{ 
             mb: 3, 
-            color: isDarkMode ? 'white' : '#1e4976',
+            color: isDarkMode ? 'white' : '#0D488F',
             fontWeight: 'bold'
           }}
         >
@@ -257,60 +259,101 @@ const HomePage = ({ isDarkMode }) => {
           sx={{ 
             display: 'flex', 
             justifyContent: 'center',
-            mb: 4
+            mb: 4,
+            position: 'relative',
+            overflow: 'hidden',
+            borderRadius: '12px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+            backgroundColor: '#000',
+            '& video': {
+              backfaceVisibility: 'hidden',
+              transform: 'translateZ(0)',
+              willChange: 'transform'
+            }
           }}
         >
-          <img
-            src="/dna-closely.jpg"
-            alt="DNA Double Helix - Genetic Testing and Analysis"
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="auto"
             style={{
-              maxWidth: '600px',
               width: '100%',
-              height: '400px',
-              objectFit: 'cover',
-              borderRadius: '12px',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-              filter: isDarkMode ? 'brightness(0.8)' : 'none'
+              height: '600px',
+              objectFit: 'contain',
+              filter: isDarkMode ? 'brightness(0.8)' : 'none',
+              transition: 'filter 0.3s ease-in-out'
             }}
-          />
+          >
+            <source src="/dna-smooth-loop.webm" type="video/webm" />
+            <source src="/dna-smooth-loop.mp4" type="video/mp4" />
+            {/* Fallback image for browsers that don't support video */}
+            <img
+              src="/dna-closely.jpg"
+              alt="DNA Double Helix - Genetic Testing and Analysis"
+              style={{
+                width: '100%',
+                height: '600px',
+                objectFit: 'contain'
+              }}
+            />
+          </video>
+          {/* Overlay text for better readability */}
+          <Box
+            sx={{
+              position: 'absolute',
+              bottom: 16,
+              left: 16,
+              right: 16,
+              background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)',
+              color: 'white',
+              padding: 2,
+              borderRadius: '8px',
+              backdropFilter: 'blur(4px)'
+            }}
+          >
+            <Typography 
+              variant="h6" 
+              sx={{ 
+                fontStyle: 'italic',
+                fontWeight: 'bold',
+                textShadow: '2px 2px 4px rgba(0,0,0,0.8)'
+              }}
+            >
+              Advanced DNA analysis and genetic testing for accurate paternity determination
+            </Typography>
+          </Box>
         </Box>
-        <Typography 
-          variant="h6" 
-          sx={{ 
-            color: isDarkMode ? 'rgba(255,255,255,0.8)' : 'text.secondary',
-            fontStyle: 'italic',
-            maxWidth: '600px',
-            mx: 'auto'
-          }}
-        >
-          Advanced DNA analysis and genetic testing for accurate paternity determination
-        </Typography>
       </Box>
 
-      {/* Application Access Section */}
+      {/* Database Access Section */}
       <Box>
         <Typography 
           variant="h4" 
           sx={{ 
             mb: 3, 
             textAlign: 'center', 
-            color: isDarkMode ? 'white' : '#1e4976',
+            color: isDarkMode ? 'white' : '#0D488F',
             fontWeight: 'bold'
           }}
         >
-          🔬 Laboratory Applications
+          🗄️ Database Access
         </Typography>
-        <Grid container spacing={3} justifyContent="center">
-          {applicationButtons.map((button, index) => (
-            <Grid item xs={12} sm={6} md={3} key={index}>
+        <Grid container spacing={3}>
+          {databaseButtons.map((button, index) => (
+            <Grid item xs={12} sm={6} md={4} lg={2.4} key={index}>
               <Card 
                 sx={{ 
                   height: '100%',
                   cursor: 'pointer',
                   transition: 'all 0.3s ease',
+                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white',
+                  color: isDarkMode ? 'white' : 'inherit',
                   '&:hover': {
                     transform: 'translateY(-4px)',
                     boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+                    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'white',
                     '& .icon-container': {
                       transform: 'scale(1.1)',
                       backgroundColor: button.color
@@ -328,7 +371,7 @@ const HomePage = ({ isDarkMode }) => {
                       display: 'inline-flex',
                       p: 2,
                       borderRadius: '50%',
-                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(30,73,118,0.1)'
+                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(13,72,143,0.1)'
                     }}
                   >
                     {React.cloneElement(button.icon, { 

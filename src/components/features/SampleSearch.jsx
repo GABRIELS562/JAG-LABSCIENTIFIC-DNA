@@ -26,7 +26,6 @@ export default function SampleSearch() {
       }
     } catch (error) {
       setError('Error loading samples');
-      console.error('Error loading samples:', error);
     } finally {
       setLoading(false);
     }
@@ -50,7 +49,6 @@ export default function SampleSearch() {
       }
     } catch (error) {
       setError('Error searching samples');
-      console.error('Error searching samples:', error);
     } finally {
       setLoading(false);
     }

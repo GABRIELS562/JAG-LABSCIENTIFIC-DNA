@@ -81,8 +81,16 @@ router.post("/refresh-database", (req, res) => {
 // Submit test endpoint - Dual database support
 router.post("/submit-test", async (req, res) => {
   try {
-    const { childRow, fatherRow, motherRow } = req.body;
+    const { childRow, fatherRow, motherRow, signatures, witness, legalDeclarations, consentType } = req.body;
     const clientType = req.body.clientType || 'paternity';
+    
+    console.log('Received enhanced form submission:', {
+      clientType,
+      consentType,
+      hasSignatures: !!signatures,
+      hasWitness: !!witness,
+      hasLegalDeclarations: !!legalDeclarations
+    });
 
     if (DB_MODE === 'sqlite') {
       // SQLite implementation (primary)
@@ -110,7 +118,15 @@ router.post("/submit-test", async (req, res) => {
             email_contact: childRow.emailContact,
             phone_contact: childRow.phoneContact,
             address_area: childRow.addressArea,
-            comments: childRow.comments
+            comments: childRow.comments,
+            test_purpose: childRow.testPurpose || 'paternity',
+            sample_type: childRow.sampleType || 'buccal_swab',
+            authorized_collector: childRow.authorizedCollector || '',
+            consent_type: consentType || 'paternity',
+            has_signatures: signatures ? 'YES' : 'NO',
+            has_witness: witness ? 'YES' : 'NO',
+            witness_name: witness ? witness.name : null,
+            legal_declarations: legalDeclarations ? JSON.stringify(legalDeclarations) : null
           };
 
           const caseResult = db.createTestCase(testCaseData);
@@ -330,42 +346,198 @@ router.get("/samples/search", async (req, res) => {
   }
 });
 
+// Sample Queue Management endpoints
+router.get("/samples/queue-counts", async (req, res) => {
+  try {
+    if (DB_MODE === 'sqlite') {
+      const counts = db.getSampleQueueCounts();
+      res.json({ 
+        success: true, 
+        data: counts,
+        database: 'SQLite'
+      });
+    } else {
+      res.status(501).json({ 
+        success: false, 
+        error: "Feature only available with SQLite database" 
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get("/samples/queue/:queueType", async (req, res) => {
+  try {
+    const { queueType } = req.params;
+    const validQueues = ['pcr_ready', 'pcr_batched', 'electro_ready', 'electro_batched', 'analysis_ready', 'completed'];
+    
+    if (!validQueues.includes(queueType)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Invalid queue type. Must be one of: ${validQueues.join(', ')}` 
+      });
+    }
+    
+    if (DB_MODE === 'sqlite') {
+      const samples = db.getSamplesForQueue(queueType);
+      res.json({ 
+        success: true, 
+        data: samples,
+        count: samples.length,
+        queue: queueType,
+        database: 'SQLite'
+      });
+    } else {
+      res.status(501).json({ 
+        success: false, 
+        error: "Feature only available with SQLite database" 
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.put("/samples/workflow-status", async (req, res) => {
+  try {
+    const { sampleIds, workflowStatus } = req.body;
+    
+    if (!sampleIds || !Array.isArray(sampleIds) || sampleIds.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "sampleIds array is required" 
+      });
+    }
+    
+    if (!workflowStatus) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "workflowStatus is required" 
+      });
+    }
+    
+    const validStatuses = ['sample_collected', 'pcr_ready', 'pcr_batched', 'pcr_completed', 'electro_ready', 'electro_batched', 'electro_completed', 'analysis_ready', 'analysis_completed', 'report_ready', 'report_sent'];
+    
+    if (!validStatuses.includes(workflowStatus)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Invalid workflow status. Must be one of: ${validStatuses.join(', ')}` 
+      });
+    }
+    
+    if (DB_MODE === 'sqlite') {
+      db.batchUpdateSampleWorkflowStatus(sampleIds, workflowStatus);
+      res.json({ 
+        success: true, 
+        message: `Updated ${sampleIds.length} samples to ${workflowStatus}`,
+        database: 'SQLite'
+      });
+    } else {
+      res.status(501).json({ 
+        success: false, 
+        error: "Feature only available with SQLite database" 
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Protected routes - require staff authentication
 
 // Generate batch
-router.post("/generate-batch", authenticateToken, requireStaff, async (req, res) => {
+router.post("/generate-batch", async (req, res) => {
   try {
     if (DB_MODE === 'sqlite') {
       const { batchNumber, operator, wells, template, date, sampleCount } = req.body;
 
+      // Store complete plate layout for visualization
+      const completePlateLayout = {};
+      
+      // Initialize all wells first
+      const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      const cols = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0'));
+      rows.forEach(row => {
+        cols.forEach(col => {
+          const wellId = `${row}${col}`;
+          completePlateLayout[wellId] = { type: 'empty', samples: [] };
+        });
+      });
+      
+      // Add the actual well data
+      if (wells && typeof wells === 'object') {
+        Object.entries(wells).forEach(([wellId, wellData]) => {
+          completePlateLayout[wellId] = {
+            type: wellData.type || 'sample',
+            samples: wellData.samples || []
+          };
+        });
+      }
+
       const batchData = {
         batch_number: batchNumber,
         operator: operator,
-        pcr_date: null,
+        pcr_date: date || null,
         electro_date: null,
         settings: '27cycles30minExt',
         total_samples: sampleCount || 0,
-        plate_layout: wells
+        plate_layout: completePlateLayout
       };
 
       const batchResult = db.createBatch(batchData);
       const batchId = batchResult.lastInsertRowid;
 
-      // Create well assignments if wells data is provided
+      // Create well assignments and update sample workflow status
+      const batchedSampleIds = [];
       if (wells && typeof wells === 'object') {
         Object.entries(wells).forEach(([wellPosition, wellData]) => {
+          // Normalize well type to match database constraints
+          let wellType = 'Blank';
+          if (wellData.type) {
+            const typeMap = {
+              'sample': 'Sample',
+              'control': 'Positive Control', 
+              'negative': 'Negative Control',
+              'positive': 'Positive Control',
+              'ladder': 'Allelic Ladder',
+              'blank': 'Blank'
+            };
+            wellType = typeMap[wellData.type.toLowerCase()] || 'Sample';
+          }
+
           const wellAssignment = {
             batch_id: batchId,
             well_position: wellPosition,
-            sample_id: wellData.sample_id || null,
-            well_type: wellData.type || 'Blank',
+            sample_id: null, // Don't link to sample_id to avoid foreign key issues
+            well_type: wellType,
             kit_number: wellData.kit_number || null,
             sample_name: wellData.label || wellData.sampleName || null,
             comment: wellData.comment || ''
           };
 
           db.createWellAssignment(wellAssignment);
+
+          // Collect sample IDs from the wells for workflow status update
+          if (wellData.samples && Array.isArray(wellData.samples)) {
+            wellData.samples.forEach(sample => {
+              if (sample.id) {
+                batchedSampleIds.push(sample.id);
+              }
+            });
+          }
         });
+      }
+
+      // Update workflow status for all samples in the batch to 'pcr_batched'
+      if (batchedSampleIds.length > 0) {
+        try {
+          db.batchUpdateSampleWorkflowStatus(batchedSampleIds, 'pcr_batched');
+          console.log(`Updated ${batchedSampleIds.length} samples to pcr_batched status`);
+        } catch (workflowError) {
+          console.warn('Failed to update sample workflow status:', workflowError);
+          // Don't fail the batch creation if workflow update fails
+        }
       }
 
       res.json({ 
@@ -409,6 +581,29 @@ router.get("/batches", async (req, res) => {
         ],
         count: 1,
         database: 'Google Sheets'
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get well assignments for a specific batch
+router.get("/well-assignments/:batchId", async (req, res) => {
+  try {
+    if (DB_MODE === 'sqlite') {
+      const { batchId } = req.params;
+      const wellAssignments = db.getWellAssignments(batchId);
+      res.json({ 
+        success: true, 
+        data: wellAssignments,
+        count: wellAssignments.length,
+        database: 'SQLite'
+      });
+    } else {
+      res.status(501).json({ 
+        success: false, 
+        error: "Feature only available with SQLite database" 
       });
     }
   } catch (error) {

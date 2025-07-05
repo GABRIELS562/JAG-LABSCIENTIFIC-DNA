@@ -1,167 +1,106 @@
-# LABDNA LIMS (Laboratory Information Management System)
+# LabScientific LIMS
 
-A modern laboratory information management system designed specifically for DNA testing facilities.
+A modern Laboratory Information Management System (LIMS) for DNA analysis and paternity testing.
 
-## Features
+## Project Structure
 
-- **Batch Management**
-  - Generate 96-well plate layouts
-  - Interactive well plate visualization
-  - Support for various sample types (Samples, Controls, Allelic Ladders)
-  - Automated sample numbering and positioning
+```
+/
+├── src/                          # Frontend React application
+├── backend/                      # Node.js backend server
+├── docs/                         # Documentation files
+├── scripts/                      # Development and deployment scripts
+│   └── development/             # Development-only scripts
+├── data/                        # Data files (excluded from production)
+│   ├── samples/                 # Sample FSA files
+│   └── test_data/              # Test datasets
+├── external/                    # External software (excluded from production)
+├── workspace/                   # Runtime workspace (excluded from production)
+├── public/                      # Static assets and Electron files
+└── config/                      # Configuration files
+```
 
-- **Sample Tracking**
-  - Paternity test registration
-  - Sample status monitoring
-  - Batch tracking
-  - Result management
+## Quick Start
 
-- **Data Integration**
-  - Google Sheets integration for data storage
-  - Export plate layouts
-  - Automated report generation
+### Development
 
-## Tech Stack
-
-- **Frontend**
-  - React 18
-  - Material-UI v5
-  - React Router v6
-  - Context API for state management
-  - Vite for build tooling
-
-- **Backend**
-  - Node.js
-  - Express
-  - Google Sheets API v4
-
-## Setup
-
-1. **Prerequisites**
-   - Node.js (v14 or higher)
-   - npm or yarn
-   - Google Cloud Platform account with Sheets API enabled
-
-2. **Installation**
+1. **Install dependencies:**
    ```bash
-   # Clone the repository
-   git clone https://github.com/GABRIELS562/ashley-lims-v2.git
-   cd ashley-lims-v2
-
-   # Install dependencies
    npm install
-
-   # Install backend dependencies
-   cd backend
-   npm install
+   cd backend && npm install
    ```
 
-3. **Configuration**
-   - Place your Google Cloud credentials in `backend/config/credentials.json`
-   - Create `.env` file in project root with:
-     ```
-     VITE_API_URL=http://localhost:3001
-     MAIN_SPREADSHEET_ID=your_main_spreadsheet_id
-     BATCH_SPREADSHEET_ID=your_batch_spreadsheet_id
-     PORT=3001
-     NODE_ENV=development
-     ```
-
-4. **Running the Application**
+2. **Start development servers:**
    ```bash
-   # Start backend server
-   cd backend
-   npm run server
-
-   # In another terminal, start frontend
-   cd ..
+   # Start backend
+   cd backend && npm run dev
+   
+   # Start frontend (in another terminal)
    npm run dev
    ```
 
-## Project Structure
-```
-ashley-lims-v2/
-├── backend/
-│   ├── config/
-│   │   └── credentials.json
-│   ├── routes/
-│   │   └── api.js
-│   ├── services/
-│   │   └── spreadsheets.js
-│   └── server.js
-├── src/
-│   ├── components/
-│   │   ├── features/
-│   │   │   ├── GenerateBatch.jsx
-│   │   │   ├── Reports.jsx
-│   │   │   └── WellPlateVisualization.jsx
-│   │   ├── forms/
-│   │   ├── layout/
-│   │   └── ui/
-│   ├── contexts/
-│   ├── hooks/
-│   ├── services/
-│   │   └── api.js
-│   └── App.jsx
-└── package.json
-```
+3. **Access the application:**
+   - Frontend: http://localhost:5173
+   - Backend API: http://localhost:3001
 
-## API Documentation
+### Production Build
 
-### Batch Management
-```javascript
-POST /api/batch/generate
-GET /api/batch/:id
-PUT /api/batch/:id
-```
+1. **Build for production:**
+   ```bash
+   npm run build:prod
+   ```
 
-### Sample Management
-```javascript
-POST /api/samples
-GET /api/samples/:id
-PUT /api/samples/:id
-```
+2. **Build Electron app:**
+   ```bash
+   npm run build:electron:prod
+   ```
 
-## Deployment
+## Features
 
-1. **Backend Deployment**
-   - Set up Node.js environment
-   - Configure environment variables
-   - Set up PM2 or similar process manager
+- **Sample Management**: Register and track DNA samples
+- **Batch Processing**: PCR and electrophoresis batch management
+- **Genetic Analysis**: STR analysis with Osiris integration
+- **Quality Control**: Comprehensive QC tracking
+- **Report Generation**: Automated paternity reports
+- **Mobile Responsive**: Optimized for desktop and mobile devices
 
-2. **Frontend Deployment**
-   - Build the frontend: `npm run build`
-   - Deploy static files to web server
-   - Configure for production environment
+## Technology Stack
 
-## Troubleshooting
+- **Frontend**: React, Material-UI, Vite
+- **Backend**: Node.js, Express, SQLite
+- **Desktop**: Electron
+- **Analysis**: Osiris STR analysis software
 
-Common issues and solutions:
+## Architecture
 
-1. **Google Sheets API Issues**
-   - Verify credentials.json is properly configured
-   - Check API quotas and limits
-   - Ensure proper scopes are enabled
+The application follows a client-server architecture with:
+- React frontend for user interface
+- Node.js backend for API and business logic
+- SQLite database for data persistence
+- Electron wrapper for desktop deployment
 
-2. **Backend Connection Issues**
-   - Verify backend is running on correct port
-   - Check CORS configuration
-   - Validate environment variables
+## Development Guidelines
 
-3. **Frontend Build Issues**
-   - Clear npm cache: `npm clean-cache`
-   - Remove node_modules and reinstall
-   - Check for version conflicts
+- Console logging has been removed for production readiness
+- Mobile-responsive design implemented
+- File structure organized for clean deployment
+- Environment-specific configurations supported
 
 ## Security
 
-- Ensure your `credentials.json` and `.env` files are not committed
-- Keep your Google API credentials secure
-- Follow security best practices for lab data
-- Regular security audits and updates
+- Sensitive files excluded from version control
+- Environment-based configuration
+- Secure handling of genetic data
+- Production-ready error handling
 
-## Contact
+## Documentation
 
-LABDNA SCIENTIFIC - [Contact Information]
+Detailed documentation is available in the `/docs/` directory:
+- Setup and installation guides
+- API documentation
+- Integration guides
+- Deployment instructions
 
-Project Link: [https://github.com/GABRIELS562/ashley-lims-v2](https://github.com/GABRIELS562/ashley-lims-v2)
+## License
+
+This project is proprietary software for laboratory use.

@@ -79,7 +79,6 @@ export default function ClientRegister() {
         setError('Failed to fetch samples');
       }
     } catch (error) {
-      console.error('Error fetching samples:', error);
       setError('Error connecting to server');
     } finally {
       setLoading(false);
@@ -212,20 +211,15 @@ export default function ClientRegister() {
     }
     
     try {
-      console.log('Creating batch with samples:', selectedSamples.length);
-      console.log('Selected samples:', selectedSamples);
       
       // Store selected samples in sessionStorage for the PCR Plate page
       sessionStorage.setItem('selectedSamplesForBatch', JSON.stringify(selectedSamples));
       
-      console.log('Stored in sessionStorage, now navigating...');
       
       // Navigate to PCR Plate page
       navigate('/pcr-plate', { replace: true });
       
-      console.log('Navigate command executed');
     } catch (error) {
-      console.error('Navigation error:', error);
       setError('Error navigating to PCR plate: ' + error.message);
     }
   };
@@ -291,7 +285,7 @@ export default function ClientRegister() {
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto', p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" sx={{ color: '#1e4976', fontWeight: 'bold' }}>
+        <Typography variant="h4" sx={{ color: '#0D488F', fontWeight: 'bold' }}>
           Samples
         </Typography>
         
@@ -306,7 +300,7 @@ export default function ClientRegister() {
               variant="contained"
               startIcon={<PlaylistAdd />}
               onClick={handleCreateBatch}
-              sx={{ bgcolor: '#1e4976' }}
+              sx={{ bgcolor: '#0D488F' }}
               disabled={selectedSamples.length === 0}
             >
               Create PCR Batch ({selectedSamples.length} selected)
@@ -320,7 +314,6 @@ export default function ClientRegister() {
             <Button
               variant="outlined"
               onClick={() => {
-                console.log('Test navigation button clicked');
                 navigate('/pcr-plate');
               }}
               sx={{ ml: 1 }}
@@ -451,7 +444,7 @@ export default function ClientRegister() {
                   variant="contained"
                   onClick={handleSelectAll}
                   startIcon={<Group />}
-                  sx={{ bgcolor: '#1e4976', fontSize: '0.75rem' }}
+                  sx={{ bgcolor: '#0D488F', fontSize: '0.75rem' }}
                 >
                   Select All Pending
                 </Button>

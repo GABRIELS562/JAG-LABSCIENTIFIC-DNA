@@ -15,9 +15,10 @@ function ThemeToggle() {
         top: 16,
         right: 16,
         zIndex: 1100,
-        backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+        backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(13, 72, 143, 0.1)',
+        color: isDarkMode ? 'white' : '#0D488F',
         '&:hover': {
-          backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+          backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(13, 72, 143, 0.2)',
         },
       }}
     >

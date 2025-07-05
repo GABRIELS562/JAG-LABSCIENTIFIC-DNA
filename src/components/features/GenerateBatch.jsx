@@ -36,6 +36,8 @@ import { Print, Download, Save, ArrowDownward, ViewList, ViewModule } from '@mui
 import { batchApi } from '../../services/api';
 import WellPlateVisualization from './WellPlateVisualization';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 const validateBatchData = (batchNumber, operator) => {
   const errors = {};
   if (!batchNumber) errors.batchNumber = 'Batch number is required';
@@ -63,7 +65,7 @@ const initialDummyData = {
   selectedTemplate: 'standard'
 };
 
-const GenerateBatch = () => {
+const ElectrophoresisPlate = () => {
   const [sampleCount, setSampleCount] = useState('');
   const [batchNumber, setBatchNumber] = useState(initialDummyData.batchNumber);
   const [operator, setOperator] = useState(initialDummyData.operator);
@@ -91,6 +93,12 @@ const GenerateBatch = () => {
     negativeControl: ''
   });
   const [controlErrors, setControlErrors] = useState({});
+  const [finalizeDialog, setFinalizeDialog] = useState(false);
+  const [availablePCRBatches, setAvailablePCRBatches] = useState([]);
+  const [selectedPCRBatch, setSelectedPCRBatch] = useState('');
+  const [pcrBatchData, setPcrBatchData] = useState(null);
+  const [loadingBatches, setLoadingBatches] = useState(false);
+  const [draggedControl, setDraggedControl] = useState(null);
   const [batchSummary, setBatchSummary] = useState({
     batchNumber: "",
     pcrDate: "",
@@ -154,46 +162,47 @@ const GenerateBatch = () => {
   };
 
   const handleWellClick = (wellId) => {
-    setBatchData(prev => {
-      const row = wellId[0];
+    // If the well contains a control, remove it when clicked
+    if (batchData[wellId] && ['Allelic Ladder', 'Positive Control', 'Negative Control'].includes(batchData[wellId].type)) {
+      const controlType = batchData[wellId].type;
       
-      if (selectedWellType === 'Blank') {
-        return {
-          ...prev,
-          [wellId]: {
-            ...prev[wellId],
-            type: 'Blank',
-            label: row // Use row letter for blanks
-          }
-        };
-      }
-
-      if (selectedWellType === 'Sample') {
-        // Calculate sample number based on column-first order
-        const col = parseInt(wellId.slice(1));
-        const rowIndex = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].indexOf(row);
-        const sampleNumber = rowIndex + 1 + ((col - 1) * 8);
-
-        return {
-          ...prev,
-          [wellId]: {
-            ...prev[wellId],
-            type: 'Sample',
-            label: `S${sampleNumber}`
-          }
-        };
-      }
-
-      // For other types (controls)
-      return {
+      setBatchData(prev => ({
         ...prev,
         [wellId]: {
-          ...prev[wellId],
-          type: selectedWellType,
-          label: selectedWellType.charAt(0)
+          type: 'empty',
+          label: '',
+          well: wellId,
+          samples: []
         }
-      };
-    });
+      }));
+      
+      // Clear from control positions state
+      const controlKey = controlType === 'Allelic Ladder' ? 'allelicLadder' :
+                        controlType === 'Positive Control' ? 'positiveControl' : 'negativeControl';
+      setControlPositions(prev => ({ ...prev, [controlKey]: '' }));
+      
+      setSnackbar({
+        open: true,
+        message: `Removed ${controlType} from well ${wellId}`,
+        severity: 'info'
+      });
+      return;
+    }
+    
+    // If a sample well is clicked, show info
+    if (batchData[wellId] && batchData[wellId].type === 'sample') {
+      const sample = batchData[wellId].samples?.[0];
+      if (sample) {
+        setSnackbar({
+          open: true,
+          message: `Sample: ${sample.lab_number || sample.name || 'Unknown'}`,
+          severity: 'info'
+        });
+      }
+      return;
+    }
+    
+    // For empty wells, no action needed
   };
 
   const handleWellTypeSelect = (type) => {
@@ -331,49 +340,102 @@ const GenerateBatch = () => {
     return wells;
   };
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
+    if (!selectedPCRBatch || !pcrBatchData) {
+      setSnackbar({
+        open: true,
+        message: 'Please select a PCR batch first',
+        severity: 'warning'
+      });
+      return;
+    }
+
     setIsGenerating(true);
     try {
       const newBatchData = {};
       const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
       const cols = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0'));
-      const totalWells = parseInt(sampleCount) || 96;
-      let currentSampleNumber = 1;
 
-      // First, initialize all wells as blank
+      // Initialize all wells as empty
       for (let row of rows) {
         for (let col of cols) {
           const wellId = `${row}${col}`;
           newBatchData[wellId] = {
-            type: 'Blank',
-            label: row, // Use row letter as label for blanks
-            well: wellId
+            type: 'empty',
+            label: '',
+            well: wellId,
+            samples: []
           };
         }
       }
 
-      // Then fill samples if needed
-      if (totalWells > 0) {
-        // Start from column 1 and fill down
-        for (let col of cols) {
-          for (let row of rows) {
-            if (currentSampleNumber <= totalWells) {
-              const wellId = `${row}${col}`;
-              newBatchData[wellId] = {
-                type: 'Sample',
-                label: `S${currentSampleNumber}`,
-                well: wellId
-              };
-              currentSampleNumber++;
-            }
+      // Extract samples from PCR batch
+      const samples = [];
+      const plateLayout = pcrBatchData.plate_layout || {};
+      
+      // Extract sample IDs from PCR batch plate layout
+      const sampleIds = [];
+      Object.entries(plateLayout).forEach(([wellId, wellData]) => {
+        if (wellData.type === 'Sample' && wellData.sample_id) {
+          sampleIds.push(wellData.sample_id);
+        }
+      });
+      
+      // Fetch actual sample data
+      if (sampleIds.length > 0) {
+        const sampleResponse = await fetch(`${API_URL}/api/samples`);
+        const sampleData = await sampleResponse.json();
+        if (sampleData.success) {
+          const allSamples = sampleData.data || [];
+          const matchedSamples = allSamples.filter(sample => sampleIds.includes(sample.id));
+          samples.push(...matchedSamples);
+        }
+      }
+
+      // Fill samples starting from A01, going down columns
+      let sampleIndex = 0;
+      for (let col of cols) {
+        for (let row of rows) {
+          const wellId = `${row}${col}`;
+          if (sampleIndex < samples.length) {
+            const sample = samples[sampleIndex];
+            const displayLabel = sample.lab_number || sample.labNumber || sample.id || `Sample_${sampleIndex + 1}`;
+            
+            newBatchData[wellId] = {
+              type: 'sample',
+              label: displayLabel,
+              well: wellId,
+              samples: [sample]
+            };
+            sampleIndex++;
+          } else {
+            // Mark remaining wells as empty for control placement
+            newBatchData[wellId] = {
+              type: 'empty',
+              label: '',
+              well: wellId,
+              samples: []
+            };
           }
         }
       }
 
       setBatchData(newBatchData);
       setIsGenerating(false);
+      
+      // Reset control positions
+      setControlPositions({
+        allelicLadder: '',
+        positiveControl: '',
+        negativeControl: ''
+      });
+      
+      setSnackbar({
+        open: true,
+        message: `Loaded ${samples.length} samples from PCR batch ${selectedPCRBatch}. Select control positions below.`,
+        severity: 'success'
+      });
     } catch (error) {
-      console.error('Error generating batch:', error);
       setIsGenerating(false);
       setSnackbar({
         open: true,
@@ -480,7 +542,6 @@ const GenerateBatch = () => {
         severity: 'success'
       });
     } catch (error) {
-      console.error('Export error:', error);
       setSnackbar({
         open: true,
         message: 'Failed to export plate layout',
@@ -522,7 +583,6 @@ const GenerateBatch = () => {
         severity: 'success'
       });
     } catch (error) {
-      console.error('Template download error:', error);
       setSnackbar({
         open: true,
         message: 'Failed to download template',
@@ -1044,120 +1104,548 @@ const GenerateBatch = () => {
   };
 
   useEffect(() => {
-    handleGenerate();
+    loadAvailablePCRBatches();
   }, []);
 
+  useEffect(() => {
+    if (selectedPCRBatch) {
+      loadPCRBatchData();
+    }
+  }, [selectedPCRBatch]);
+
+  const loadAvailablePCRBatches = async () => {
+    try {
+      setLoadingBatches(true);
+      const response = await fetch(`${API_URL}/api/batches`);
+      if (response.ok) {
+        const data = await response.json();
+        const activeBatches = data.data?.filter(batch => batch.status === 'active') || [];
+        
+        // Also try filtering by LDS_ prefix instead of just status
+        const ldsBatches = data.data?.filter(batch => 
+          batch.batch_number?.startsWith('LDS_') && 
+          batch.status === 'active'
+        ) || [];
+        // Filter for PCR batches (exclude electrophoresis batches that start with ELEC_)
+        // Show all active batches as potential PCR batches
+        const pcrBatches = data.data?.filter(batch => 
+          batch.status === 'active' && !batch.batch_number?.startsWith('ELEC_')
+        ) || [];
+        setAvailablePCRBatches(pcrBatches);
+      }
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Error loading PCR batches',
+        severity: 'error'
+      });
+    } finally {
+      setLoadingBatches(false);
+    }
+  };
+
+  const loadPCRBatchData = async () => {
+    if (!selectedPCRBatch) return;
+    
+    try {
+      const batch = availablePCRBatches.find(b => b.batch_number === selectedPCRBatch);
+      if (batch) {
+        setPcrBatchData(batch);
+        // For demo purposes, simulate samples from the selected PCR batch
+        // In a real implementation, you would have actual sample references
+        let samples = [];
+        
+        try {
+          const sampleResponse = await fetch(`${API_URL}/api/samples`);
+          const sampleData = await sampleResponse.json();
+          if (sampleData.success) {
+            const allSamples = sampleData.data || [];
+            // Take a subset of available samples to simulate this PCR batch's samples
+            // This is a temporary solution until proper sample-batch relationships are implemented
+            const batchSampleCount = batch.total_samples || 20;
+            samples = allSamples.slice(0, Math.min(batchSampleCount, allSamples.length));
+          }
+        } catch (error) {
+          // Handle error silently - use empty samples array
+        }
+        
+        setSampleCount(samples.length.toString());
+        
+        // Generate electrophoresis batch number
+        const electroBatchNumber = selectedPCRBatch 
+          ? selectedPCRBatch.replace('BATCH_', 'ELEC_')
+          : 'ELEC_UNKNOWN';
+        setBatchNumber(electroBatchNumber);
+      }
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Error loading PCR batch data',
+        severity: 'error'
+      });
+    }
+  };
+
+  const handleControlPositionUpdate = (controlType, wellId) => {
+    setBatchData(prev => {
+      const newData = { ...prev };
+      
+      // Clear any previous control of this type
+      Object.keys(newData).forEach(well => {
+        if (newData[well].type === controlType) {
+          newData[well] = {
+            type: 'empty',
+            label: '',
+            well: well,
+            samples: []
+          };
+        }
+      });
+      
+      // Set the new control position
+      if (wellId && newData[wellId]) {
+        let controlLabel;
+        switch (controlType) {
+          case 'Allelic Ladder':
+            controlLabel = 'AL';
+            break;
+          case 'Positive Control':
+            controlLabel = 'PC';
+            break;
+          case 'Negative Control':
+            controlLabel = 'NC';
+            break;
+          default:
+            controlLabel = controlType.substring(0, 2).toUpperCase();
+        }
+        
+        newData[wellId] = {
+          type: controlType,
+          label: controlLabel,
+          well: wellId,
+          samples: []
+        };
+      }
+      
+      return newData;
+    });
+  };
+
+  // Drag and Drop handlers for controls
+  const handleControlDragStart = (e, controlType) => {
+    setDraggedControl(controlType);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', controlType);
+  };
+
+  const handleWellDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleWellDrop = (e, wellId) => {
+    e.preventDefault();
+    
+    if (!draggedControl) return;
+    
+    // Check if well is occupied by a sample
+    if (batchData[wellId] && batchData[wellId].type === 'sample') {
+      setSnackbar({
+        open: true,
+        message: 'Cannot place control on a well with samples. Use an empty well.',
+        severity: 'warning'
+      });
+      setDraggedControl(null);
+      return;
+    }
+    
+    // Place the control in the well
+    handleControlPositionUpdate(draggedControl, wellId);
+    
+    // Update the control position state for the dropdown
+    const controlKey = draggedControl === 'Allelic Ladder' ? 'allelicLadder' :
+                      draggedControl === 'Positive Control' ? 'positiveControl' : 'negativeControl';
+    setControlPositions(prev => ({ ...prev, [controlKey]: wellId }));
+    
+    setSnackbar({
+      open: true,
+      message: `${draggedControl} placed in well ${wellId}`,
+      severity: 'success'
+    });
+    
+    setDraggedControl(null);
+  };
+
+
+  const handleFinalizeBatch = async () => {
+    try {
+      const filledWells = Object.entries(batchData).filter(([_, well]) => well.samples && well.samples.length > 0);
+      
+      if (filledWells.length === 0) {
+        setSnackbar({
+          open: true,
+          message: 'No samples on plate to finalize',
+          severity: 'warning'
+        });
+        return;
+      }
+
+      // Prepare the batch data for saving (using existing database schema)
+      const electrophoresBatchData = {
+        batch_number: batchNumber,
+        operator: operator,
+        pcr_date: null,
+        electro_date: new Date().toISOString().split('T')[0], // Today's date
+        settings: '27cycles30minExt',
+        total_samples: filledWells.length,
+        plate_layout: batchData,
+        status: 'completed'
+      };
+
+      // Save the electrophoresis batch
+      const response = await fetch(`${API_URL}/api/save-batch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          batchNumber: batchNumber,
+          operator: operator,
+          wells: batchData,
+          template: 'electrophoresis',
+          date: new Date().toISOString().split('T')[0]
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save electrophoresis batch');
+      }
+
+      // Update sample statuses to "electro_batched"
+      const sampleIds = filledWells.flatMap(([_, well]) => 
+        well.samples.map(sample => sample.id || sample.sample_id)
+      ).filter(Boolean);
+
+      if (sampleIds.length > 0) {
+        const updateResponse = await fetch(`${API_URL}/api/samples/workflow-status`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sampleIds: sampleIds,
+            workflowStatus: 'electro_batched'
+          }),
+        });
+
+        if (!updateResponse.ok) {
+        }
+      }
+
+      setFinalizeDialog(false);
+      setSnackbar({
+        open: true,
+        message: `Electrophoresis batch ${batchNumber} finalized successfully! ${filledWells.length} samples updated.`,
+        severity: 'success'
+      });
+
+      // Clear the plate data
+      setBatchData({});
+      setSelectedPCRBatch('');
+      setBatchNumber('');
+      setSampleCount('');
+      setControlPositions({
+        allelicLadder: '',
+        positiveControl: '',
+        negativeControl: ''
+      });
+
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to finalize electrophoresis batch: ' + error.message,
+        severity: 'error'
+      });
+    }
+  };
+
   return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
-      <Paper elevation={2} sx={{ p: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-          <Typography variant="h5" sx={{ color: '#1e4976', fontWeight: 'bold' }}>
-            Generate Batch
+    <Box sx={{ maxWidth: 1400, mx: 'auto', p: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box>
+          <Typography variant="h4" sx={{ color: '#1e4976', fontWeight: 'bold' }}>
+            Electrophoresis Plate Layout
           </Typography>
-          <Box>
-            <Button
-              variant="contained"
-              onClick={() => exportToPlateFile(batchData, batchNumber)}
-              disabled={!batchData}
-              startIcon={<Download />}
-              sx={{ mr: 1 }}
-            >
-              Export Plate File
-            </Button>
-            <IconButton title="Print Layout" disabled={!batchData}>
-              <Print />
-            </IconButton>
-          </Box>
+          <Typography variant="h6" sx={{ color: '#1e4976', mt: 1 }}>
+            Batch: {batchNumber}
+          </Typography>
         </Box>
-
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <PreviewModeToggle />
-          <Box>
-            <Button
-              size="small"
-              onClick={() => setPreviewMode(!previewMode)}
-              startIcon={previewMode ? <ViewList /> : <ViewModule />}
-            >
-              {previewMode ? 'Show Details' : 'Show Preview'}
-            </Button>
-          </Box>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Button
+            variant="outlined"
+            startIcon={<Download />}
+            onClick={() => exportToPlateFile(batchData, batchNumber)}
+            disabled={!batchData || Object.values(batchData).filter(well => well.samples && well.samples.length > 0).length === 0}
+          >
+            Export Layout
+          </Button>
+          <Button
+            variant="contained"
+            color="success"
+            onClick={() => setFinalizeDialog(true)}
+            disabled={!batchData || Object.keys(batchData).length === 0 || Object.values(batchData).filter(well => well.samples && well.samples.length > 0).length === 0}
+            sx={{ ml: 1 }}
+          >
+            Finalize Batch
+          </Button>
         </Box>
+      </Box>
 
-        <TemplateSelector
-          selectedTemplate={selectedTemplate}
-          onTemplateChange={setSelectedTemplate}
-        />
 
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              label="Batch Number"
-              value={batchNumber}
-              onChange={(e) => setBatchNumber(e.target.value)}
-              error={!!validationErrors.batchNumber}
-              helperText={validationErrors.batchNumber || "Enter batch number"}
-              required
-            />
-          </Grid>
 
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              label="Operator"
-              value={operator}
-              onChange={(e) => setOperator(e.target.value)}
-              error={!!validationErrors.operator}
-              helperText={validationErrors.operator}
-              required
-            />
-          </Grid>
+      <Grid container spacing={3}>
+        {/* Sample Selection Panel */}
+        <Grid item xs={12} md={4}>
+          <Paper sx={{ p: 3, height: 'fit-content' }}>
+            <Typography variant="h6" sx={{ mb: 2, color: '#1e4976' }}>
+              Electrophoresis Setup
+            </Typography>
+            
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              <Grid item xs={12}>
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel>Select PCR Batch</InputLabel>
+                  <Select
+                    value={selectedPCRBatch}
+                    label="Select PCR Batch"
+                    onChange={(e) => setSelectedPCRBatch(e.target.value)}
+                    disabled={loadingBatches}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        '& fieldset': {
+                          borderColor: '#1e4976',
+                        },
+                        '&:hover fieldset': {
+                          borderColor: '#1e4976',
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: '#1e4976',
+                        },
+                      }
+                    }}
+                  >
+                    {availablePCRBatches.map((batch) => (
+                      <MenuItem key={batch.batch_number} value={batch.batch_number}>
+                        {batch.batch_number} - {batch.total_samples || 0} samples ({batch.operator}) - {batch.status}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
 
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              label="Number of Samples"
-              value={sampleCount}
-              onChange={(e) => {
-                const value = e.target.value;
-                if (value === '' || (/^\d+$/.test(value) && parseInt(value) <= 96)) {
-                  setSampleCount(value);
-                  setValidationErrors(prev => ({ ...prev, sampleCount: '' }));
-                }
-              }}
-              error={!!validationErrors.sampleCount}
-              helperText={validationErrors.sampleCount || 'Enter number of samples (max 96)'}
-              type="number"
-              inputProps={{ min: 1, max: 96 }}
-            />
-          </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Electrophoresis Batch Number"
+                  value={batchNumber}
+                  onChange={(e) => setBatchNumber(e.target.value)}
+                  error={!!validationErrors.batchNumber}
+                  helperText={validationErrors.batchNumber || "Auto-generated from PCR batch"}
+                  disabled
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': {
+                        borderColor: '#1e4976',
+                      },
+                      '&:hover fieldset': {
+                        borderColor: '#1e4976',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#1e4976',
+                      },
+                    }
+                  }}
+                />
+              </Grid>
 
-          <Grid item xs={12}>
-            <Button
-              variant="contained"
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              sx={{
-                bgcolor: '#1e4976',
-                '&:hover': {
-                  bgcolor: '#16365b'
-                }
-              }}
-            >
-              {isGenerating ? (
-                <CircularProgress size={24} color="inherit" />
-              ) : (
-                'Generate Plate Layout'
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Number of Samples"
+                  value={sampleCount}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === '' || (/^\d+$/.test(value) && parseInt(value) <= 96)) {
+                      setSampleCount(value);
+                      setValidationErrors(prev => ({ ...prev, sampleCount: '' }));
+                    }
+                  }}
+                  error={!!validationErrors.sampleCount}
+                  helperText={validationErrors.sampleCount || 'Enter number of samples (max 96)'}
+                  type="number"
+                  inputProps={{ min: 1, max: 96 }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': {
+                        borderColor: '#1e4976',
+                      },
+                      '&:hover fieldset': {
+                        borderColor: '#1e4976',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#1e4976',
+                      },
+                    }
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <Button
+                  variant="contained"
+                  onClick={handleGenerate}
+                  disabled={isGenerating || !selectedPCRBatch}
+                  fullWidth
+                  sx={{
+                    bgcolor: '#1e4976',
+                    '&:hover': {
+                      bgcolor: '#2c5a8e'
+                    }
+                  }}
+                >
+                  {isGenerating ? (
+                    <CircularProgress size={24} color="inherit" />
+                  ) : (
+                    'Load Samples from PCR Batch'
+                  )}
+                </Button>
+              </Grid>
+
+              {/* Control Position Selection */}
+              {Object.keys(batchData).length > 0 && (
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" sx={{ mt: 2, mb: 1, color: '#1e4976' }}>
+                    Control Positions:
+                  </Typography>
+                  <Stack spacing={2}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Allelic Ladder Position</InputLabel>
+                      <Select
+                        value={controlPositions.allelicLadder}
+                        onChange={(e) => {
+                          setControlPositions(prev => ({ ...prev, allelicLadder: e.target.value }));
+                          handleControlPositionUpdate('Allelic Ladder', e.target.value);
+                        }}
+                        label="Allelic Ladder Position"
+                      >
+                        {Object.keys(batchData).filter(wellId => batchData[wellId].type === 'empty').map(wellId => (
+                          <MenuItem key={wellId} value={wellId}>{wellId}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Positive Control Position</InputLabel>
+                      <Select
+                        value={controlPositions.positiveControl}
+                        onChange={(e) => {
+                          setControlPositions(prev => ({ ...prev, positiveControl: e.target.value }));
+                          handleControlPositionUpdate('Positive Control', e.target.value);
+                        }}
+                        label="Positive Control Position"
+                      >
+                        {Object.keys(batchData).filter(wellId => batchData[wellId].type === 'empty').map(wellId => (
+                          <MenuItem key={wellId} value={wellId}>{wellId}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Negative Control Position</InputLabel>
+                      <Select
+                        value={controlPositions.negativeControl}
+                        onChange={(e) => {
+                          setControlPositions(prev => ({ ...prev, negativeControl: e.target.value }));
+                          handleControlPositionUpdate('Negative Control', e.target.value);
+                        }}
+                        label="Negative Control Position"
+                      >
+                        {Object.keys(batchData).filter(wellId => batchData[wellId].type === 'empty').map(wellId => (
+                          <MenuItem key={wellId} value={wellId}>{wellId}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Stack>
+                </Grid>
               )}
-            </Button>
-          </Grid>
+
+              {/* Draggable Controls Palette */}
+              {Object.keys(batchData).length > 0 && (
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" sx={{ mt: 2, mb: 1, color: '#1e4976' }}>
+                    Drag Controls to Plate:
+                  </Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Chip
+                      label="Allelic Ladder"
+                      draggable
+                      onDragStart={(e) => handleControlDragStart(e, 'Allelic Ladder')}
+                      sx={{
+                        bgcolor: '#90caf9',
+                        color: '#000',
+                        cursor: 'grab',
+                        '&:active': { cursor: 'grabbing' },
+                        '&:hover': { opacity: 0.8, transform: 'scale(1.05)' }
+                      }}
+                      icon={<Science />}
+                    />
+                    <Chip
+                      label="Positive Control"
+                      draggable
+                      onDragStart={(e) => handleControlDragStart(e, 'Positive Control')}
+                      sx={{
+                        bgcolor: '#81c784',
+                        color: '#000',
+                        cursor: 'grab',
+                        '&:active': { cursor: 'grabbing' },
+                        '&:hover': { opacity: 0.8, transform: 'scale(1.05)' }
+                      }}
+                      icon={<Science />}
+                    />
+                    <Chip
+                      label="Negative Control"
+                      draggable
+                      onDragStart={(e) => handleControlDragStart(e, 'Negative Control')}
+                      sx={{
+                        bgcolor: '#ef5350',
+                        color: '#fff',
+                        cursor: 'grab',
+                        '&:active': { cursor: 'grabbing' },
+                        '&:hover': { opacity: 0.8, transform: 'scale(1.05)' }
+                      }}
+                      icon={<Science />}
+                    />
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    💡 Drag controls to empty wells on the plate, or click wells to remove controls
+                  </Typography>
+                </Grid>
+              )}
+            </Grid>
+
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+              Total Wells: {Object.keys(batchData).length}
+              <br />
+              Filled Wells: {Object.values(batchData).filter(well => well.samples && well.samples.length > 0).length}
+            </Typography>
+          </Paper>
         </Grid>
 
-        {/* Plate Layout */}
-        {Object.keys(batchData).length > 0 && (
-          <Paper elevation={2} sx={{ p: 4, mb: 4 }}>
-            <Typography variant="h6" gutterBottom>
-              Plate Layout
+        {/* 96-Well Plate */}
+        <Grid item xs={12} md={8}>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" sx={{ mb: 2, color: '#1e4976' }}>
+              96-Well Plate: {batchNumber}
             </Typography>
             
             {/* Well Type Selection - Moved to top */}
@@ -1199,7 +1687,7 @@ const GenerateBatch = () => {
                 variant="contained"
                 startIcon={<Save />}
                 onClick={handleExportPlate}
-                disabled={Object.keys(batchData).length === 0}
+                disabled={Object.values(batchData).filter(well => well.samples && well.samples.length > 0).length === 0}
               >
                 Export Plate Layout
               </Button>
@@ -1214,14 +1702,17 @@ const GenerateBatch = () => {
               <WellPlateVisualization
                 data={batchData}
                 onWellClick={handleWellClick}
+                onWellDragOver={handleWellDragOver}
+                onWellDrop={handleWellDrop}
                 selectedWells={[]}
               />
             </Box>
           </Paper>
-        )}
+        </Grid>
+      </Grid>
 
-        {/* Improved Batch Summary */}
-        {Object.keys(batchData).length > 0 && (
+      {/* Batch Summary */}
+      {Object.keys(batchData).length > 0 && (
           <Paper elevation={2} sx={{ p: 4, bgcolor: 'grey.50' }}>
             <Typography variant="h6" gutterBottom color="primary" sx={{ mb: 3 }}>
               Batch Summary
@@ -1254,7 +1745,7 @@ const GenerateBatch = () => {
                         Total Samples
                       </Typography>
                       <Typography variant="body1" fontWeight="medium">
-                        {Object.values(batchData).filter(well => well.type === 'Sample').length}
+                        {Object.values(batchData).filter(well => well.type === 'sample').length}
                       </Typography>
                     </Box>
                   </Stack>
@@ -1276,7 +1767,7 @@ const GenerateBatch = () => {
                           {Object.entries(batchData)
                             .filter(([_, well]) => well.type === type)
                             .map(([pos]) => pos)
-                            .join(', ') || 'None'}
+                            .join(', ') || 'Not selected'}
                         </Typography>
                       </Box>
                     ))}
@@ -1326,9 +1817,63 @@ const GenerateBatch = () => {
             {snackbar.message}
           </Alert>
         </Snackbar>
-      </Paper>
+
+      {/* Finalize Batch Dialog */}
+      <Dialog open={finalizeDialog} onClose={() => setFinalizeDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Finalize Electrophoresis Batch {batchNumber}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            Are you sure you want to finalize this electrophoresis batch? This action will:
+          </Typography>
+          <Stack spacing={1} sx={{ mb: 2 }}>
+            <Typography variant="body2">• Create electrophoresis batch {batchNumber} in the system</Typography>
+            <Typography variant="body2">• Save {Object.values(batchData).filter(well => well.type !== 'empty' && well.type !== 'Blank').length} sample positions</Typography>
+            <Typography variant="body2">• Generate export file for the analyzer</Typography>
+            <Typography variant="body2">• Clear the current plate layout</Typography>
+          </Stack>
+          <TextField
+            label="Operator Name"
+            value={operator}
+            onChange={(e) => setOperator(e.target.value)}
+            placeholder="Enter operator name"
+            variant="outlined"
+            fullWidth
+            sx={{ 
+              mb: 2,
+              '& .MuiOutlinedInput-root': {
+                '& fieldset': {
+                  borderColor: '#1e4976',
+                },
+                '&:hover fieldset': {
+                  borderColor: '#1e4976',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: '#1e4976',
+                },
+              }
+            }}
+          />
+          <Alert severity="info" sx={{ mt: 2 }}>
+            <Typography variant="body2">
+              <strong>Batch Number:</strong> {batchNumber}
+            </Typography>
+          </Alert>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setFinalizeDialog(false)}>Cancel</Button>
+          <Button 
+            onClick={handleFinalizeBatch} 
+            variant="contained" 
+            color="success"
+            autoFocus
+            disabled={!operator.trim()}
+          >
+            Finalize Batch
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
 
-export default GenerateBatch;
+export default ElectrophoresisPlate;

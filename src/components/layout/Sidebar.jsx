@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Drawer, 
@@ -10,8 +10,10 @@ import {
   Box,
   Typography,
   IconButton,
-  useTheme
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
+import { useThemeContext } from '../../contexts/ThemeContext';
 import {
   Home,
   PersonAdd,
@@ -25,14 +27,18 @@ import {
   Search,
   Description, // Added for Reports icon
   Assessment,
-  Group
+  Group,
+  Queue,
+  ElectricBolt
 } from '@mui/icons-material';
 import Logo from '../ui/Logo';
 
-const Sidebar = () => {
+const Sidebar = ({ mobileOpen, setMobileOpen }) => {
   const navigate = useNavigate();
-  const theme = useTheme();
+  const { isDarkMode } = useThemeContext();
   const location = useLocation();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const menuItems = [
     {
@@ -60,10 +66,28 @@ const Sidebar = () => {
       onClick: () => navigate('/pcr-plate')
     },
     { 
+      icon: <Visibility />, 
+      label: 'LDS PCR Batch',
+      hasSubMenu: false,
+      onClick: () => navigate('/pcr-batches')
+    },
+    { 
       icon: <Science />, 
-      label: 'Generate Batch',
+      label: 'Electrophoresis Plate',
       hasSubMenu: false,
       onClick: () => navigate('/generate-batch')
+    },
+    { 
+      icon: <ElectricBolt />, 
+      label: 'LDS Electrophoresis Batch',
+      hasSubMenu: false,
+      onClick: () => navigate('/electrophoresis-batches')
+    },
+    { 
+      icon: <Science />, 
+      label: 'Genetic Analysis',
+      hasSubMenu: false,
+      onClick: () => navigate('/genetic-analysis')
     },
     { 
       icon: <Science />, 
@@ -90,6 +114,12 @@ const Sidebar = () => {
       onClick: () => navigate('/sample-search')
     },
     { 
+      icon: <Queue />, 
+      label: 'Sample Queues',
+      hasSubMenu: false,
+      onClick: () => navigate('/sample-queues')
+    },
+    { 
       icon: <TableChart />, 
       label: 'Statistics',
       hasSubMenu: false,
@@ -103,33 +133,28 @@ const Sidebar = () => {
     }
   ];
 
-  return (
-    <Drawer
-      variant="permanent"
-      sx={{
-        width: 280,
-        flexShrink: 0,
-        '& .MuiDrawer-paper': {
-          width: 280,
-          boxSizing: 'border-box',
-          backgroundColor: theme.palette.mode === 'dark' ? '#121212' : '#1e4976',
-          color: 'white',
-          borderRight: 'none',
-          transition: 'background-color 0.3s ease',
-        },
-      }}
-    >
+  const handleDrawerToggle = () => {
+    if (setMobileOpen) {
+      setMobileOpen(!mobileOpen);
+    }
+  };
+
+  const drawerContent = (
+    <>
       <Box
         onClick={() => navigate('/')}
         sx={{
           p: 2,
+          py: 3,
           borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
+          minHeight: { xs: 80, md: 100 },
+          maxHeight: { xs: 100, md: 120 },
           '&:hover': {
-            backgroundColor: theme.palette.mode === 'dark' 
+            backgroundColor: isDarkMode 
               ? 'rgba(255, 255, 255, 0.05)' 
               : 'rgba(255, 255, 255, 0.08)',
           },
@@ -143,7 +168,7 @@ const Sidebar = () => {
           sx={{
             display: 'flex',
             alignItems: 'center',
-            backgroundColor: theme.palette.mode === 'dark' 
+            backgroundColor: isDarkMode 
               ? 'rgba(255, 255, 255, 0.05)' 
               : 'rgba(255, 255, 255, 0.1)',
             borderRadius: 1,
@@ -178,8 +203,13 @@ const Sidebar = () => {
             }}
           >
             <ListItemButton
-              onClick={item.onClick}
-              selected={location.pathname === item.onClick.toString().match(/['"]([^'"]*)['"]/)[1]}
+              onClick={() => {
+                item.onClick();
+                if (isMobile && setMobileOpen) {
+                  setMobileOpen(false);
+                }
+              }}
+              selected={false}
               sx={{
                 minHeight: 48,
                 px: 2.5,
@@ -190,7 +220,7 @@ const Sidebar = () => {
                   },
                 },
                 '&:hover': {
-                  backgroundColor: theme.palette.mode === 'dark' 
+                  backgroundColor: isDarkMode 
                     ? 'rgba(255, 255, 255, 0.05)' 
                     : 'rgba(255, 255, 255, 0.08)',
                 },
@@ -226,7 +256,58 @@ const Sidebar = () => {
           </ListItem>
         ))}
       </List>
-    </Drawer>
+    </>
+  );
+
+  return (
+    <Box
+      component="nav"
+      sx={{ 
+        width: { md: 220 }, 
+        flexShrink: { md: 0 } 
+      }}
+    >
+      {/* Mobile drawer */}
+      <Drawer
+        variant="temporary"
+        open={mobileOpen}
+        onClose={handleDrawerToggle}
+        ModalProps={{
+          keepMounted: true, // Better open performance on mobile
+        }}
+        sx={{
+          display: { xs: 'block', md: 'none' },
+          '& .MuiDrawer-paper': {
+            boxSizing: 'border-box',
+            width: 280,
+            backgroundColor: isDarkMode ? '#022539' : '#0D488F',
+            color: 'white',
+            borderRight: 'none',
+            transition: 'background-color 0.3s ease',
+          },
+        }}
+      >
+        {drawerContent}
+      </Drawer>
+      
+      {/* Desktop drawer */}
+      <Drawer
+        variant="permanent"
+        sx={{
+          display: { xs: 'none', md: 'block' },
+          '& .MuiDrawer-paper': {
+            boxSizing: 'border-box',
+            width: 220,
+            backgroundColor: isDarkMode ? '#022539' : '#0D488F',
+            color: 'white',
+            borderRight: 'none',
+            transition: 'background-color 0.3s ease',
+          },
+        }}
+      >
+        {drawerContent}
+      </Drawer>
+    </Box>
   );
 };
 

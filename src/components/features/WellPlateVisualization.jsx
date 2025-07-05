@@ -1,36 +1,51 @@
 import React from 'react';
-import { Box, Grid, Typography } from '@mui/material';
+import { Box, Grid, Typography, useTheme, useMediaQuery } from '@mui/material';
 
-const WellPlateVisualization = ({ data, onWellClick, selectedWells }) => {
+const WellPlateVisualization = ({ data, onWellClick, onWellDragOver, onWellDrop, selectedWells }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  
   const cols = Array.from({ length: 12 }, (_, i) => i + 1);
   const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  
+  // Responsive well sizing
+  const wellSize = isSmallMobile ? 25 : isMobile ? 30 : 40;
+  const fontSize = isSmallMobile ? '0.6rem' : isMobile ? '0.7rem' : '0.8rem';
+  const spacing = isSmallMobile ? 0.25 : isMobile ? 0.3 : 0.5;
 
   const getWellColor = (wellId) => {
-    if (selectedWells?.includes(wellId)) return '#1e4976';
+    if (selectedWells?.includes(wellId)) return '#0D488F';
     switch (data?.[wellId]?.type) {
       case 'Allelic Ladder': return '#90caf9';
       case 'Positive Control': return '#81c784';
       case 'Negative Control': return '#ef5350';
-      case 'Sample': return '#ffb74d';
+      case 'Sample':
+      case 'sample': return '#ffb74d';
       default: return '#ffffff';
     }
   };
 
   const wellStyles = {
-    width: '40px',
-    height: '40px',
+    width: `${wellSize}px`,
+    height: `${wellSize}px`,
     border: '1px solid #000',
     borderRadius: '50%',
-    margin: '2px',
+    margin: `${spacing * 4}px`,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     cursor: 'pointer',
-    fontSize: '0.8rem',
+    fontSize: fontSize,
     transition: 'all 0.2s',
+    minWidth: '24px', // Ensure minimum touch target
+    minHeight: '24px',
     '&:hover': {
-      transform: 'scale(1.1)',
+      transform: isMobile ? 'none' : 'scale(1.1)', // Disable hover effects on mobile
       boxShadow: 1
+    },
+    '&:active': {
+      transform: 'scale(0.95)', // Touch feedback
     }
   };
 
@@ -38,26 +53,28 @@ const WellPlateVisualization = ({ data, onWellClick, selectedWells }) => {
     <Box sx={{ 
       border: '2px solid #000',
       borderRadius: 2,
-      p: 4,
+      p: { xs: 1, sm: 2, md: 4 }, // Responsive padding
       bgcolor: '#ffffff',
       width: '100%',
       maxWidth: '1200px',
-      mx: 'auto'
+      mx: 'auto',
+      overflowX: 'auto', // Allow horizontal scrolling on very small screens
+      minWidth: isSmallMobile ? '350px' : 'auto'
     }}>
       {/* Title */}
       <Typography variant="h6" align="center" sx={{ mb: 3 }}>
         96 Well Plate Map
       </Typography>
 
-      <Grid container spacing={0.5}>
+      <Grid container spacing={spacing}>
         {/* Column Numbers */}
         <Grid item xs={0.8}></Grid>
         {cols.map(col => (
           <Grid item xs={0.9} key={col}>
             <Typography align="center" sx={{ 
               fontWeight: 'bold',
-              fontSize: '0.9rem',
-              mb: 1
+              fontSize: { xs: '0.7rem', sm: '0.8rem', md: '0.9rem' },
+              mb: { xs: 0.5, md: 1 }
             }}>
               {col}
             </Typography>
@@ -71,9 +88,9 @@ const WellPlateVisualization = ({ data, onWellClick, selectedWells }) => {
             <Grid item xs={0.8}>
               <Typography sx={{ 
                 fontWeight: 'bold',
-                fontSize: '0.9rem',
+                fontSize: { xs: '0.7rem', sm: '0.8rem', md: '0.9rem' },
                 textAlign: 'center',
-                lineHeight: '40px'
+                lineHeight: `${wellSize}px`
               }}>
                 {row}
               </Typography>
@@ -85,6 +102,8 @@ const WellPlateVisualization = ({ data, onWellClick, selectedWells }) => {
                 <Grid item xs={0.9} key={wellId}>
                   <Box
                     onClick={() => onWellClick?.(wellId)}
+                    onDragOver={onWellDragOver}
+                    onDrop={(e) => onWellDrop?.(e, wellId)}
                     sx={{ ...wellStyles, bgcolor: getWellColor(wellId) }}
                   >
                     {data?.[wellId]?.label || ''}

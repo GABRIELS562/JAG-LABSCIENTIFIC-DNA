@@ -27,6 +27,14 @@ CREATE TABLE IF NOT EXISTS test_cases (
     phone_contact TEXT,
     address_area TEXT,
     comments TEXT,
+    test_purpose TEXT CHECK (test_purpose IN ('peace_of_mind', 'legal_proceedings', 'immigration', 'inheritance', 'custody', 'other')),
+    sample_type TEXT CHECK (sample_type IN ('buccal_swab', 'blood', 'saliva', 'other')),
+    authorized_collector TEXT,
+    consent_type TEXT CHECK (consent_type IN ('paternity', 'legal')),
+    has_signatures TEXT CHECK (has_signatures IN ('YES', 'NO')),
+    has_witness TEXT CHECK (has_witness IN ('YES', 'NO')),
+    witness_name TEXT,
+    legal_declarations TEXT, -- JSON string
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'cancelled')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -61,6 +69,7 @@ CREATE TABLE IF NOT EXISTS samples (
     report_number TEXT,
     report_sent BOOLEAN DEFAULT FALSE,
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed')),
+    workflow_status TEXT DEFAULT 'sample_collected' CHECK (workflow_status IN ('sample_collected', 'pcr_ready', 'pcr_batched', 'pcr_completed', 'electro_ready', 'electro_batched', 'electro_completed', 'analysis_ready', 'analysis_completed', 'report_ready', 'report_sent')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (case_id) REFERENCES test_cases(id) ON DELETE CASCADE,
@@ -82,7 +91,36 @@ CREATE TABLE IF NOT EXISTS batches (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- 5. Well Assignments Table (96-well plate layout details)
+-- 5. Signatures Table (Digital signatures for legal compliance)
+CREATE TABLE IF NOT EXISTS signatures (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_id INTEGER NOT NULL,
+    person_type TEXT NOT NULL CHECK (person_type IN ('mother', 'father', 'child', 'witness')),
+    signature_data TEXT, -- Base64 encoded signature image
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ip_address TEXT,
+    device_info TEXT,
+    FOREIGN KEY (case_id) REFERENCES test_cases(id) ON DELETE CASCADE
+);
+
+-- 6. Witness Information Table (Legal witness details)
+CREATE TABLE IF NOT EXISTS witnesses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    id_number TEXT,
+    id_type TEXT CHECK (id_type IN ('passport', 'nationalId', 'driversLicense')),
+    contact_number TEXT,
+    address TEXT,
+    relationship TEXT,
+    witness_date DATE,
+    signature_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (case_id) REFERENCES test_cases(id) ON DELETE CASCADE,
+    FOREIGN KEY (signature_id) REFERENCES signatures(id) ON DELETE SET NULL
+);
+
+-- 7. Well Assignments Table (96-well plate layout details)
 CREATE TABLE IF NOT EXISTS well_assignments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     batch_id INTEGER NOT NULL,
@@ -145,6 +183,7 @@ CREATE INDEX IF NOT EXISTS idx_samples_surname ON samples(surname);
 CREATE INDEX IF NOT EXISTS idx_samples_case_id ON samples(case_id);
 CREATE INDEX IF NOT EXISTS idx_samples_status ON samples(status);
 CREATE INDEX IF NOT EXISTS idx_samples_collection_date ON samples(collection_date);
+CREATE INDEX IF NOT EXISTS idx_samples_workflow_status ON samples(workflow_status);
 
 CREATE INDEX IF NOT EXISTS idx_test_cases_case_number ON test_cases(case_number);
 CREATE INDEX IF NOT EXISTS idx_test_cases_status ON test_cases(status);

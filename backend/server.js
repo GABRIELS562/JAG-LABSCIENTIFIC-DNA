@@ -6,6 +6,7 @@ const dotenv = require("dotenv");
 const apiRoutes = require("./routes/api");
 const authRoutes = require("./routes/auth");
 const dbViewerRoutes = require("./routes/database-viewer");
+const geneticAnalysisRoutes = require("./routes/genetic-analysis");
 
 // Load environment variables from root
 const envPath = path.resolve(__dirname, "../.env");
@@ -21,6 +22,7 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api", apiRoutes);
 app.use("/api/db", dbViewerRoutes);
+app.use("/api/genetic-analysis", geneticAnalysisRoutes);
 
 // Test endpoint
 app.get("/test", (req, res) => {
@@ -31,14 +33,13 @@ const port = process.env.PORT || 3001;
 
 const server = app
   .listen(port, () => {
-    console.log(`Server running on port: ${port}`);
-    console.log(`Environment: ${process.env.NODE_ENV}`);
+    // Server started successfully
   })
   .on("error", (err) => {
     if (err.code === "EADDRINUSE") {
-      console.log(`Port ${port} is busy. Trying ${port + 1}`);
       server.listen(port + 1);
     } else {
-      console.error("Server error:", err);
+      // Server error occurred
+      process.exit(1);
     }
   });

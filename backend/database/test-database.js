@@ -18,7 +18,7 @@ async function testDatabaseOperations() {
     console.log('📋 Test 2: Create Test Case');
     const testCaseData = {
       case_number: caseNum,
-      ref_kit_number: 'KIT123456',
+      ref_kit_number: 'BN123456',
       submission_date: '2024-06-28',
       client_type: 'paternity',
       mother_present: 'YES',

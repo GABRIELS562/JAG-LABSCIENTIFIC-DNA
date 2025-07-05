@@ -40,3 +40,67 @@ yarn-error.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# Production specific ignores
+*.db
+*.db-*
+*.sqlite*
+
+# Large data files and external software (moved to organized directories)
+/data/samples/
+/data/test_data/
+/external/
+/workspace/
+/uploads/
+/reports/
+backend/uploads/
+backend/reports/
+backend/TestAnalysis.tar.gz
+backend/NIST_STR_samples.html
+
+# Development tools and scripts
+scripts/development/
+docs/development/
+
+# Temporary files
+tmp/
+temp/
+.cache/
+
+# Electron build artifacts
+*.tgz
+*.tar.gz
+electron-dist/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env.test
+.env.production
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Config files with sensitive data
+config/credentials.json
+config/environments/production.json

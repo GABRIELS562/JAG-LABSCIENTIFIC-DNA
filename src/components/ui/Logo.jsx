@@ -1,20 +1,24 @@
 import { Box } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
-import logoImage from '../../assets/logo.png';
+import { useThemeContext } from '../../contexts/ThemeContext';
 
 const Logo = ({ sx = {} }) => {
-  const theme = useTheme();
+  const { isDarkMode } = useThemeContext();
+  
+  // Use different logo based on theme mode
+  const logoSrc = isDarkMode 
+    ? '/labdna-logo-dark.png'  // White text on dark background
+    : '/labdna-logo-light.png'; // Black text on light background
   
   return (
     <Box
       component="img"
-      src={logoImage}
+      src={logoSrc}
       alt="LABDNA Scientific"
       sx={{
-        width: '90%',
-        maxWidth: 200,
-        height: 'auto',
-        filter: theme.palette.mode === 'dark' ? 'brightness(1)' : 'none',
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        transition: 'opacity 0.3s ease',
         ...sx
       }}
     />

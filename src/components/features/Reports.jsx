@@ -25,7 +25,6 @@ export default function Reports() {
       }
     } catch (error) {
       setError('Error loading reports');
-      console.error('Error loading reports:', error);
     } finally {
       setLoading(false);
     }

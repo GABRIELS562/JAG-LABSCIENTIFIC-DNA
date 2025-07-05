@@ -1,11 +1,9 @@
 const db = require('../services/database');
 
 async function seedDatabase() {
-  console.log('🌱 Seeding database with comprehensive dummy data...\n');
 
   try {
     // Clear existing data first
-    console.log('🧹 Clearing existing data...');
     db.db.exec(`
       DELETE FROM reports;
       DELETE FROM quality_control;
@@ -15,7 +13,6 @@ async function seedDatabase() {
       DELETE FROM test_cases;
       DELETE FROM equipment;
     `);
-    console.log('✅ Existing data cleared\n');
     // Generate multiple test cases
     const testCases = [];
     const samples = [];
@@ -32,7 +29,7 @@ async function seedDatabase() {
       
       const testCaseData = {
         case_number: caseNumber,
-        ref_kit_number: `KIT2024${i.toString().padStart(3, '0')}`,
+        ref_kit_number: `BN2024${i.toString().padStart(3, '0')}`,
         submission_date: new Date(2024, Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1).toISOString().split('T')[0],
         client_type: i <= 30 ? 'paternity' : i <= 45 ? 'lt' : 'urgent',
         mother_present: Math.random() > 0.5 ? 'YES' : 'NO',
@@ -160,8 +157,6 @@ async function seedDatabase() {
       }
     }
 
-    console.log(`✅ Created ${testCases.length} test cases`);
-    console.log(`✅ Created ${samples.length} samples`);
 
     // Create 5 batches with different operators and dates
     const operators = ['Dr. Smith', 'Dr. Johnson', 'Lab Tech A', 'Lab Tech B', 'Supervisor'];
@@ -245,9 +240,6 @@ async function seedDatabase() {
       }
     }
 
-    console.log(`✅ Created ${batches.length} batches`);
-    console.log(`✅ Created ${wellAssignments.length} well assignments`);
-    console.log(`✅ Created ${qcRecords.length} QC records`);
 
     // Create additional equipment records
     const additionalEquipment = [
@@ -266,11 +258,9 @@ async function seedDatabase() {
           VALUES (?, ?, ?, ?, ?)
         `).run(eq.equipment_id, eq.type, eq.last_calibration, eq.next_calibration, eq.status);
       } catch (error) {
-        console.warn(`Equipment ${eq.equipment_id} already exists`);
       }
     });
 
-    console.log(`✅ Added additional equipment records`);
 
     // Create some reports
     const reportTypes = ['Batch Report', 'QC Summary', 'Paternity Report', 'Sample Report'];
@@ -290,17 +280,7 @@ async function seedDatabase() {
       db.createReport(reportData);
     }
 
-    console.log(`✅ Created 8 report records`);
 
-    console.log('\n🎉 Database seeding completed successfully!');
-    console.log('\n📊 Summary:');
-    console.log(`   • ${testCases.length} Test Cases`);
-    console.log(`   • ${samples.length} Samples`);
-    console.log(`   • ${batches.length} Batches`);
-    console.log(`   • ${wellAssignments.length} Well Assignments`);
-    console.log(`   • ${qcRecords.length} QC Records`);
-    console.log(`   • ${additionalEquipment.length} Additional Equipment Items`);
-    console.log(`   • 8 Report Records`);
 
     return {
       testCases: testCases.length,
@@ -313,7 +293,6 @@ async function seedDatabase() {
     };
 
   } catch (error) {
-    console.error('❌ Error seeding database:', error);
     throw error;
   }
 }
@@ -322,11 +301,9 @@ async function seedDatabase() {
 if (require.main === module) {
   seedDatabase()
     .then((summary) => {
-      console.log('\n✅ Seeding completed successfully!');
       process.exit(0);
     })
     .catch((error) => {
-      console.error('\n❌ Seeding failed:', error);
       process.exit(1);
     });
 }

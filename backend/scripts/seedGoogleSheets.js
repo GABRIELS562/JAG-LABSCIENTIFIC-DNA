@@ -43,7 +43,7 @@ async function seedGoogleSheets() {
       sample.email,                         // Email contact
       sample.address,                       // Address Area
       sample.phone_number,                  // Phone contact
-      sample.kit_batch_number || '',       // Kit BN_
+      sample.kit_batch_number || '',       // Kit BN
       sample.lab_batch_number || '',       // Lab Batch No.
       sample.report_number || '',          // Report No.
       sample.report_sent || 'NO',          // Report Sent

@@ -27,7 +27,6 @@ import {
 import {
   DragIndicator,
   Clear,
-  Save,
   Download,
   Science,
   Group,
@@ -41,8 +40,7 @@ const PCRPlate = () => {
   const [plateData, setPlateData] = useState({});
   const [draggedItem, setDraggedItem] = useState(null);
   const [batchNumber, setBatchNumber] = useState('');
-  const [operator, setOperator] = useState('Lab Technician');
-  const [saveDialog, setSaveDialog] = useState(false);
+  const [operator, setOperator] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [finalizeDialog, setFinalizeDialog] = useState(false);
   const [controlsToAdd, setControlsToAdd] = useState({
@@ -91,7 +89,6 @@ const PCRPlate = () => {
         setBatchNumber(`LDS_${timestamp}`);
       }
     } catch (error) {
-      console.error('Error generating batch number:', error);
       // Fallback to timestamp
       const timestamp = Date.now().toString().slice(-4);
       setBatchNumber(`LDS_${timestamp}`);
@@ -172,37 +169,123 @@ const PCRPlate = () => {
       return;
     }
     
-    // If it's a group (case), check if there are enough consecutive wells vertically
+    // If it's a group (case), find consecutive wells automatically
     if (draggedItem.samples && Array.isArray(draggedItem.samples)) {
       const samplesCount = draggedItem.samples.length;
-      const startRow = wellId[0];
-      const col = wellId.slice(1);
       const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-      const startRowIndex = rows.indexOf(startRow);
+      const cols = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
       
-      // Check if we have enough consecutive wells vertically (down the column)
-      let availableWells = [];
-      for (let i = 0; i < samplesCount; i++) {
-        const rowIndex = startRowIndex + i;
-        if (rowIndex >= rows.length) {
-          setSnackbar({
-            open: true,
-            message: `Not enough consecutive wells in column ${col} for ${samplesCount} samples.`,
-            severity: 'error'
-          });
-          return;
+      // Function to find available wells in a column, including partial fills
+      const findAvailableWellsInColumn = (col) => {
+        const availableWells = [];
+        
+        for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+          const checkWellId = `${rows[rowIndex]}${col}`;
+          if (plateData[checkWellId].samples.length === 0) {
+            availableWells.push(checkWellId);
+          }
+        }
+        return availableWells;
+      };
+      
+      // Function to find the best placement strategy for samples
+      const findBestPlacement = (startCol, startRow = 'A') => {
+        const allWells = [];
+        const colIndex = cols.indexOf(startCol);
+        
+        // First, try to get consecutive wells from the requested position
+        const startRowIndex = rows.indexOf(startRow);
+        let consecutiveWells = [];
+        
+        for (let i = 0; i < samplesCount; i++) {
+          const rowIndex = startRowIndex + i;
+          if (rowIndex >= rows.length) break;
+          
+          const checkWellId = `${rows[rowIndex]}${startCol}`;
+          if (plateData[checkWellId].samples.length === 0) {
+            consecutiveWells.push(checkWellId);
+          } else {
+            break; // Stop at first occupied well
+          }
         }
         
-        const checkWellId = `${rows[rowIndex]}${col}`;
-        if (plateData[checkWellId].samples.length > 0) {
+        // If we got all samples in one column, return them
+        if (consecutiveWells.length === samplesCount) {
+          return consecutiveWells;
+        }
+        
+        // Otherwise, use a smart filling strategy
+        let remainingSamples = samplesCount;
+        let currentColIndex = colIndex;
+        
+        // Fill available wells in the starting column first, but only from the starting row
+        const startColWells = findAvailableWellsInColumn(startCol);
+        // Filter to only include wells from the starting row onwards
+        const requestedRowIndex = rows.indexOf(startRow);
+        const availableFromStartRow = startColWells.filter(wellId => {
+          const wellRowIndex = rows.indexOf(wellId[0]);
+          return wellRowIndex >= requestedRowIndex;
+        });
+        
+        const startColCount = Math.min(availableFromStartRow.length, remainingSamples);
+        allWells.push(...availableFromStartRow.slice(0, startColCount));
+        remainingSamples -= startColCount;
+        
+        // Continue filling in subsequent columns starting from the top (A row)
+        while (remainingSamples > 0 && currentColIndex < cols.length - 1) {
+          currentColIndex++;
+          const currentCol = cols[currentColIndex];
+          const availableInCol = findAvailableWellsInColumn(currentCol);
+          const neededFromCol = Math.min(availableInCol.length, remainingSamples);
+          
+          // Always start from top of new columns (A row)
+          allWells.push(...availableInCol.slice(0, neededFromCol));
+          remainingSamples -= neededFromCol;
+        }
+        
+        // If still need more wells, search backwards
+        currentColIndex = colIndex;
+        while (remainingSamples > 0 && currentColIndex > 0) {
+          currentColIndex--;
+          const currentCol = cols[currentColIndex];
+          const availableInCol = findAvailableWellsInColumn(currentCol);
+          const neededFromCol = Math.min(availableInCol.length, remainingSamples);
+          
+          // Insert at beginning to maintain order
+          allWells.unshift(...availableInCol.slice(0, neededFromCol));
+          remainingSamples -= neededFromCol;
+        }
+        
+        return allWells.length === samplesCount ? allWells : null;
+      };
+      
+      // Try to place samples using smart placement strategy
+      const requestedCol = wellId.slice(1);
+      const requestedRow = wellId[0];
+      
+      // Use the smart placement function
+      const availableWells = findBestPlacement(requestedCol, requestedRow);
+      
+      if (availableWells) {
+        // Check if samples span multiple columns and inform user
+        const usedColumns = [...new Set(availableWells.map(well => well.slice(1)))];
+        if (usedColumns.length > 1) {
           setSnackbar({
             open: true,
-            message: `Well ${checkWellId} is already occupied.`,
-            severity: 'error'
+            message: `Samples placed across columns ${usedColumns.join(', ')} (filling around existing wells)`,
+            severity: 'info'
           });
-          return;
         }
-        availableWells.push(checkWellId);
+      }
+      
+      // If still no space found, show error
+      if (!availableWells) {
+        setSnackbar({
+          open: true,
+          message: `No space available for ${samplesCount} consecutive samples. Please clear some wells.`,
+          severity: 'error'
+        });
+        return;
       }
       
       // Sort samples by relation (child first, then father, then mother)
@@ -378,10 +461,22 @@ const PCRPlate = () => {
       });
     });
 
-    // Fill samples vertically (A1, B1, C1, D1, E1, F1, G1, H1, then A2, B2, C2, D2, ...)
+    // Smart fill: Fill available wells efficiently, working around existing controls
     let sampleIndex = 0;
     
-    // Fill column by column, row by row within each column
+    // First, identify any existing controls to preserve them
+    const existingControls = {};
+    rows.forEach(row => {
+      cols.forEach(col => {
+        const wellId = `${row}${col}`;
+        if (plateData[wellId] && plateData[wellId].samples.length > 0) {
+          existingControls[wellId] = plateData[wellId];
+          newPlateData[wellId] = plateData[wellId]; // Preserve existing controls
+        }
+      });
+    });
+    
+    // Fill column by column, row by row within each column, skipping occupied wells
     for (let colIndex = 0; colIndex < cols.length && sampleIndex < selectedSamples.length; colIndex++) {
       const col = cols[colIndex];
       
@@ -390,6 +485,10 @@ const PCRPlate = () => {
         const row = rows[rowIndex];
         const wellId = `${row}${col}`;
         
+        // Skip if well is already occupied by a control
+        if (existingControls[wellId]) {
+          continue;
+        }
         
         newPlateData[wellId] = {
           id: wellId,
@@ -494,39 +593,6 @@ const PCRPlate = () => {
     }, 0);
   };
 
-  const handleSavePlate = async () => {
-    try {
-      const plateLayout = {
-        batchNumber,
-        operator,
-        plateName: 'pcr batch',
-        wells: Object.entries(plateData)
-          .filter(([_, well]) => well.samples.length > 0)
-          .map(([wellId, well]) => ({
-            wellId,
-            samples: well.samples.map(s => s.id),
-            type: well.type
-          }))
-      };
-      
-      // Here you would normally save to your API
-      console.log('Saving plate layout:', plateLayout);
-      
-      setSnackbar({
-        open: true,
-        message: 'Plate layout saved successfully',
-        severity: 'success'
-      });
-      
-      setSaveDialog(false);
-    } catch (error) {
-      setSnackbar({
-        open: true,
-        message: 'Error saving plate layout',
-        severity: 'error'
-      });
-    }
-  };
 
   const handleFinalizeBatch = async () => {
     try {
@@ -541,40 +607,68 @@ const PCRPlate = () => {
         return;
       }
 
+      // Transform plateData to the format expected by the backend
+      const transformedWells = {};
+      Object.entries(plateData).forEach(([wellId, wellData]) => {
+        if (wellData.samples && wellData.samples.length > 0) {
+          const sample = wellData.samples[0]; // Get first sample in well
+          transformedWells[wellId] = {
+            type: wellData.type,
+            samples: wellData.samples,
+            sample_id: sample.id || null,
+            sampleName: sample.lab_number || sample.name || `Sample_${wellId}`,
+            label: sample.lab_number || `Sample_${wellId}`,
+            kit_number: sample.kit_number || `KIT_${wellId}`,
+            comment: `PCR Batch ${batchNumber} - ${wellData.type}`
+          };
+        }
+      });
+
       const batchData = {
         batchNumber,
         operator,
-        wells: plateData,
+        wells: transformedWells,
         sampleCount: getPlacedSamplesCount(),
         date: new Date().toISOString().split('T')[0]
       };
 
       // Call the API to generate the batch
+      const authToken = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      
+      // Only add Authorization header if token exists
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+      
       const response = await fetch(`${API_URL}/api/generate-batch`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token')}`
-        },
+        headers: headers,
         body: JSON.stringify(batchData)
       });
 
       if (response.ok) {
         const result = await response.json();
         
-        setSnackbar({
-          open: true,
-          message: `Batch ${batchNumber} finalized successfully!`,
-          severity: 'success'
-        });
-        
         // Clear the selected samples from sessionStorage
         sessionStorage.removeItem('selectedSamplesForBatch');
+        
+        // Reset the plate and sample state for next batch
+        setSelectedSamples([]);
+        initializePlate();
         
         // Generate new batch number for next use
         await generateBatchNumber();
         
         setFinalizeDialog(false);
+        
+        setSnackbar({
+          open: true,
+          message: `Batch ${batchNumber} finalized! Plate cleared and ready for next batch.`,
+          severity: 'success'
+        });
       } else {
         const error = await response.json();
         setSnackbar({
@@ -584,7 +678,6 @@ const PCRPlate = () => {
         });
       }
     } catch (error) {
-      console.error('Finalize batch error:', error);
       setSnackbar({
         open: true,
         message: 'Error finalizing batch - check connection',
@@ -644,10 +737,15 @@ const PCRPlate = () => {
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto', p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" sx={{ color: '#1e4976', fontWeight: 'bold' }}>
-          PCR Plate Layout
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+        <Box>
+          <Typography variant="h4" sx={{ color: '#1e4976', fontWeight: 'bold' }}>
+            PCR Plate Layout
+          </Typography>
+          <Typography variant="h6" sx={{ color: '#1e4976', mt: 1 }}>
+            Batch: {batchNumber}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
           <Button
             variant="contained"
             color="primary"
@@ -670,15 +768,6 @@ const PCRPlate = () => {
             disabled={getPlacedSamplesCount() === 0}
           >
             Export Layout
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<Save />}
-            onClick={() => setSaveDialog(true)}
-            sx={{ bgcolor: '#1e4976' }}
-            disabled={getPlacedSamplesCount() === 0}
-          >
-            Save Plate
           </Button>
           <Button
             variant="contained"
@@ -996,33 +1085,6 @@ const PCRPlate = () => {
         </Grid>
       </Grid>
 
-      {/* Save Dialog */}
-      <Dialog open={saveDialog} onClose={() => setSaveDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Save PCR Plate Layout</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            label="Batch Number"
-            value={batchNumber}
-            onChange={(e) => setBatchNumber(e.target.value)}
-            sx={{ mb: 2, mt: 1 }}
-          />
-          <TextField
-            fullWidth
-            label="Operator"
-            value={operator}
-            onChange={(e) => setOperator(e.target.value)}
-            sx={{ mb: 2 }}
-          />
-          <Typography variant="body2" color="text.secondary">
-            This will save the plate layout with {getPlacedSamplesCount()} samples positioned on the plate.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSaveDialog(false)}>Cancel</Button>
-          <Button onClick={handleSavePlate} variant="contained">Save</Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Finalize Batch Dialog */}
       <Dialog open={finalizeDialog} onClose={() => setFinalizeDialog(false)} maxWidth="sm" fullWidth>
@@ -1037,9 +1099,31 @@ const PCRPlate = () => {
             <Typography variant="body2">• Generate export file for the sequencer</Typography>
             <Typography variant="body2">• Clear the current plate layout</Typography>
           </Stack>
+          <TextField
+            label="Operator Name"
+            value={operator}
+            onChange={(e) => setOperator(e.target.value)}
+            placeholder="Enter operator name"
+            variant="outlined"
+            fullWidth
+            sx={{ 
+              mb: 2,
+              '& .MuiOutlinedInput-root': {
+                '& fieldset': {
+                  borderColor: '#1e4976',
+                },
+                '&:hover fieldset': {
+                  borderColor: '#1e4976',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: '#1e4976',
+                },
+              }
+            }}
+          />
           <Alert severity="info" sx={{ mt: 2 }}>
             <Typography variant="body2">
-              Operator: {operator}
+              <strong>Batch Number:</strong> {batchNumber}
             </Typography>
           </Alert>
         </DialogContent>
@@ -1050,6 +1134,7 @@ const PCRPlate = () => {
             variant="contained" 
             color="success"
             autoFocus
+            disabled={!operator.trim()}
           >
             Finalize Batch
           </Button>

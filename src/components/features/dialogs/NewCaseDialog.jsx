@@ -1,0 +1,186 @@
+import React, { useState } from 'react';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Grid,
+  Typography,
+  Alert,
+  CircularProgress,
+  Box
+} from '@mui/material';
+import { Science as ScienceIcon } from '@mui/icons-material';
+import { useThemeContext } from '../../../contexts/ThemeContext';
+
+const NewCaseDialog = ({ open, onClose, onCaseCreated }) => {
+  const { isDarkMode } = useThemeContext();
+  const [formData, setFormData] = useState({
+    caseType: 'paternity',
+    priority: 'normal',
+    notes: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleInputChange = (field) => (event) => {
+    setFormData({
+      ...formData,
+      [field]: event.target.value
+    });
+    setError(''); // Clear error when user types
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.caseType) {
+      setError('Case type is required');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/genetic-analysis/cases', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        onCaseCreated(data.case);
+        handleClose();
+      } else {
+        setError(data.error || 'Failed to create case');
+      }
+    } catch (error) {
+      setError('Network error: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    setFormData({
+      caseType: 'paternity',
+      priority: 'normal',
+      notes: ''
+    });
+    setError('');
+    onClose();
+  };
+
+  return (
+    <Dialog 
+      open={open} 
+      onClose={handleClose} 
+      maxWidth="sm" 
+      fullWidth
+      PaperProps={{
+        sx: {
+          backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white',
+          backdropFilter: 'blur(10px)',
+        }
+      }}
+    >
+      <DialogTitle>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <ScienceIcon sx={{ color: '#8EC74F' }} />
+          <Typography variant="h6" sx={{ color: isDarkMode ? 'white' : '#0D488F' }}>
+            Create New Genetic Analysis Case
+          </Typography>
+        </Box>
+      </DialogTitle>
+
+      <DialogContent>
+        <Grid container spacing={3} sx={{ mt: 1 }}>
+          <Grid item xs={12}>
+            <FormControl fullWidth>
+              <InputLabel>Case Type</InputLabel>
+              <Select
+                value={formData.caseType}
+                onChange={handleInputChange('caseType')}
+                label="Case Type"
+              >
+                <MenuItem value="paternity">Paternity Testing</MenuItem>
+                <MenuItem value="maternity">Maternity Testing</MenuItem>
+                <MenuItem value="siblingship">Siblingship Analysis</MenuItem>
+                <MenuItem value="kinship">Kinship Analysis</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+
+          <Grid item xs={12}>
+            <FormControl fullWidth>
+              <InputLabel>Priority</InputLabel>
+              <Select
+                value={formData.priority}
+                onChange={handleInputChange('priority')}
+                label="Priority"
+              >
+                <MenuItem value="low">Low</MenuItem>
+                <MenuItem value="normal">Normal</MenuItem>
+                <MenuItem value="high">High</MenuItem>
+                <MenuItem value="urgent">Urgent</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="Case Notes"
+              multiline
+              rows={4}
+              value={formData.notes}
+              onChange={handleInputChange('notes')}
+              placeholder="Enter any additional information about this case..."
+              variant="outlined"
+            />
+          </Grid>
+
+          {error && (
+            <Grid item xs={12}>
+              <Alert severity="error">{error}</Alert>
+            </Grid>
+          )}
+        </Grid>
+      </DialogContent>
+
+      <DialogActions sx={{ p: 3, gap: 2 }}>
+        <Button 
+          onClick={handleClose}
+          disabled={loading}
+          sx={{ color: isDarkMode ? 'white' : 'inherit' }}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleSubmit}
+          disabled={loading}
+          startIcon={loading ? <CircularProgress size={20} /> : <ScienceIcon />}
+          sx={{
+            backgroundColor: '#8EC74F',
+            '&:hover': { backgroundColor: '#6BA23A' },
+            minWidth: 120
+          }}
+        >
+          {loading ? 'Creating...' : 'Create Case'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export default NewCaseDialog;

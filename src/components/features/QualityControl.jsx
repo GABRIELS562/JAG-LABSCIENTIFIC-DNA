@@ -31,7 +31,6 @@ export default function QualityControl() {
       }
     } catch (error) {
       setError('Failed to load quality control data');
-      console.error('Error loading QC data:', error);
     } finally {
       setLoading(false);
     }

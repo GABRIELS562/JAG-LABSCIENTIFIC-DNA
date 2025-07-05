@@ -23,10 +23,12 @@ import {
 } from '@mui/material';
 import { PhotoCamera, CloudUpload, Close } from '@mui/icons-material';
 import { createWorker } from 'tesseract.js';
+import SignaturePad from '../ui/SignaturePad';
+import WitnessSection from '../ui/WitnessSection';
 
 // Initial form state with matching fields across all sections
 const initialFormState = {
-  refKitNumber: 'KIT123456',
+  refKitNumber: 'BN123456',
   submissionDate: new Date().toISOString().split('T')[0],
   motherPresent: 'NO',
   
@@ -114,7 +116,41 @@ const initialFormState = {
   emailContact: 'contact@email.com',
   addressArea: '789 Contact St, Sydney NSW 2000',
   phoneContact: '0400999888',
-  comments: 'Sample test case with dummy data'
+  comments: 'Sample test case with dummy data',
+  
+  // Legal and Consent Information
+  consentType: 'paternity', // 'paternity' or 'legal'
+  testPurpose: '',
+  sampleType: 'buccal_swab',
+  authorizedCollector: '',
+  
+  // Signatures
+  signatures: {
+    mother: null,
+    father: null,
+    child: null,
+    guardian: null
+  },
+  
+  // Witness Information (for legal testing)
+  witness: {
+    name: '',
+    idNumber: '',
+    idType: '',
+    contactNumber: '',
+    relationship: '',
+    witnessDate: new Date().toISOString().split('T')[0],
+    address: '',
+    signature: null
+  },
+  
+  // Legal Declarations
+  legalDeclarations: {
+    consentGiven: false,
+    dataProtectionAgreed: false,
+    resultNotificationAgreed: false,
+    legalProceedingsUnderstood: false
+  }
 };
 
 const sections = [
@@ -123,6 +159,8 @@ const sections = [
   'Father Information',
   'Additional Information',
   'Contact Information',
+  'Signatures & Consent',
+  'Witness Information',
   'Review'
 ];
 
@@ -136,7 +174,7 @@ const FormProgress = ({ currentSection, sections }) => {
             sx={{ 
               flex: 1,
               height: 8,
-              backgroundColor: index <= currentSection ? '#1976d2' : '#e0e0e0',
+              backgroundColor: index <= currentSection ? '#8EC74F' : '#e0e0e0',
               borderRadius: 1
             }}
           />
@@ -169,7 +207,7 @@ const FormSummary = ({ formData, onEdit }) => {
           <Button 
             size="small" 
             onClick={() => onEdit(sections.indexOf(title))}
-            sx={{ color: '#1976d2' }}
+            sx={{ color: '#8EC74F' }}
           >
             Edit
           </Button>
@@ -215,7 +253,7 @@ const FormSummary = ({ formData, onEdit }) => {
           <Button 
             size="small" 
             onClick={() => onEdit(0)}
-            sx={{ color: '#1976d2' }}
+            sx={{ color: '#8EC74F' }}
           >
             Edit
           </Button>
@@ -250,7 +288,7 @@ const FormSummary = ({ formData, onEdit }) => {
           <Button 
             size="small" 
             onClick={() => onEdit(4)}
-            sx={{ color: '#1976d2' }}
+            sx={{ color: '#8EC74F' }}
           >
             Edit
           </Button>
@@ -369,20 +407,42 @@ export default function PaternityTestForm() {
     const extractedData = {};
     const lines = ocrText.split('\n').map(line => line.trim()).filter(line => line);
     
-    // Common patterns for form fields
+    // Enhanced patterns for consent forms
     const patterns = {
+      // Personal Information
       name: /(?:name|first\s*name|given\s*name)[:\s]*([a-zA-Z\s]+)/i,
       surname: /(?:surname|last\s*name|family\s*name)[:\s]*([a-zA-Z\s]+)/i,
-      idNumber: /(?:id\s*number|identification)[:\s]*([a-zA-Z0-9\s]+)/i,
+      idNumber: /(?:id\s*num|id\s*number|passport\s*num|identification)[:\s]*([a-zA-Z0-9\s]+)/i,
       dateOfBirth: /(?:date\s*of\s*birth|dob|birth\s*date)[:\s]*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})/i,
-      phoneNumber: /(?:phone|mobile|tel)[:\s]*([0-9\s\-\+\(\)]+)/i,
+      phoneNumber: /(?:phone|mobile|tel|cell)[:\s]*([0-9\s\-\+\(\)]+)/i,
       email: /(?:email|e-mail)[:\s]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i,
       address: /(?:address|street)[:\s]*([a-zA-Z0-9\s,.-]+)/i,
       nationality: /(?:nationality|country)[:\s]*([a-zA-Z\s]+)/i,
       occupation: /(?:occupation|job|profession)[:\s]*([a-zA-Z\s]+)/i,
       placeOfBirth: /(?:place\s*of\s*birth|birth\s*place)[:\s]*([a-zA-Z\s,]+)/i,
-      ethnicity: /(?:ethnicity|race)[:\s]*([a-zA-Z\s]+)/i,
-      maritalStatus: /(?:marital\s*status|status)[:\s]*([a-zA-Z\s]+)/i
+      maritalStatus: /(?:marital\s*status|status)[:\s]*([a-zA-Z\s]+)/i,
+      
+      // Consent form specific patterns
+      witnessName: /(?:witness\s*name|witness)[:\s]*([a-zA-Z\s]+)/i,
+      witnessId: /(?:witness\s*id|witness\s*identification)[:\s]*([a-zA-Z0-9\s]+)/i,
+      collectionDate: /(?:collection\s*date|date\s*collected)[:\s]*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})/i,
+      authorizedCollector: /(?:collected\s*by|collector|authorized\s*collector)[:\s]*([a-zA-Z\s]+)/i,
+      
+      // Relationship patterns
+      relationship: /(?:relationship|relation)[:\s]*([a-zA-Z\s]+)/i,
+      
+      // Test type patterns
+      testType: /(?:test\s*type|type\s*of\s*test)[:\s]*([a-zA-Z\s]+)/i,
+      testPurpose: /(?:purpose|reason\s*for\s*test)[:\s]*([a-zA-Z\s]+)/i
+    };
+
+    // Ethnicity checkbox detection
+    const ethnicityPatterns = {
+      black: /black.*[x✓✔]/i,
+      coloured: /coloured.*[x✓✔]/i,
+      white: /white.*[x✓✔]/i,
+      indian: /indian.*[x✓✔]/i,
+      other: /other.*[x✓✔]/i
     };
 
     // Extract data using patterns
@@ -395,26 +455,32 @@ export default function PaternityTestForm() {
       }
     });
 
+    // Check for ethnicity checkboxes
+    Object.entries(ethnicityPatterns).forEach(([ethnicity, pattern]) => {
+      if (pattern.test(fullText)) {
+        extractedData.ethnicity = ethnicity;
+      }
+    });
+
+    // Detect form type based on content
+    if (fullText.includes('legal') || fullText.includes('court') || fullText.includes('proceedings')) {
+      extractedData.formType = 'legal';
+    } else if (fullText.includes('peace of mind') || fullText.includes('paternity')) {
+      extractedData.formType = 'paternity';
+    }
+
+    // Detect if this is a consent form
+    if (fullText.includes('consent') || fullText.includes('authorization') || fullText.includes('agreement')) {
+      extractedData.isConsentForm = true;
+    }
+
     // Clean up extracted data
     if (extractedData.dateOfBirth) {
-      // Convert to YYYY-MM-DD format
-      const dateStr = extractedData.dateOfBirth;
-      const dateFormats = [
-        /(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/,
-        /(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})/
-      ];
-      
-      for (const format of dateFormats) {
-        const match = dateStr.match(format);
-        if (match) {
-          let [, day, month, year] = match;
-          if (year.length === 2) {
-            year = parseInt(year) > 50 ? `19${year}` : `20${year}`;
-          }
-          extractedData.dateOfBirth = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-          break;
-        }
-      }
+      extractedData.dateOfBirth = formatDate(extractedData.dateOfBirth);
+    }
+    
+    if (extractedData.collectionDate) {
+      extractedData.collectionDate = formatDate(extractedData.collectionDate);
     }
 
     if (extractedData.phoneNumber) {
@@ -423,6 +489,25 @@ export default function PaternityTestForm() {
     }
 
     return extractedData;
+  };
+
+  const formatDate = (dateStr) => {
+    const dateFormats = [
+      /(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/,
+      /(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})/
+    ];
+    
+    for (const format of dateFormats) {
+      const match = dateStr.match(format);
+      if (match) {
+        let [, day, month, year] = match;
+        if (year.length === 2) {
+          year = parseInt(year) > 50 ? `19${year}` : `20${year}`;
+        }
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
+    }
+    return dateStr;
   };
 
   const applyExtractedData = (extractedData, targetSection = 'mother') => {
@@ -467,6 +552,48 @@ export default function PaternityTestForm() {
       if (extractedData.maritalStatus) {
         newState[targetSection].maritalStatus = extractedData.maritalStatus;
       }
+      if (extractedData.collectionDate) {
+        newState[targetSection].collectionDate = extractedData.collectionDate;
+      }
+
+      // Apply global form data if detected
+      if (extractedData.formType === 'legal') {
+        newState.clientType.lt = true;
+        newState.clientType.paternity = false;
+      } else if (extractedData.formType === 'paternity') {
+        newState.clientType.paternity = true;
+        newState.clientType.lt = false;
+      }
+
+      if (extractedData.testPurpose) {
+        const purposeMap = {
+          'legal': 'legal_proceedings',
+          'court': 'legal_proceedings',
+          'immigration': 'immigration',
+          'custody': 'custody',
+          'inheritance': 'inheritance',
+          'peace': 'peace_of_mind'
+        };
+        
+        const purpose = Object.keys(purposeMap).find(key => 
+          extractedData.testPurpose.toLowerCase().includes(key)
+        );
+        if (purpose) {
+          newState.testPurpose = purposeMap[purpose];
+        }
+      }
+
+      if (extractedData.authorizedCollector) {
+        newState.authorizedCollector = extractedData.authorizedCollector;
+      }
+
+      // Apply witness information if detected
+      if (extractedData.witnessName) {
+        newState.witness.name = extractedData.witnessName;
+      }
+      if (extractedData.witnessId) {
+        newState.witness.idNumber = extractedData.witnessId;
+      }
 
       return newState;
     });
@@ -500,7 +627,6 @@ export default function PaternityTestForm() {
       });
       
     } catch (error) {
-      console.error('OCR processing error:', error);
       setSnackbar({
         open: true,
         message: 'Error processing image. Please try again or enter data manually.',
@@ -547,7 +673,6 @@ export default function PaternityTestForm() {
         additionalInfoLabNo: `${prefix}${year}_TBD`
       };
     } catch (error) {
-      console.error('Error generating lab numbers:', error);
       return {
         motherLabNo: 'ERR_TBD',
         fatherLabNo: 'ERR_TBD',
@@ -568,7 +693,6 @@ export default function PaternityTestForm() {
           additionalInfo: { ...prevState.additionalInfo, labNo: additionalInfoLabNo }
         }));
       } catch (error) {
-        console.error('Error initializing lab numbers:', error);
         setSnackbar({
           open: true,
           message: 'Error generating lab numbers',
@@ -590,7 +714,7 @@ export default function PaternityTestForm() {
           ...parsedForm
         }));
       } catch (error) {
-        console.error('Error loading saved form data:', error);
+        // Handle error silently
       }
     }
   }, []);
@@ -599,7 +723,7 @@ export default function PaternityTestForm() {
     try {
       localStorage.setItem('paternityFormData', JSON.stringify(formData));
     } catch (error) {
-      console.error('Error saving form data:', error);
+      // Handle error silently
     }
   }, [formData]);
 
@@ -616,13 +740,13 @@ export default function PaternityTestForm() {
   }, []);
 
   const PhotoUploadComponent = ({ sectionTitle }) => {
-    if (currentSection < 1 || currentSection > 3) return null; // Only show for person sections
+    if (currentSection < 1 || currentSection > 3) return null; // Only show for person sections (Mother, Father, Additional Info)
     
     return (
       <Card sx={{ mb: 3, bgcolor: '#f8f9fa' }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-            <Typography variant="h6" sx={{ color: '#1e4976', display: 'flex', alignItems: 'center' }}>
+            <Typography variant="h6" sx={{ color: '#0D488F', display: 'flex', alignItems: 'center' }}>
               <PhotoCamera sx={{ mr: 1 }} />
               Auto-Fill from Photo
             </Typography>
@@ -655,8 +779,8 @@ export default function PaternityTestForm() {
                   startIcon={isProcessingOCR ? <CircularProgress size={20} color="inherit" /> : <PhotoCamera />}
                   disabled={isProcessingOCR}
                   sx={{
-                    bgcolor: '#1e4976',
-                    '&:hover': { bgcolor: '#16365b' },
+                    bgcolor: '#0D488F',
+                    '&:hover': { bgcolor: '#022539' },
                     mr: 1
                   }}
                 >
@@ -713,7 +837,7 @@ export default function PaternityTestForm() {
     return (
       <Box>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6" sx={{ color: '#1e4976', fontWeight: 'bold' }}>
+          <Typography variant="h6" sx={{ color: '#0D488F', fontWeight: 'bold' }}>
             {title}
           </Typography>
           <FormControlLabel
@@ -907,14 +1031,22 @@ export default function PaternityTestForm() {
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Ethnicity"
-                name="ethnicity"
-                value={formData[section].ethnicity || ''}
-                onChange={(e) => handleChange(section, 'ethnicity', e.target.value)}
-                disabled={disabled}
-              />
+              <FormControl fullWidth disabled={disabled}>
+                <InputLabel>Ethnicity</InputLabel>
+                <Select
+                  name="ethnicity"
+                  value={formData[section].ethnicity || ''}
+                  onChange={(e) => handleChange(section, 'ethnicity', e.target.value)}
+                  label="Ethnicity"
+                >
+                  <MenuItem value="">Select Ethnicity</MenuItem>
+                  <MenuItem value="black">Black</MenuItem>
+                  <MenuItem value="coloured">Coloured</MenuItem>
+                  <MenuItem value="white">White</MenuItem>
+                  <MenuItem value="indian">Indian</MenuItem>
+                  <MenuItem value="other">Other</MenuItem>
+                </Select>
+              </FormControl>
             </Grid>
 
             <Grid item xs={12} md={6}>
@@ -944,6 +1076,27 @@ export default function PaternityTestForm() {
             </Grid>
           </Grid>
         )}
+
+        {/* Add signature pad for each person */}
+        {!isNotAvailable && (
+          <SignaturePad
+            person={title.replace(' Information', '')}
+            onSignatureChange={(signature) => {
+              const signatureKey = section === 'additionalInfo' ? 'child' : section;
+              setFormData(prev => ({
+                ...prev,
+                signatures: {
+                  ...prev.signatures,
+                  [signatureKey]: signature
+                }
+              }));
+            }}
+            value={formData.signatures?.[section === 'additionalInfo' ? 'child' : section]}
+            required={formData.clientType.lt}
+            legalBinding={formData.clientType.lt}
+            disabled={disabled}
+          />
+        )}
       </Box>
     );
   };
@@ -959,7 +1112,7 @@ export default function PaternityTestForm() {
         clientType = 'legal';
       }
 
-      // Format data for backend
+      // Format data for backend including new fields
       const childRow = {
         ...formData.additionalInfo,
         refKitNumber: formData.refKitNumber,
@@ -967,7 +1120,10 @@ export default function PaternityTestForm() {
         emailContact: formData.emailContact,
         addressArea: formData.addressArea,
         phoneContact: formData.phoneContact,
-        comments: formData.comments
+        comments: formData.comments,
+        testPurpose: formData.testPurpose,
+        sampleType: formData.sampleType,
+        authorizedCollector: formData.authorizedCollector
       };
 
       const fatherRow = {
@@ -978,17 +1134,25 @@ export default function PaternityTestForm() {
         ...formData.mother
       } : null;
 
+      // Include signature and witness data
+      const enhancedData = {
+        childRow, 
+        fatherRow, 
+        motherRow,
+        clientType,
+        signatures: formData.signatures,
+        witness: formData.clientType.lt ? formData.witness : null,
+        legalDeclarations: formData.legalDeclarations,
+        consentType: formData.clientType.lt ? 'legal' : 'paternity'
+      };
+
+
       const response = await fetch(`${API_URL}/api/submit-test`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          childRow, 
-          fatherRow, 
-          motherRow,
-          clientType 
-        }),
+        body: JSON.stringify(enhancedData),
       });
 
       const data = await response.json();
@@ -1005,7 +1169,6 @@ export default function PaternityTestForm() {
         throw new Error(data.error || 'Submission failed');
       }
     } catch (error) {
-      console.error('Submission error:', error);
       setSnackbar({
         open: true,
         message: error.message || 'Error submitting form',
@@ -1084,13 +1247,13 @@ export default function PaternityTestForm() {
         {currentSection === 0 && (
           // Test Information
           <Box>
-            <Typography variant="h6" sx={{ color: '#1e4976', fontWeight: 'bold', mb: 3 }}>
+            <Typography variant="h6" sx={{ color: '#0D488F', fontWeight: 'bold', mb: 3 }}>
               Test Information
             </Typography>
             
             {/* Client Type Selection */}
             <Box sx={{ mb: 4, p: 3, border: '2px solid #e0e0e0', borderRadius: 2, bgcolor: '#f8f9fa' }}>
-              <Typography variant="h6" sx={{ mb: 2, color: '#1e4976' }}>
+              <Typography variant="h6" sx={{ mb: 2, color: '#0D488F' }}>
                 Client Type
               </Typography>
               <Grid container spacing={2}>
@@ -1103,7 +1266,7 @@ export default function PaternityTestForm() {
                           ...prev,
                           clientType: { ...prev.clientType, paternity: e.target.checked }
                         }))}
-                        sx={{ color: '#1e4976', '&.Mui-checked': { color: '#1e4976' } }}
+                        sx={{ color: '#0D488F', '&.Mui-checked': { color: '#0D488F' } }}
                       />
                     }
                     label="Paternity (Normal samples)"
@@ -1119,7 +1282,7 @@ export default function PaternityTestForm() {
                           ...prev,
                           clientType: { ...prev.clientType, lt: e.target.checked }
                         }))}
-                        sx={{ color: '#1e4976', '&.Mui-checked': { color: '#1e4976' } }}
+                        sx={{ color: '#0D488F', '&.Mui-checked': { color: '#0D488F' } }}
                       />
                     }
                     label="LT (Legal - requires ID copies)"
@@ -1135,7 +1298,7 @@ export default function PaternityTestForm() {
                           ...prev,
                           clientType: { ...prev.clientType, urgent: e.target.checked }
                         }))}
-                        sx={{ color: '#1e4976', '&.Mui-checked': { color: '#1e4976' } }}
+                        sx={{ color: '#0D488F', '&.Mui-checked': { color: '#0D488F' } }}
                       />
                     }
                     label="Urgent Samples"
@@ -1303,7 +1466,7 @@ export default function PaternityTestForm() {
         {currentSection === 4 && (
           // Contact Information
           <Box>
-            <Typography variant="h6" sx={{ color: '#1e4976', fontWeight: 'bold', mb: 3 }}>
+            <Typography variant="h6" sx={{ color: '#0D488F', fontWeight: 'bold', mb: 3 }}>
               Contact Information
             </Typography>
             <Grid container spacing={3}>
@@ -1339,6 +1502,51 @@ export default function PaternityTestForm() {
                   onChange={handleTopLevelChange}
                 />
               </Grid>
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Test Purpose</InputLabel>
+                  <Select
+                    name="testPurpose"
+                    value={formData.testPurpose || ''}
+                    onChange={handleTopLevelChange}
+                    label="Test Purpose"
+                  >
+                    <MenuItem value="">Select Purpose</MenuItem>
+                    <MenuItem value="peace_of_mind">Peace of Mind</MenuItem>
+                    <MenuItem value="legal_proceedings">Legal Proceedings</MenuItem>
+                    <MenuItem value="immigration">Immigration</MenuItem>
+                    <MenuItem value="inheritance">Inheritance</MenuItem>
+                    <MenuItem value="custody">Child Custody</MenuItem>
+                    <MenuItem value="other">Other</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Sample Type</InputLabel>
+                  <Select
+                    name="sampleType"
+                    value={formData.sampleType || ''}
+                    onChange={handleTopLevelChange}
+                    label="Sample Type"
+                  >
+                    <MenuItem value="buccal_swab">Buccal Swab</MenuItem>
+                    <MenuItem value="blood">Blood Sample</MenuItem>
+                    <MenuItem value="saliva">Saliva</MenuItem>
+                    <MenuItem value="other">Other</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Authorized Collector"
+                  name="authorizedCollector"
+                  value={formData.authorizedCollector || ''}
+                  onChange={handleTopLevelChange}
+                  placeholder="Name of person collecting samples"
+                />
+              </Grid>
               <Grid item xs={12}>
                 <TextField
                   fullWidth
@@ -1353,6 +1561,167 @@ export default function PaternityTestForm() {
             </Grid>
           </Box>
         )}
+
+        {currentSection === 5 && (
+          // Signatures & Consent
+          <Box>
+            <Typography variant="h6" sx={{ color: '#0D488F', fontWeight: 'bold', mb: 3 }}>
+              Signatures & Legal Consent
+            </Typography>
+            
+            {/* Legal Declarations */}
+            <Paper elevation={1} sx={{ p: 3, mb: 3, bgcolor: '#f8f9fa' }}>
+              <Typography variant="h6" sx={{ mb: 2, color: '#0D488F' }}>
+                Legal Declarations
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.legalDeclarations.consentGiven}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          legalDeclarations: {
+                            ...prev.legalDeclarations,
+                            consentGiven: e.target.checked
+                          }
+                        }))}
+                        required
+                      />
+                    }
+                    label="I hereby consent to the DNA paternity testing and confirm that I am happy with the limitations listed."
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.legalDeclarations.dataProtectionAgreed}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          legalDeclarations: {
+                            ...prev.legalDeclarations,
+                            dataProtectionAgreed: e.target.checked
+                          }
+                        }))}
+                        required
+                      />
+                    }
+                    label="I understand that the data provided and information generated from analysis will remain confidential according to the Data Protection Act."
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.legalDeclarations.resultNotificationAgreed}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          legalDeclarations: {
+                            ...prev.legalDeclarations,
+                            resultNotificationAgreed: e.target.checked
+                          }
+                        }))}
+                        required
+                      />
+                    }
+                    label="I agree to be notified of the test results via the contact information provided."
+                  />
+                </Grid>
+                {formData.clientType.lt && (
+                  <Grid item xs={12}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={formData.legalDeclarations.legalProceedingsUnderstood}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            legalDeclarations: {
+                              ...prev.legalDeclarations,
+                              legalProceedingsUnderstood: e.target.checked
+                            }
+                          }))}
+                          required
+                        />
+                      }
+                      label="I understand that this test is for legal proceedings and may be used in court."
+                    />
+                  </Grid>
+                )}
+              </Grid>
+            </Paper>
+
+            {/* Signature Summary */}
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Review the signatures collected in previous sections. All parties must sign for the test to proceed.
+            </Typography>
+            
+            <Grid container spacing={2}>
+              {!formData.motherNotAvailable && (
+                <Grid item xs={12} md={6}>
+                  <Paper elevation={1} sx={{ p: 2, textAlign: 'center' }}>
+                    <Typography variant="subtitle2">Mother Signature</Typography>
+                    {formData.signatures.mother ? (
+                      <Typography color="success.main">✓ Signed</Typography>
+                    ) : (
+                      <Typography color="error.main">✗ Not Signed</Typography>
+                    )}
+                  </Paper>
+                </Grid>
+              )}
+              {!formData.fatherNotAvailable && (
+                <Grid item xs={12} md={6}>
+                  <Paper elevation={1} sx={{ p: 2, textAlign: 'center' }}>
+                    <Typography variant="subtitle2">Father Signature</Typography>
+                    {formData.signatures.father ? (
+                      <Typography color="success.main">✓ Signed</Typography>
+                    ) : (
+                      <Typography color="error.main">✗ Not Signed</Typography>
+                    )}
+                  </Paper>
+                </Grid>
+              )}
+              {!formData.additionalInfoNotAvailable && (
+                <Grid item xs={12} md={6}>
+                  <Paper elevation={1} sx={{ p: 2, textAlign: 'center' }}>
+                    <Typography variant="subtitle2">Child/Guardian Signature</Typography>
+                    {formData.signatures.child ? (
+                      <Typography color="success.main">✓ Signed</Typography>
+                    ) : (
+                      <Typography color="error.main">✗ Not Signed</Typography>
+                    )}
+                  </Paper>
+                </Grid>
+              )}
+            </Grid>
+          </Box>
+        )}
+
+        {currentSection === 6 && (
+          // Witness Information (only for legal testing)
+          <Box>
+            {formData.clientType.lt ? (
+              <WitnessSection
+                witnessData={formData.witness}
+                onWitnessChange={(witnessData) => setFormData(prev => ({
+                  ...prev,
+                  witness: witnessData
+                }))}
+                required={true}
+              />
+            ) : (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography variant="h6" color="text.secondary">
+                  Witness information is only required for legal testing
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Skip this section for peace of mind testing
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        )}
       </Box>
     );
   };
@@ -1361,7 +1730,7 @@ export default function PaternityTestForm() {
     <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
       <Paper elevation={2} sx={{ p: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-          <Typography variant="h5" sx={{ color: '#1e4976', fontWeight: 'bold' }}>
+          <Typography variant="h5" sx={{ color: '#0D488F', fontWeight: 'bold' }}>
             Paternity Test Registration
           </Typography>
         </Box>
@@ -1395,9 +1764,9 @@ export default function PaternityTestForm() {
                   variant="contained"
                   disabled={isSubmitting}
                   sx={{
-                    bgcolor: '#1e4976',
+                    bgcolor: '#0D488F',
                     '&:hover': {
-                      bgcolor: '#16365b'
+                      bgcolor: '#022539'
                     }
                   }}
                 >
@@ -1415,9 +1784,9 @@ export default function PaternityTestForm() {
                   variant="contained"
                   onClick={handleNext}
                   sx={{
-                    bgcolor: '#1e4976',
+                    bgcolor: '#0D488F',
                     '&:hover': {
-                      bgcolor: '#16365b'
+                      bgcolor: '#022539'
                     }
                   }}
                 >

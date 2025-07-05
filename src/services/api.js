@@ -17,8 +17,13 @@ export const api = {
     return response.json();
   },
 
-  async getSamples() {
-    const response = await fetch(`${BASE_URL}/api/samples`);
+  async getSamples(params = {}) {
+    const queryParams = new URLSearchParams();
+    if (params.period) queryParams.append('period', params.period);
+    if (params.status) queryParams.append('status', params.status);
+    
+    const url = `${BASE_URL}/api/samples${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+    const response = await fetch(url);
     return response.json();
   },
 

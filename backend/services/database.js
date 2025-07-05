@@ -37,6 +37,15 @@ class DatabaseService {
     try {
       const schema = fs.readFileSync(this.schemaPath, 'utf8');
       this.db.exec(schema);
+      
+      // Add genetic analysis schema
+      const geneticSchemaPath = path.join(__dirname, '..', 'database', 'genetic-schema-sqlite.sql');
+      if (fs.existsSync(geneticSchemaPath)) {
+        const geneticSchema = fs.readFileSync(geneticSchemaPath, 'utf8');
+        this.db.exec(geneticSchema);
+        console.log('Genetic analysis schema loaded successfully');
+      }
+      
       console.log('Database schema created/updated successfully');
     } catch (error) {
       console.error('Error creating database schema:', error);
@@ -49,8 +58,10 @@ class DatabaseService {
     const stmt = this.db.prepare(`
       INSERT INTO test_cases (
         case_number, ref_kit_number, submission_date, client_type,
-        mother_present, email_contact, phone_contact, address_area, comments
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        mother_present, email_contact, phone_contact, address_area, comments,
+        test_purpose, sample_type, authorized_collector, consent_type,
+        has_signatures, has_witness, witness_name, legal_declarations
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     return stmt.run(
@@ -62,7 +73,15 @@ class DatabaseService {
       testCaseData.email_contact,
       testCaseData.phone_contact,
       testCaseData.address_area,
-      testCaseData.comments
+      testCaseData.comments,
+      testCaseData.test_purpose,
+      testCaseData.sample_type,
+      testCaseData.authorized_collector,
+      testCaseData.consent_type,
+      testCaseData.has_signatures,
+      testCaseData.has_witness,
+      testCaseData.witness_name,
+      testCaseData.legal_declarations
     );
   }
 
@@ -109,6 +128,15 @@ class DatabaseService {
   getSample(labNumber) {
     const stmt = this.db.prepare('SELECT * FROM samples WHERE lab_number = ?');
     return stmt.get(labNumber);
+  }
+
+  updateSampleBatch(sampleId, batchId, status = 'processing') {
+    const stmt = this.db.prepare(`
+      UPDATE samples 
+      SET batch_id = ?, status = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `);
+    return stmt.run(batchId, status, sampleId);
   }
 
   searchSamples(query) {
@@ -440,6 +468,306 @@ class DatabaseService {
   // Transaction wrapper
   transaction(fn) {
     return this.db.transaction(fn);
+  }
+
+  // Genetic Analysis Methods
+  createGeneticCase(caseData) {
+    const stmt = this.db.prepare(`
+      INSERT INTO genetic_cases (case_id, case_type, priority, notes) 
+      VALUES (?, ?, ?, ?)
+    `);
+    return stmt.run(caseData.caseId, caseData.caseType, caseData.priority, caseData.notes);
+  }
+
+  getGeneticCase(caseId) {
+    const stmt = this.db.prepare('SELECT * FROM genetic_cases WHERE case_id = ?');
+    return stmt.get(caseId);
+  }
+
+  getAllGeneticCases() {
+    const stmt = this.db.prepare('SELECT * FROM genetic_case_summary ORDER BY created_date DESC');
+    return stmt.all();
+  }
+
+  updateGeneticCaseStatus(caseId, status) {
+    const stmt = this.db.prepare(`
+      UPDATE genetic_cases 
+      SET status = ?, updated_date = CURRENT_TIMESTAMP 
+      WHERE case_id = ?
+    `);
+    return stmt.run(status, caseId);
+  }
+
+  createGeneticSample(sampleData) {
+    const stmt = this.db.prepare(`
+      INSERT INTO genetic_samples (
+        sample_id, case_id, sample_type, file_path, original_filename,
+        file_hash, quality_score, instrument, kit
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    return stmt.run(
+      sampleData.sampleId,
+      sampleData.caseId,
+      sampleData.sampleType,
+      sampleData.filePath,
+      sampleData.originalFilename,
+      sampleData.fileHash,
+      sampleData.qualityScore,
+      sampleData.instrument,
+      sampleData.kit
+    );
+  }
+
+  getGeneticSamplesByCase(caseId) {
+    const stmt = this.db.prepare('SELECT * FROM genetic_samples WHERE case_id = ?');
+    return stmt.all(caseId);
+  }
+
+  createSTRProfile(profileData) {
+    const stmt = this.db.prepare(`
+      INSERT INTO str_profiles (
+        sample_id, locus, allele_1, allele_2, peak_height_1, peak_height_2
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    return stmt.run(
+      profileData.sampleId,
+      profileData.locus,
+      profileData.allele1,
+      profileData.allele2,
+      profileData.peakHeight1,
+      profileData.peakHeight2
+    );
+  }
+
+  getSTRProfile(sampleId) {
+    const stmt = this.db.prepare('SELECT * FROM str_profiles WHERE sample_id = ? ORDER BY locus');
+    return stmt.all(sampleId);
+  }
+
+  createGeneticAnalysisResult(resultData) {
+    const stmt = this.db.prepare(`
+      INSERT INTO genetic_analysis_results (
+        case_id, paternity_probability, exclusion_probability, 
+        matching_loci, total_loci, conclusion, osiris_output_path, quality_score
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    return stmt.run(
+      resultData.caseId,
+      resultData.paternityProbability,
+      resultData.exclusionProbability,
+      resultData.matchingLoci,
+      resultData.totalLoci,
+      resultData.conclusion,
+      resultData.osirisOutputPath,
+      resultData.qualityScore
+    );
+  }
+
+  getGeneticAnalysisResult(caseId) {
+    const stmt = this.db.prepare('SELECT * FROM genetic_analysis_results WHERE case_id = ?');
+    return stmt.get(caseId);
+  }
+
+  createLociComparison(comparisonData) {
+    const stmt = this.db.prepare(`
+      INSERT INTO loci_comparisons (
+        result_id, locus, child_allele_1, child_allele_2,
+        father_allele_1, father_allele_2, mother_allele_1, mother_allele_2, match_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    return stmt.run(
+      comparisonData.resultId,
+      comparisonData.locus,
+      comparisonData.childAllele1,
+      comparisonData.childAllele2,
+      comparisonData.fatherAllele1,
+      comparisonData.fatherAllele2,
+      comparisonData.motherAllele1,
+      comparisonData.motherAllele2,
+      comparisonData.matchStatus ? 1 : 0
+    );
+  }
+
+  getLociComparisons(resultId) {
+    const stmt = this.db.prepare('SELECT * FROM loci_comparisons WHERE result_id = ? ORDER BY locus');
+    return stmt.all(resultId);
+  }
+
+  addToOsirisQueue(caseId, priority = 5) {
+    const stmt = this.db.prepare(`
+      INSERT INTO osiris_analysis_queue (case_id, priority) 
+      VALUES (?, ?)
+    `);
+    return stmt.run(caseId, priority);
+  }
+
+  updateOsirisQueueStatus(caseId, status, errorMessage = null) {
+    const stmt = this.db.prepare(`
+      UPDATE osiris_analysis_queue 
+      SET status = ?, 
+          ${status === 'running' ? 'started_date = CURRENT_TIMESTAMP' : ''},
+          ${status === 'completed' || status === 'failed' ? 'completed_date = CURRENT_TIMESTAMP' : ''},
+          ${errorMessage ? 'error_message = ?' : ''}
+      WHERE case_id = ?
+    `);
+    
+    const params = errorMessage ? [status, errorMessage, caseId] : [status, caseId];
+    return stmt.run(...params);
+  }
+
+  getOsirisQueueStatus(caseId) {
+    const stmt = this.db.prepare(`
+      SELECT * FROM osiris_analysis_queue 
+      WHERE case_id = ? 
+      ORDER BY submitted_date DESC 
+      LIMIT 1
+    `);
+    return stmt.get(caseId);
+  }
+
+  addGeneticFileAudit(auditData) {
+    const stmt = this.db.prepare(`
+      INSERT INTO genetic_file_audit (sample_id, action, details) 
+      VALUES (?, ?, ?)
+    `);
+    return stmt.run(auditData.sampleId, auditData.action, auditData.details);
+  }
+
+  addGeneticQCMetric(metricData) {
+    const stmt = this.db.prepare(`
+      INSERT INTO genetic_qc_metrics (
+        sample_id, metric_name, metric_value, pass_status
+      ) VALUES (?, ?, ?, ?)
+    `);
+    return stmt.run(
+      metricData.sampleId,
+      metricData.metricName,
+      metricData.metricValue,
+      metricData.passStatus ? 1 : 0
+    );
+  }
+
+  generateGeneticCaseNumber() {
+    const year = new Date().getFullYear();
+    const stmt = this.db.prepare(`
+      SELECT case_id FROM genetic_cases 
+      WHERE case_id LIKE ? 
+      ORDER BY case_id DESC 
+      LIMIT 1
+    `);
+    
+    const lastCase = stmt.get(`PAT-${year}-%`);
+    
+    if (lastCase) {
+      const lastSeq = parseInt(lastCase.case_id.split('-')[2]) || 0;
+      return `PAT-${year}-${(lastSeq + 1).toString().padStart(3, '0')}`;
+    } else {
+      return `PAT-${year}-001`;
+    }
+  }
+
+  // Sample Queue Management Methods
+  
+  updateSampleWorkflowStatus(sampleId, workflowStatus) {
+    const stmt = this.db.prepare(`
+      UPDATE samples 
+      SET workflow_status = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `);
+    return stmt.run(workflowStatus, sampleId);
+  }
+
+  getSamplesByWorkflowStatus(workflowStatus) {
+    const stmt = this.db.prepare(`
+      SELECT s.*, tc.case_number, b.batch_number
+      FROM samples s
+      LEFT JOIN test_cases tc ON s.case_id = tc.id
+      LEFT JOIN batches b ON s.batch_id = b.id
+      WHERE s.workflow_status = ?
+      ORDER BY s.collection_date ASC, s.id ASC
+    `);
+    return stmt.all(workflowStatus);
+  }
+
+  getSampleQueueCounts() {
+    const stmt = this.db.prepare(`
+      SELECT 
+        COUNT(*) as total_samples,
+        COUNT(CASE WHEN workflow_status = 'sample_collected' THEN 1 END) as sample_collected,
+        COUNT(CASE WHEN workflow_status = 'pcr_ready' THEN 1 END) as pcr_ready,
+        COUNT(CASE WHEN workflow_status = 'pcr_batched' THEN 1 END) as pcr_batched,
+        COUNT(CASE WHEN workflow_status = 'pcr_completed' THEN 1 END) as pcr_completed,
+        COUNT(CASE WHEN workflow_status = 'electro_ready' THEN 1 END) as electro_ready,
+        COUNT(CASE WHEN workflow_status = 'electro_batched' THEN 1 END) as electro_batched,
+        COUNT(CASE WHEN workflow_status = 'electro_completed' THEN 1 END) as electro_completed,
+        COUNT(CASE WHEN workflow_status = 'analysis_ready' THEN 1 END) as analysis_ready,
+        COUNT(CASE WHEN workflow_status = 'analysis_completed' THEN 1 END) as analysis_completed,
+        COUNT(CASE WHEN workflow_status = 'report_ready' THEN 1 END) as report_ready,
+        COUNT(CASE WHEN workflow_status = 'report_sent' THEN 1 END) as report_sent
+      FROM samples
+      WHERE status != 'cancelled'
+    `);
+    return stmt.get();
+  }
+
+  getSamplesForQueue(queueType) {
+    let workflowStatuses = [];
+    
+    switch (queueType) {
+      case 'pcr_ready':
+        workflowStatuses = ['sample_collected', 'pcr_ready'];
+        break;
+      case 'pcr_batched':
+        workflowStatuses = ['pcr_batched'];
+        break;
+      case 'electro_ready':
+        workflowStatuses = ['pcr_completed', 'electro_ready'];
+        break;
+      case 'electro_batched':
+        workflowStatuses = ['electro_batched'];
+        break;
+      case 'analysis_ready':
+        workflowStatuses = ['electro_completed', 'analysis_ready'];
+        break;
+      case 'completed':
+        workflowStatuses = ['analysis_completed', 'report_ready', 'report_sent'];
+        break;
+      default:
+        workflowStatuses = ['sample_collected'];
+    }
+
+    const placeholders = workflowStatuses.map(() => '?').join(',');
+    const stmt = this.db.prepare(`
+      SELECT s.*, tc.case_number, b.batch_number
+      FROM samples s
+      LEFT JOIN test_cases tc ON s.case_id = tc.id
+      LEFT JOIN batches b ON s.batch_id = b.id
+      WHERE s.workflow_status IN (${placeholders})
+      ORDER BY s.collection_date ASC, tc.case_number ASC, 
+               CASE s.relation 
+                 WHEN 'Child' THEN 1
+                 WHEN 'Father' THEN 2
+                 WHEN 'Mother' THEN 3
+                 ELSE 4
+               END ASC
+    `);
+    return stmt.all(...workflowStatuses);
+  }
+
+  batchUpdateSampleWorkflowStatus(sampleIds, workflowStatus) {
+    const stmt = this.db.prepare(`
+      UPDATE samples 
+      SET workflow_status = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `);
+    
+    const updateBatch = this.db.transaction((ids, status) => {
+      for (const id of ids) {
+        stmt.run(status, id);
+      }
+    });
+    
+    return updateBatch(sampleIds, workflowStatus);
   }
 
   // Close database connection
