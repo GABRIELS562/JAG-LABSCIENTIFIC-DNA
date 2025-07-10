@@ -23,7 +23,8 @@ import {
   FormControlLabel,
   Snackbar,
   Menu,
-  MenuItem
+  MenuItem,
+  useTheme
 } from '@mui/material';
 import {
   DragIndicator,
@@ -38,6 +39,8 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const PCRPlate = () => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
   const [selectedSamples, setSelectedSamples] = useState([]);
   const [plateData, setPlateData] = useState({});
   const [draggedItem, setDraggedItem] = useState(null);
@@ -620,18 +623,18 @@ const PCRPlate = () => {
 
   const getWellColor = (well) => {
     if (!well || !well.type) {
-      return '#f5f5f5'; // Light gray for empty/undefined wells
+      return isDarkMode ? 'rgba(255,255,255,0.1)' : '#f5f5f5'; // Light gray for empty/undefined wells
     }
     
     switch (well.type) {
       case 'sample':
-        return '#ffb74d'; // Orange for samples
+        return isDarkMode ? '#ff8a50' : '#ffb74d'; // Orange for samples (darker in dark mode)
       case 'control':
-        return '#81c784'; // Green for controls
+        return isDarkMode ? '#66bb6a' : '#81c784'; // Green for controls (darker in dark mode)
       case 'blank':
-        return '#ffffff'; // White for blanks
+        return isDarkMode ? 'rgba(255,255,255,0.05)' : '#ffffff'; // White for blanks (translucent in dark mode)
       default:
-        return '#f5f5f5'; // Light gray for empty
+        return isDarkMode ? 'rgba(255,255,255,0.1)' : '#f5f5f5'; // Light gray for empty
     }
   };
 
@@ -850,10 +853,16 @@ const PCRPlate = () => {
     <Box sx={{ maxWidth: 1400, mx: 'auto', p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
-          <Typography variant="h4" sx={{ color: '#1e4976', fontWeight: 'bold' }}>
+          <Typography variant="h4" sx={{ 
+            color: isDarkMode ? 'white' : '#1e4976', 
+            fontWeight: 'bold' 
+          }}>
             PCR Plate Layout
           </Typography>
-          <Typography variant="h6" sx={{ color: '#1e4976', mt: 1 }}>
+          <Typography variant="h6" sx={{ 
+            color: isDarkMode ? 'rgba(255,255,255,0.8)' : '#1e4976', 
+            mt: 1 
+          }}>
             Batch: {batchNumber}
           </Typography>
         </Box>
@@ -880,15 +889,6 @@ const PCRPlate = () => {
             disabled={getPlacedSamplesCount() === 0}
           >
             Export Layout
-          </Button>
-          <Button
-            variant="contained"
-            color="success"
-            onClick={() => setFinalizeDialog(true)}
-            disabled={getPlacedSamplesCount() === 0}
-            sx={{ ml: 1 }}
-          >
-            Finalize Batch
           </Button>
         </Box>
       </Box>
@@ -1110,6 +1110,20 @@ const PCRPlate = () => {
                   Click on an empty well to place {selectedControl} control
                 </Alert>
               )}
+            </Box>
+            
+            {/* Finalize Button */}
+            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+              <Button
+                variant="contained"
+                color="success"
+                onClick={() => setFinalizeDialog(true)}
+                disabled={getPlacedSamplesCount() === 0}
+                size="large"
+                sx={{ px: 4, py: 1.5, fontSize: '1.1rem' }}
+              >
+                Finalize Batch ({getPlacedSamplesCount()} samples)
+              </Button>
             </Box>
             
             {/* Column headers */}

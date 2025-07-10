@@ -24,7 +24,8 @@ import {
   FormControlLabel,
   Snackbar,
   Menu,
-  MenuItem
+  MenuItem,
+  useTheme
 } from '@mui/material';
 import {
   DragIndicator,
@@ -39,6 +40,8 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 
 const ElectrophoresisLayout = () => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
   const [selectedSamples, setSelectedSamples] = useState([]);
   const [plateData, setPlateData] = useState({});
   const [draggedItem, setDraggedItem] = useState(null);
@@ -441,29 +444,29 @@ const ElectrophoresisLayout = () => {
 
   const getWellColor = (well) => {
     if (!well || !well.type) {
-      return '#f5f5f5';
+      return isDarkMode ? 'rgba(255,255,255,0.1)' : '#f5f5f5';
     }
     
     switch (well.type) {
       case 'sample':
-        return '#f3e5f5'; // Light purple for electrophoresis samples
+        return isDarkMode ? '#7b1fa2' : '#f3e5f5'; // Light purple for electrophoresis samples (darker in dark mode)
       case 'control':
         // Different colors for different control types
         if (well.samples && well.samples.length > 0) {
           const sample = well.samples[0];
           if (sample.lab_number === 'NEG_CTRL') {
-            return '#ffcdd2'; // Light red for negative control
+            return isDarkMode ? '#c62828' : '#ffcdd2'; // Light red for negative control (darker in dark mode)
           } else if (sample.lab_number === 'POS_CTRL') {
-            return '#c8e6c9'; // Light green for positive control
+            return isDarkMode ? '#2e7d32' : '#c8e6c9'; // Light green for positive control (darker in dark mode)
           } else if (sample.lab_number === 'ALLELIC_LADDER') {
-            return '#bbdefb'; // Light blue for allelic ladder
+            return isDarkMode ? '#1565c0' : '#bbdefb'; // Light blue for allelic ladder (darker in dark mode)
           }
         }
-        return '#81c784'; // Default green for controls
+        return isDarkMode ? '#66bb6a' : '#81c784'; // Default green for controls (darker in dark mode)
       case 'blank':
-        return '#ffffff';
+        return isDarkMode ? 'rgba(255,255,255,0.05)' : '#ffffff';
       default:
-        return '#f5f5f5';
+        return isDarkMode ? 'rgba(255,255,255,0.1)' : '#f5f5f5';
     }
   };
 
@@ -861,75 +864,7 @@ const ElectrophoresisLayout = () => {
           >
             Load PCR Batches
           </Button>
-          <Button
-            variant="outlined"
-            color="info"
-            onClick={async () => {
-              console.log('🔍 Debug info:');
-              console.log('API_URL:', API_URL);
-              console.log('Available PCR batches:', availablePCRBatches);
-              console.log('Dialog open:', loadPCRDialog);
-              console.log('Selected samples:', selectedSamples);
-              
-              // Test API call
-              try {
-                const response = await fetch(`${API_URL}/api/batches`);
-                const data = await response.json();
-                console.log('🧪 Direct API test successful:', data.data?.length || 0);
-              } catch (error) {
-                console.error('❌ Direct API test failed:', error);
-              }
-            }}
-            sx={{ mr: 1 }}
-          >
-            Debug Info
-          </Button>
           
-          {/* Control checkboxes - similar to PCR plate */}
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mr: 2 }}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={controlsToAdd.negativeControl}
-                  onChange={(e) => setControlsToAdd(prev => ({
-                    ...prev,
-                    negativeControl: e.target.checked
-                  }))}
-                  size="small"
-                />
-              }
-              label="Negative Control"
-              sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.875rem' } }}
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={controlsToAdd.positiveControl}
-                  onChange={(e) => setControlsToAdd(prev => ({
-                    ...prev,
-                    positiveControl: e.target.checked
-                  }))}
-                  size="small"
-                />
-              }
-              label="Positive Control"
-              sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.875rem' } }}
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={controlsToAdd.allelicLadder}
-                  onChange={(e) => setControlsToAdd(prev => ({
-                    ...prev,
-                    allelicLadder: e.target.checked
-                  }))}
-                  size="small"
-                />
-              }
-              label="Allelic Ladder"
-              sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.875rem' } }}
-            />
-          </Box>
           
           <Button
             variant="contained"
@@ -958,19 +893,6 @@ const ElectrophoresisLayout = () => {
           >
             Export Layout
           </Button>
-          <Button
-            variant="contained"
-            sx={{ 
-              ml: 1,
-              bgcolor: '#388e3c',
-              '&:hover': { bgcolor: '#2e7d32' },
-              '&:disabled': { bgcolor: '#e0e0e0' }
-            }}
-            onClick={() => setFinalizeDialog(true)}
-            disabled={getPlacedSamplesCount() === 0}
-          >
-            Finalize Batch
-          </Button>
         </Box>
       </Box>
 
@@ -978,7 +900,11 @@ const ElectrophoresisLayout = () => {
         {/* Sample Selection Panel */}
         <Grid item xs={12} md={4}>
           <Paper sx={{ p: 3, height: 'fit-content' }}>
-            <Typography variant="h6" sx={{ mb: 2, color: '#1e4976' }}>
+            <Typography variant="h6" sx={{ 
+              mb: 2, 
+              color: isDarkMode ? 'white' : '#7b1fa2',
+              fontWeight: 'bold'
+            }}>
               Selected Samples ({selectedSamples.length})
             </Typography>
             
@@ -1176,6 +1102,51 @@ const ElectrophoresisLayout = () => {
 
             <Divider sx={{ my: 2 }} />
             
+            {/* Controls Section */}
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, color: isDarkMode ? 'white' : '#7b1fa2', fontWeight: 'bold' }}>
+                Control Options
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={controlsToAdd.negativeControl}
+                      onChange={(e) => setControlsToAdd(prev => ({
+                        ...prev,
+                        negativeControl: e.target.checked
+                      }))}
+                    />
+                  }
+                  label="Include Negative Control"
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={controlsToAdd.positiveControl}
+                      onChange={(e) => setControlsToAdd(prev => ({
+                        ...prev,
+                        positiveControl: e.target.checked
+                      }))}
+                    />
+                  }
+                  label="Include Positive Control"
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={controlsToAdd.allelicLadder}
+                      onChange={(e) => setControlsToAdd(prev => ({
+                        ...prev,
+                        allelicLadder: e.target.checked
+                      }))}
+                    />
+                  }
+                  label="Include Allelic Ladder"
+                />
+              </Box>
+            </Box>
+            
             <Typography variant="body2" color="text.secondary">
               Placed: {getPlacedSamplesCount()} / {selectedSamples.length} samples
             </Typography>
@@ -1186,7 +1157,7 @@ const ElectrophoresisLayout = () => {
         <Grid item xs={12} md={8}>
           <Paper sx={{ 
             p: 3,
-            border: '3px solid #7b1fa2',
+            border: '2px solid #ab47bc',
             borderRadius: 2,
             bgcolor: '#fafafa',
             boxShadow: '0 4px 12px rgba(123, 31, 162, 0.2)'
@@ -1194,6 +1165,27 @@ const ElectrophoresisLayout = () => {
             <Typography variant="h6" sx={{ mb: 2, color: '#7b1fa2', fontWeight: 'bold' }}>
               ⚡ 96-Well Electrophoresis Plate: {batchNumber}
             </Typography>
+            
+            {/* Finalize Button */}
+            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+              <Button
+                variant="contained"
+                color="success"
+                onClick={() => setFinalizeDialog(true)}
+                disabled={getPlacedSamplesCount() === 0}
+                size="large"
+                sx={{ 
+                  px: 4, 
+                  py: 1.5, 
+                  fontSize: '1.1rem',
+                  bgcolor: '#7b1fa2',
+                  '&:hover': { bgcolor: '#6a1b9a' },
+                  '&:disabled': { bgcolor: '#e0e0e0' }
+                }}
+              >
+                Finalize Batch ({getPlacedSamplesCount()} samples)
+              </Button>
+            </Box>
             
             {/* Column headers */}
             <Box sx={{ display: 'grid', gridTemplateColumns: '40px repeat(12, 1fr)', gap: 1, mb: 1 }}>

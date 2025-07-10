@@ -105,7 +105,12 @@ const PCRBatches = () => {
       const data = await response.json();
       
       if (data.success) {
-        setBatches(data.data || []);
+        // Filter to only show PCR batches (LDS_XX format, excluding reruns with _RR)
+        const pcrBatches = (data.data || []).filter(batch => {
+          const batchNumber = batch.lab_batch_number || batch.batch_number || '';
+          return batchNumber.startsWith('LDS_') && !batchNumber.includes('_RR');
+        });
+        setBatches(pcrBatches);
       }
     } catch (error) {
       // Handle error silently

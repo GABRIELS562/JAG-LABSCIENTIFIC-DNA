@@ -248,17 +248,22 @@ function AppContent() {
   );
 }
 
-// Create Material-UI theme
-const muiTheme = createTheme();
+function AppWithTheme() {
+  const { theme } = useThemeContext();
+  
+  return (
+    <MuiThemeProvider theme={theme}>
+      <AppContent />
+    </MuiThemeProvider>
+  );
+}
 
 function App() {
   return (
     <ErrorBoundary>
-      <MuiThemeProvider theme={muiTheme}>
-        <ThemeProvider>
-          <AppContent />
-        </ThemeProvider>
-      </MuiThemeProvider>
+      <ThemeProvider>
+        <AppWithTheme />
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

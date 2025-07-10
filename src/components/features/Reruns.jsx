@@ -24,7 +24,8 @@ import {
   FormControlLabel,
   Snackbar,
   Menu,
-  MenuItem
+  MenuItem,
+  useTheme
 } from '@mui/material';
 import {
   DragIndicator,
@@ -95,7 +96,7 @@ const SampleSelectionDialog = ({ open, onClose, samples, batchInfo, onSelectionC
               key={sample.id} 
               sx={{ 
                 mb: 1, 
-                border: selectedSamples.some(s => s.id === sample.id) ? '2px solid #e91e63' : '1px solid #ddd',
+                border: selectedSamples.some(s => s.id === sample.id) ? '2px solid #ef5350' : '1px solid #e0e0e0',
                 cursor: 'pointer',
                 '&:hover': { bgcolor: '#f5f5f5' }
               }}
@@ -119,7 +120,7 @@ const SampleSelectionDialog = ({ open, onClose, samples, batchInfo, onSelectionC
                   <Checkbox
                     checked={selectedSamples.some(s => s.id === sample.id)}
                     onChange={() => handleSampleToggle(sample)}
-                    sx={{ color: '#e91e63', '&.Mui-checked': { color: '#e91e63' } }}
+                    sx={{ color: '#ef5350', '&.Mui-checked': { color: '#ef5350' } }}
                   />
                 </Box>
               </CardContent>
@@ -133,7 +134,7 @@ const SampleSelectionDialog = ({ open, onClose, samples, batchInfo, onSelectionC
           variant="contained" 
           onClick={handleConfirm} 
           disabled={selectedSamples.length === 0}
-          sx={{ bgcolor: '#e91e63' }}
+          sx={{ bgcolor: '#ef5350' }}
         >
           Add {selectedSamples.length} Samples for Rerun
         </Button>
@@ -144,6 +145,8 @@ const SampleSelectionDialog = ({ open, onClose, samples, batchInfo, onSelectionC
 
 const Reruns = () => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
   const [selectedSamples, setSelectedSamples] = useState([]);
   const [plateData, setPlateData] = useState({});
   const [draggedItem, setDraggedItem] = useState(null);
@@ -813,14 +816,35 @@ const Reruns = () => {
         sx={{ 
           p: 3, 
           mt: 2, 
-          border: '3px solid #e91e63', // Pink border for rerun plates
+          border: '2px solid #ef5350', // Professional red border for rerun plates
           borderRadius: 2,
           backgroundColor: '#fafafa'
         }}
       >
-        <Typography variant="h6" sx={{ mb: 2, color: '#e91e63', fontWeight: 'bold' }}>
+        <Typography variant="h6" sx={{ mb: 2, color: '#424242', fontWeight: 'bold' }}>
           🔄 Rerun Plate Layout - {batchNumber}
         </Typography>
+        
+        {/* Finalize Button */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+          <Button
+            variant="contained"
+            color="success"
+            onClick={() => setFinalizeDialog(true)}
+            disabled={!operator || getPlacedSamplesCount() === 0}
+            size="large"
+            sx={{ 
+              px: 4, 
+              py: 1.5, 
+              fontSize: '1.1rem',
+              bgcolor: '#ef5350',
+              '&:hover': { bgcolor: '#d32f2f' },
+              '&:disabled': { bgcolor: '#e0e0e0' }
+            }}
+          >
+            Finalize Batch ({getPlacedSamplesCount()} samples)
+          </Button>
+        </Box>
         
         <Box sx={{ display: 'flex', mb: 2 }}>
           <Box sx={{ mr: 2 }}>
@@ -911,7 +935,7 @@ const Reruns = () => {
 
   const renderSamplesPanel = () => (
     <Paper sx={{ p: 2, height: '100%' }}>
-      <Typography variant="h6" sx={{ mb: 2, color: '#e91e63' }}>
+      <Typography variant="h6" sx={{ mb: 2, color: '#424242' }}>
         🔄 Samples for Rerun
       </Typography>
       
@@ -929,7 +953,7 @@ const Reruns = () => {
           onClick={handleAutoFill}
           startIcon={<Group />}
           disabled={selectedSamples.length === 0}
-          sx={{ bgcolor: '#e91e63' }}
+          sx={{ bgcolor: '#ef5350' }}
         >
           Auto Fill
         </Button>
@@ -974,8 +998,9 @@ const Reruns = () => {
             sx={{ 
               p: 1, 
               cursor: 'grab', 
-              bgcolor: '#ffcdd2',
-              '&:hover': { bgcolor: '#ef9a9a' }
+              bgcolor: '#ffffff',
+              border: '1px solid #ef5350',
+              '&:hover': { bgcolor: '#fafafa', borderColor: '#d32f2f' }
             }}
             draggable
             onDragStart={(e) => handleDragStart(e, {
@@ -986,15 +1011,16 @@ const Reruns = () => {
               relation: 'Control'
             })}
           >
-            <Typography variant="caption">Negative Control</Typography>
+            <Typography variant="caption" sx={{ color: '#d32f2f' }}>Negative Control</Typography>
           </Card>
           
           <Card
             sx={{ 
               p: 1, 
               cursor: 'grab', 
-              bgcolor: '#c8e6c9',
-              '&:hover': { bgcolor: '#a5d6a7' }
+              bgcolor: '#ffffff',
+              border: '1px solid #66bb6a',
+              '&:hover': { bgcolor: '#fafafa', borderColor: '#4caf50' }
             }}
             draggable
             onDragStart={(e) => handleDragStart(e, {
@@ -1005,15 +1031,16 @@ const Reruns = () => {
               relation: 'Control'
             })}
           >
-            <Typography variant="caption">Positive Control</Typography>
+            <Typography variant="caption" sx={{ color: '#4caf50' }}>Positive Control</Typography>
           </Card>
           
           <Card
             sx={{ 
               p: 1, 
               cursor: 'grab', 
-              bgcolor: '#bbdefb',
-              '&:hover': { bgcolor: '#90caf9' }
+              bgcolor: '#ffffff',
+              border: '1px solid #42a5f5',
+              '&:hover': { bgcolor: '#fafafa', borderColor: '#1976d2' }
             }}
             draggable
             onDragStart={(e) => handleDragStart(e, {
@@ -1024,7 +1051,7 @@ const Reruns = () => {
               relation: 'Control'
             })}
           >
-            <Typography variant="caption">Allelic Ladder</Typography>
+            <Typography variant="caption" sx={{ color: '#1976d2' }}>Allelic Ladder</Typography>
           </Card>
         </Box>
       </Box>
@@ -1057,8 +1084,13 @@ const Reruns = () => {
               sx={{
                 mb: 1,
                 cursor: 'grab',
-                bgcolor: '#fce4ec',
-                '&:hover': { bgcolor: '#f8bbd9' },
+                bgcolor: '#ffffff',
+                border: '1px solid #e0e0e0',
+                borderLeft: '4px solid #ef5350',
+                '&:hover': { 
+                  bgcolor: '#f5f5f5',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                },
                 position: 'relative'
               }}
               draggable
@@ -1072,7 +1104,7 @@ const Reruns = () => {
                   {sample.name} {sample.surname} - {sample.relation}
                 </Typography>
                 {sample.lab_batch_number && (
-                  <Typography variant="caption" sx={{ display: 'block', color: '#e91e63' }}>
+                  <Typography variant="caption" sx={{ display: 'block', color: '#666666' }}>
                     From: {sample.lab_batch_number}
                   </Typography>
                 )}
@@ -1102,9 +1134,45 @@ const Reruns = () => {
 
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto', p: 3 }}>
-      <Typography variant="h4" sx={{ mb: 3, color: '#e91e63', fontWeight: 'bold' }}>
-        🔄 Rerun Plate Layout
-      </Typography>
+      {/* Header Section */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box>
+          <Typography variant="h4" sx={{ 
+            color: isDarkMode ? 'white' : '#424242', 
+            fontWeight: 'bold' 
+          }}>
+            🔄 Rerun Plate Layout
+          </Typography>
+          <Typography variant="h6" sx={{ 
+            color: isDarkMode ? 'rgba(255,255,255,0.8)' : '#666666', 
+            mt: 1 
+          }}>
+            Batch: {batchNumber}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Button
+            variant="contained"
+            sx={{ 
+              bgcolor: '#ef5350',
+              '&:hover': { bgcolor: '#d32f2f' }
+            }}
+            onClick={() => setLoadElectroDialog(true)}
+          >
+            Load Electro Batches
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={() => {
+              setPlateData({});
+              setSelectedSamples([]);
+            }}
+          >
+            Clear All
+          </Button>
+        </Box>
+      </Box>
       
       <Grid container spacing={3}>
         <Grid item xs={12} md={8}>
@@ -1137,11 +1205,13 @@ const Reruns = () => {
                 <Box sx={{ display: 'flex', gap: 1 }}>
                   <Button
                     variant="contained"
-                    onClick={() => setFinalizeDialog(true)}
-                    disabled={!operator || getPlacedSamplesCount() === 0}
-                    sx={{ bgcolor: '#e91e63' }}
+                    sx={{ 
+                      bgcolor: '#ef5350',
+                      '&:hover': { bgcolor: '#d32f2f' }
+                    }}
+                    onClick={() => setLoadElectroDialog(true)}
                   >
-                    Finalize Batch
+                    Load Electro Batches
                   </Button>
                   <Button
                     variant="outlined"

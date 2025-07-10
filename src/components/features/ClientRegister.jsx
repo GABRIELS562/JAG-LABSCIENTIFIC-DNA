@@ -35,7 +35,8 @@ import {
   Skeleton,
   LinearProgress,
   Pagination,
-  FormGroup
+  FormGroup,
+  useTheme
 } from '@mui/material';
 import {
   Search,
@@ -56,6 +57,8 @@ import { optimizedApi } from '../../services/optimizedApi';
 
 export default function ClientRegister() {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
   const [samples, setSamples] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -498,7 +501,10 @@ export default function ClientRegister() {
       <Box sx={{ mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Typography variant="h4" sx={{ color: '#0D488F', fontWeight: 'bold' }}>
+            <Typography variant="h4" sx={{ 
+              color: isDarkMode ? 'white' : '#0D488F', 
+              fontWeight: 'bold' 
+            }}>
               Peace of Mind Samples
             </Typography>
             {connectionStatus ? (
@@ -521,61 +527,145 @@ export default function ClientRegister() {
 
         {/* Status Count Cards */}
         <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid item xs={12/5}>
-            <Card sx={{ textAlign: 'center', bgcolor: '#f5f5f5', cursor: 'pointer' }} onClick={() => setStatusFilter('all')}>
-              <CardContent sx={{ py: 1.5 }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0D488F' }}>
+          <Grid item xs={2.4}>
+            <Card sx={{ 
+              textAlign: 'center', 
+              bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
+              cursor: 'pointer',
+              border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
+              '&:hover': { 
+                bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
+                boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)' 
+              }
+            }} onClick={() => setStatusFilter('all')}>
+              <CardContent sx={{ py: 2 }}>
+                <Typography variant="h5" sx={{ 
+                  fontWeight: 'bold', 
+                  color: isDarkMode ? 'white' : '#1a1a1a', 
+                  mb: 0.5 
+                }}>
                   {statusCounts.total}
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Total Samples
+                <Typography variant="body2" sx={{ 
+                  color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
+                  fontWeight: 500 
+                }}>
+                  📊 Total Samples
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12/5}>
-            <Card sx={{ textAlign: 'center', bgcolor: '#fff3e0', cursor: 'pointer' }} onClick={() => setStatusFilter('pending')}>
-              <CardContent sx={{ py: 1.5 }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#ff9800' }}>
+          <Grid item xs={2.4}>
+            <Card sx={{ 
+              textAlign: 'center', 
+              bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
+              cursor: 'pointer',
+              border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
+              borderLeft: '4px solid #ffa726',
+              '&:hover': { 
+                bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
+                boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)' 
+              }
+            }} onClick={() => setStatusFilter('pending')}>
+              <CardContent sx={{ py: 2 }}>
+                <Typography variant="h5" sx={{ 
+                  fontWeight: 'bold', 
+                  color: isDarkMode ? 'white' : '#1a1a1a', 
+                  mb: 0.5 
+                }}>
                   {statusCounts.pending}
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{ 
+                  color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
+                  fontWeight: 500 
+                }}>
                   📋 Pending
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12/5}>
-            <Card sx={{ textAlign: 'center', bgcolor: '#e8f4fd', cursor: 'pointer' }} onClick={() => setStatusFilter('pcr_batched')}>
-              <CardContent sx={{ py: 1.5 }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
+          <Grid item xs={2.4}>
+            <Card sx={{ 
+              textAlign: 'center', 
+              bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
+              cursor: 'pointer',
+              border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
+              borderLeft: '4px solid #42a5f5',
+              '&:hover': { 
+                bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
+                boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)' 
+              }
+            }} onClick={() => setStatusFilter('pcr_batched')}>
+              <CardContent sx={{ py: 2 }}>
+                <Typography variant="h5" sx={{ 
+                  fontWeight: 'bold', 
+                  color: isDarkMode ? 'white' : '#1a1a1a', 
+                  mb: 0.5 
+                }}>
                   {statusCounts.pcrBatched}
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{ 
+                  color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
+                  fontWeight: 500 
+                }}>
                   🧬 PCR Batched
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12/5}>
-            <Card sx={{ textAlign: 'center', bgcolor: '#f3e5f5', cursor: 'pointer' }} onClick={() => setStatusFilter('electro_batched')}>
-              <CardContent sx={{ py: 1.5 }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#7b1fa2' }}>
+          <Grid item xs={2.4}>
+            <Card sx={{ 
+              textAlign: 'center', 
+              bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
+              cursor: 'pointer',
+              border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
+              borderLeft: '4px solid #ab47bc',
+              '&:hover': { 
+                bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
+                boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)' 
+              }
+            }} onClick={() => setStatusFilter('electro_batched')}>
+              <CardContent sx={{ py: 2 }}>
+                <Typography variant="h5" sx={{ 
+                  fontWeight: 'bold', 
+                  color: isDarkMode ? 'white' : '#1a1a1a', 
+                  mb: 0.5 
+                }}>
                   {statusCounts.electroBatched}
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{ 
+                  color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
+                  fontWeight: 500 
+                }}>
                   ⚡ Electro Batched
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12/5}>
-            <Card sx={{ textAlign: 'center', bgcolor: '#ffebee', cursor: 'pointer' }} onClick={() => setStatusFilter('rerun_batched')}>
-              <CardContent sx={{ py: 1.5 }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#d32f2f' }}>
+          <Grid item xs={2.4}>
+            <Card sx={{ 
+              textAlign: 'center', 
+              bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
+              cursor: 'pointer',
+              border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
+              borderLeft: '4px solid #ef5350',
+              '&:hover': { 
+                bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
+                boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)' 
+              }
+            }} onClick={() => setStatusFilter('rerun_batched')}>
+              <CardContent sx={{ py: 2 }}>
+                <Typography variant="h5" sx={{ 
+                  fontWeight: 'bold', 
+                  color: isDarkMode ? 'white' : '#1a1a1a', 
+                  mb: 0.5 
+                }}>
                   {statusCounts.rerunBatched}
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{ 
+                  color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
+                  fontWeight: 500 
+                }}>
                   🔄 Rerun Batched
                 </Typography>
               </CardContent>
@@ -584,45 +674,64 @@ export default function ClientRegister() {
         </Grid>
       </Box>
 
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        
-        {selectedSamples.length > 0 && (
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Chip 
-              label={`${selectedSamples.length} selected`} 
-              color="primary" 
-              variant="outlined"
-            />
-            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-              💡 Family groups selected together
-            </Typography>
-            <Button
-              variant="contained"
-              startIcon={<PlaylistAdd />}
-              onClick={handleCreateBatch}
-              sx={{ bgcolor: '#0D488F' }}
-              disabled={selectedSamples.length === 0}
-            >
-              Create PCR Batch ({selectedSamples.length} selected)
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={handleDeselectAll}
-            >
-              Deselect All
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={() => {
-                navigate('/pcr-plate');
-              }}
-              sx={{ ml: 1 }}
-            >
-              Test Navigation
-            </Button>
-          </Box>
-        )}
+      {/* Filter Controls Section */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, gap: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Button
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+          >
+            Refresh
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<Group />}
+            onClick={handleSelectAll}
+            disabled={samples.length === 0}
+          >
+            Select All Pending
+          </Button>
+        </Box>
       </Box>
+
+      {selectedSamples.length > 0 && (
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap', mb: 3 }}>
+          <Chip 
+            label={`${selectedSamples.length} selected`} 
+            color="primary" 
+            variant="outlined"
+          />
+          <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+            💡 Family groups selected together
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<PlaylistAdd />}
+            onClick={handleCreateBatch}
+            sx={{ bgcolor: '#0D488F' }}
+            disabled={selectedSamples.length === 0}
+          >
+            Create PCR Batch ({selectedSamples.length} selected)
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={handleDeselectAll}
+          >
+            Deselect All
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={() => {
+              navigate('/pcr-plate');
+            }}
+            sx={{ ml: 1 }}
+          >
+            Test Navigation
+          </Button>
+        </Box>
+      )}
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>

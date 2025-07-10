@@ -179,60 +179,144 @@ const HomePage = ({ isDarkMode }) => {
         {sampleCounts && (
           <Grid container spacing={2} sx={{ justifyContent: 'center', maxWidth: 1000, mx: 'auto' }}>
             <Grid item xs={6} sm={12/5}>
-              <Card sx={{ textAlign: 'center', bgcolor: '#f5f5f5', cursor: 'pointer' }} onClick={() => navigate('/client-register')}>
-                <CardContent sx={{ py: 1.5 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0D488F' }}>
+              <Card sx={{ 
+                textAlign: 'center', 
+                bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
+                cursor: 'pointer',
+                border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
+                '&:hover': { 
+                  bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
+                  boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)'
+                }
+              }} onClick={() => navigate('/client-register')}>
+                <CardContent sx={{ py: 2 }}>
+                  <Typography variant="h5" sx={{ 
+                    fontWeight: 'bold', 
+                    color: isDarkMode ? 'white' : '#1a1a1a', 
+                    mb: 0.5 
+                  }}>
                     {sampleCounts.total}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Total Samples
+                  <Typography variant="body2" sx={{ 
+                    color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
+                    fontWeight: 500 
+                  }}>
+                    📊 Total Samples
                   </Typography>
                 </CardContent>
               </Card>
             </Grid>
             <Grid item xs={6} sm={12/5}>
-              <Card sx={{ textAlign: 'center', bgcolor: '#fff3e0', cursor: 'pointer' }} onClick={() => navigate('/client-register')}>
-                <CardContent sx={{ py: 1.5 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#ff9800' }}>
+              <Card sx={{ 
+                textAlign: 'center', 
+                bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
+                cursor: 'pointer',
+                border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
+                borderLeft: '4px solid #ffa726',
+                '&:hover': { 
+                  bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
+                  boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)' 
+                }
+              }} onClick={() => navigate('/client-register')}>
+                <CardContent sx={{ py: 2 }}>
+                  <Typography variant="h5" sx={{ 
+                    fontWeight: 'bold', 
+                    color: isDarkMode ? 'white' : '#1a1a1a', 
+                    mb: 0.5 
+                  }}>
                     {sampleCounts.pending}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{ 
+                    color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
+                    fontWeight: 500 
+                  }}>
                     📋 Pending
                   </Typography>
                 </CardContent>
               </Card>
             </Grid>
             <Grid item xs={6} sm={12/5}>
-              <Card sx={{ textAlign: 'center', bgcolor: '#e8f4fd', cursor: 'pointer' }} onClick={() => navigate('/client-register')}>
-                <CardContent sx={{ py: 1.5 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
+              <Card sx={{ 
+                textAlign: 'center', 
+                bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
+                cursor: 'pointer',
+                border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
+                borderLeft: '4px solid #42a5f5',
+                '&:hover': { 
+                  bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
+                  boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)' 
+                }
+              }} onClick={() => navigate('/client-register')}>
+                <CardContent sx={{ py: 2 }}>
+                  <Typography variant="h5" sx={{ 
+                    fontWeight: 'bold', 
+                    color: isDarkMode ? 'white' : '#1a1a1a', 
+                    mb: 0.5 
+                  }}>
                     {sampleCounts.pcrBatched}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{ 
+                    color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
+                    fontWeight: 500 
+                  }}>
                     🧬 PCR Batched
                   </Typography>
                 </CardContent>
               </Card>
             </Grid>
             <Grid item xs={6} sm={12/5}>
-              <Card sx={{ textAlign: 'center', bgcolor: '#f3e5f5', cursor: 'pointer' }} onClick={() => navigate('/client-register')}>
-                <CardContent sx={{ py: 1.5 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#7b1fa2' }}>
+              <Card sx={{ 
+                textAlign: 'center', 
+                bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
+                cursor: 'pointer',
+                border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
+                borderLeft: '4px solid #ab47bc',
+                '&:hover': { 
+                  bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
+                  boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)' 
+                }
+              }} onClick={() => navigate('/client-register')}>
+                <CardContent sx={{ py: 2 }}>
+                  <Typography variant="h5" sx={{ 
+                    fontWeight: 'bold', 
+                    color: isDarkMode ? 'white' : '#1a1a1a', 
+                    mb: 0.5 
+                  }}>
                     {sampleCounts.electroBatched}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{ 
+                    color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
+                    fontWeight: 500 
+                  }}>
                     ⚡ Electro Batched
                   </Typography>
                 </CardContent>
               </Card>
             </Grid>
             <Grid item xs={6} sm={12/5}>
-              <Card sx={{ textAlign: 'center', bgcolor: '#ffebee', cursor: 'pointer' }} onClick={() => navigate('/client-register')}>
-                <CardContent sx={{ py: 1.5 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#d32f2f' }}>
+              <Card sx={{ 
+                textAlign: 'center', 
+                bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
+                cursor: 'pointer',
+                border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
+                borderLeft: '4px solid #ef5350',
+                '&:hover': { 
+                  bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
+                  boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)' 
+                }
+              }} onClick={() => navigate('/client-register')}>
+                <CardContent sx={{ py: 2 }}>
+                  <Typography variant="h5" sx={{ 
+                    fontWeight: 'bold', 
+                    color: isDarkMode ? 'white' : '#1a1a1a', 
+                    mb: 0.5 
+                  }}>
                     {sampleCounts.rerunBatched || 0}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{ 
+                    color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
+                    fontWeight: 500 
+                  }}>
                     🔄 Rerun Batched
                   </Typography>
                 </CardContent>
