@@ -32,7 +32,7 @@ import {
   FormHelperText,
   Stack
 } from '@mui/material';
-import { Print, Download, Save, ArrowDownward, ViewList, ViewModule } from '@mui/icons-material';
+import { Print, Download, Save, ArrowDownward, ViewList, ViewModule, Science } from '@mui/icons-material';
 import { batchApi } from '../../services/api';
 import WellPlateVisualization from './WellPlateVisualization';
 
@@ -1117,28 +1117,40 @@ const ElectrophoresisPlate = () => {
     try {
       setLoadingBatches(true);
       const response = await fetch(`${API_URL}/api/batches`);
-      if (response.ok) {
-        const data = await response.json();
-        const activeBatches = data.data?.filter(batch => batch.status === 'active') || [];
-        
-        // Also try filtering by LDS_ prefix instead of just status
-        const ldsBatches = data.data?.filter(batch => 
-          batch.batch_number?.startsWith('LDS_') && 
-          batch.status === 'active'
-        ) || [];
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      if (data.success && data.data) {
         // Filter for PCR batches (exclude electrophoresis batches that start with ELEC_)
         // Show all active batches as potential PCR batches
-        const pcrBatches = data.data?.filter(batch => 
-          batch.status === 'active' && !batch.batch_number?.startsWith('ELEC_')
-        ) || [];
+        const pcrBatches = data.data
+          .filter(batch => 
+            batch && 
+            batch.batch_number &&
+            batch.status === 'active' && 
+            !batch.batch_number.startsWith('ELEC_')
+          ) || [];
         setAvailablePCRBatches(pcrBatches);
+        
+        if (pcrBatches.length === 0) {
+          setSnackbar({
+            open: true,
+            message: 'No PCR batches available for electrophoresis',
+            severity: 'info'
+          });
+        }
+      } else {
+        throw new Error('Invalid response format');
       }
     } catch (error) {
+      console.error('Error loading PCR batches:', error);
       setSnackbar({
         open: true,
         message: 'Error loading PCR batches',
         severity: 'error'
       });
+      setAvailablePCRBatches([]);
     } finally {
       setLoadingBatches(false);
     }
@@ -1149,35 +1161,63 @@ const ElectrophoresisPlate = () => {
     
     try {
       const batch = availablePCRBatches.find(b => b.batch_number === selectedPCRBatch);
-      if (batch) {
-        setPcrBatchData(batch);
-        // For demo purposes, simulate samples from the selected PCR batch
-        // In a real implementation, you would have actual sample references
-        let samples = [];
-        
-        try {
-          const sampleResponse = await fetch(`${API_URL}/api/samples`);
-          const sampleData = await sampleResponse.json();
-          if (sampleData.success) {
-            const allSamples = sampleData.data || [];
-            // Take a subset of available samples to simulate this PCR batch's samples
-            // This is a temporary solution until proper sample-batch relationships are implemented
-            const batchSampleCount = batch.total_samples || 20;
-            samples = allSamples.slice(0, Math.min(batchSampleCount, allSamples.length));
-          }
-        } catch (error) {
-          // Handle error silently - use empty samples array
-        }
-        
-        setSampleCount(samples.length.toString());
-        
-        // Generate electrophoresis batch number
-        const electroBatchNumber = selectedPCRBatch 
-          ? selectedPCRBatch.replace('BATCH_', 'ELEC_')
-          : 'ELEC_UNKNOWN';
-        setBatchNumber(electroBatchNumber);
+      if (!batch) {
+        setSnackbar({
+          open: true,
+          message: 'Selected PCR batch not found',
+          severity: 'error'
+        });
+        return;
       }
+      
+      setPcrBatchData(batch);
+      // For demo purposes, simulate samples from the selected PCR batch
+      // In a real implementation, you would have actual sample references
+      let samples = [];
+      
+      try {
+        const sampleResponse = await fetch(`${API_URL}/api/batches/${selectedPCRBatch}/samples`);
+        if (!sampleResponse.ok) {
+          throw new Error(`HTTP error! status: ${sampleResponse.status}`);
+        }
+        const sampleData = await sampleResponse.json();
+        if (sampleData.success && sampleData.data) {
+          samples = sampleData.data || [];
+        } else {
+          // If no samples found for this batch, use a subset of available samples as fallback
+          const allSamplesResponse = await fetch(`${API_URL}/api/samples`);
+          if (allSamplesResponse.ok) {
+            const allSamplesData = await allSamplesResponse.json();
+            if (allSamplesData.success && allSamplesData.data) {
+              const allSamples = allSamplesData.data || [];
+              const batchSampleCount = batch.total_samples || 20;
+              samples = allSamples.slice(0, Math.min(batchSampleCount, allSamples.length));
+            }
+          }
+        }
+      } catch (error) {
+        setSnackbar({
+          open: true,
+          message: 'Error loading samples for PCR batch',
+          severity: 'warning'
+        });
+      }
+      
+      setSampleCount(samples.length.toString());
+      
+      // Generate electrophoresis batch number
+      const electroBatchNumber = selectedPCRBatch 
+        ? selectedPCRBatch.replace('BATCH_', 'ELEC_').replace('LDS_', 'ELEC_')
+        : 'ELEC_UNKNOWN';
+      setBatchNumber(electroBatchNumber);
+      
+      setSnackbar({
+        open: true,
+        message: `Loaded ${samples.length} samples from PCR batch ${selectedPCRBatch}`,
+        severity: 'success'
+      });
     } catch (error) {
+      console.error('Error loading PCR batch data:', error);
       setSnackbar({
         open: true,
         message: 'Error loading PCR batch data',
@@ -1369,6 +1409,30 @@ const ElectrophoresisPlate = () => {
     }
   };
 
+  // Add loading state check
+  if (loadingBatches) {
+    return (
+      <Box sx={{ maxWidth: 1400, mx: 'auto', p: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+        <CircularProgress />
+        <Typography sx={{ ml: 2 }}>Loading PCR batches...</Typography>
+      </Box>
+    );
+  }
+
+  // Check if no PCR batches are available
+  if (!loadingBatches && availablePCRBatches.length === 0) {
+    return (
+      <Box sx={{ maxWidth: 1400, mx: 'auto', p: 3 }}>
+        <Alert severity="info" sx={{ mb: 3 }}>
+          No PCR batches available for electrophoresis. Please create PCR batches first.
+        </Alert>
+        <Button variant="contained" onClick={() => window.history.back()}>
+          Go Back
+        </Button>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto', p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -1436,7 +1500,7 @@ const ElectrophoresisPlate = () => {
                   >
                     {availablePCRBatches.map((batch) => (
                       <MenuItem key={batch.batch_number} value={batch.batch_number}>
-                        {batch.batch_number} - {batch.total_samples || 0} samples ({batch.operator}) - {batch.status}
+                        {batch.batch_number} - {batch.total_samples || 0} samples ({batch.operator || 'Unknown'}) - {batch.status || 'Unknown'}
                       </MenuItem>
                     ))}
                   </Select>

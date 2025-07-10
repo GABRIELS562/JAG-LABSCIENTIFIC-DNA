@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppBar, Toolbar, IconButton, useTheme, useMediaQuery, ThemeProvider as MuiThemeProvider, createTheme } from '@mui/material';
 import { Menu as MenuIcon } from '@mui/icons-material';
+
+// Import components
 import PaternityTestForm from './components/forms/PaternityTestForm';
 import HomePage from './components/ui/HomePage';
 import ThemeToggle from './components/ui/ThemeToggle';
 import Sidebar from './components/layout/Sidebar';
 import Reports from './components/features/Reports';
 import ReportsPage from './components/ui/ReportsPage';
-import ElectrophoresisPlate from './components/features/GenerateBatch';
 import ElectrophoresisBatches from './components/features/ElectrophoresisBatches';
 import SampleSearch from './components/features/SampleSearch';
 import SampleQueues from './components/features/SampleQueues';
@@ -18,7 +19,13 @@ import ClientRegister from './components/features/ClientRegister';
 import PCRPlate from './components/features/PCRPlate';
 import PCRBatches from './components/features/PCRBatches';
 import GeneticAnalysis from './components/features/GeneticAnalysis';
+import ElectrophoresisLayout from './components/features/ElectrophoresisLayout';
+import Reruns from './components/features/Reruns';
+import ApiTest from './components/debug/ApiTest';
+
+// Import contexts and utilities
 import { ThemeProvider, useThemeContext } from './contexts/ThemeContext';
+import ErrorBoundary, { withErrorBoundary } from './components/common/ErrorBoundary';
 
 function AppContent() {
   const { isDarkMode, toggleTheme } = useThemeContext();
@@ -86,105 +93,151 @@ function AppContent() {
             <Route 
               path="/register-client" 
               element={
-                <div className={`${containerBackground} min-h-screen`}>
-                  <PaternityTestForm />
-                </div>
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <PaternityTestForm />
+                  </div>
+                </ErrorBoundary>
               } 
             />
             <Route 
               path="/client-register" 
               element={
-                <div className={`${containerBackground} min-h-screen`}>
-                  <ClientRegister />
-                </div>
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <ClientRegister />
+                  </div>
+                </ErrorBoundary>
               } 
             />
             <Route 
               path="/pcr-plate" 
               element={
-                <div className={`${containerBackground} min-h-screen`}>
-                  <PCRPlate />
-                </div>
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <PCRPlate />
+                  </div>
+                </ErrorBoundary>
               } 
             />
             <Route 
               path="/reports" 
               element={
-                <div className={`${containerBackground} min-h-screen`}>
-                  <ReportsPage />
-                </div>
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <ReportsPage />
+                  </div>
+                </ErrorBoundary>
               } 
             />
             <Route 
               path="/lab-results" 
               element={
-                <div className={`${containerBackground} min-h-screen`}>
-                  <Reports />
-                </div>
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <Reports />
+                  </div>
+                </ErrorBoundary>
               } 
             />
             <Route 
               path="/pcr-batches" 
               element={
-                <div className={`${containerBackground} min-h-screen`}>
-                  <PCRBatches />
-                </div>
-              } 
-            />
-            <Route 
-              path="/generate-batch" 
-              element={
-                <div className={`${containerBackground} min-h-screen`}>
-                  <ElectrophoresisPlate />
-                </div>
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <PCRBatches />
+                  </div>
+                </ErrorBoundary>
               } 
             />
             <Route 
               path="/electrophoresis-batches" 
               element={
-                <div className={`${containerBackground} min-h-screen`}>
-                  <ElectrophoresisBatches />
-                </div>
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <ElectrophoresisBatches />
+                  </div>
+                </ErrorBoundary>
               } 
             />
             <Route 
               path="/sample-search" 
               element={
-                <div className={`${containerBackground} min-h-screen`}>
-                  <SampleSearch />
-                </div>
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <SampleSearch />
+                  </div>
+                </ErrorBoundary>
               } 
             />
             <Route 
               path="/sample-queues" 
               element={
-                <div className={`${containerBackground} min-h-screen`}>
-                  <SampleQueues />
-                </div>
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <SampleQueues />
+                  </div>
+                </ErrorBoundary>
               } 
             />
             <Route 
               path="/statistics" 
               element={
-                <div className={`${containerBackground} min-h-screen`}>
-                  <Statistics />
-                </div>
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <Statistics />
+                  </div>
+                </ErrorBoundary>
               } 
             />
             <Route 
               path="/quality-control" 
               element={
-                <div className={`${containerBackground} min-h-screen`}>
-                  <QualityControl />
-                </div>
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <QualityControl />
+                  </div>
+                </ErrorBoundary>
               } 
             />
             <Route 
               path="/genetic-analysis" 
               element={
-                <div className={`${containerBackground} min-h-screen`}>
-                  <GeneticAnalysis />
-                </div>
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <GeneticAnalysis />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/electrophoresis-layout" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <ElectrophoresisLayout />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/reruns" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <Reruns />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/api-test" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <ApiTest />
+                  </div>
+                </ErrorBoundary>
               } 
             />
             <Route path="*" element={<Navigate to="/" replace />} />
@@ -200,11 +253,13 @@ const muiTheme = createTheme();
 
 function App() {
   return (
-    <MuiThemeProvider theme={muiTheme}>
-      <ThemeProvider>
-        <AppContent />
-      </ThemeProvider>
-    </MuiThemeProvider>
+    <ErrorBoundary>
+      <MuiThemeProvider theme={muiTheme}>
+        <ThemeProvider>
+          <AppContent />
+        </ThemeProvider>
+      </MuiThemeProvider>
+    </ErrorBoundary>
   );
 }
 

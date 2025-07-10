@@ -1,0 +1,27 @@
+{
+  "require": ["./test/setup.js"],
+  "recursive": true,
+  "timeout": 10000,
+  "exit": true,
+  "reporter": "spec",
+  "spec": [
+    "test/**/*.test.js",
+    "test/**/*.spec.js"
+  ],
+  "ignore": [
+    "node_modules/**",
+    "dist/**",
+    "build/**"
+  ],
+  "watch-files": [
+    "test/**/*.js",
+    "routes/**/*.js",
+    "services/**/*.js",
+    "middleware/**/*.js"
+  ],
+  "watch-ignore": [
+    "node_modules/**",
+    "logs/**",
+    "database/*.db*"
+  ]
+}

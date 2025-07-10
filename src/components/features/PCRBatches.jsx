@@ -48,7 +48,55 @@ const PCRBatches = () => {
 
   useEffect(() => {
     fetchBatches();
+    checkForNewBatch();
   }, []);
+
+  const checkForNewBatch = () => {
+    // Check if there's a newly created batch from PCR plate
+    const newBatchData = sessionStorage.getItem('newlyCreatedBatch');
+    if (newBatchData) {
+      try {
+        const batchData = JSON.parse(newBatchData);
+        
+        // Format the batch data to match expected structure
+        const formattedBatchData = {
+          ...batchData,
+          plate_layout: batchData.wells, // PCR batches expects plate_layout
+          batch_number: batchData.batchNumber,
+          sample_count: batchData.sampleCount,
+          date_created: batchData.created_at
+        };
+        
+        // Auto-open the newly created batch
+        setSelectedBatch(formattedBatchData);
+        setBatchDetails(formattedBatchData);
+        setDialogOpen(true);
+        
+        // Convert wells data to well assignments format for display
+        const wellAssignmentsData = Object.entries(batchData.wells || {}).map(([wellId, wellData]) => ({
+          well_position: wellId,
+          sample_id: wellData.sample_id,
+          sample_name: wellData.sampleName || wellData.label,
+          comment: wellData.comment,
+          type: wellData.type,
+          well_type: wellData.type === 'control' ? 'Control' : 'Sample',
+          samples: wellData.samples || [],
+          sample_name_full: wellData.samples?.[0]?.name || '',
+          surname: wellData.samples?.[0]?.surname || '',
+          kit_number: wellData.kit_number || ''
+        }));
+        setWellAssignments(wellAssignmentsData);
+        
+        // Clear the session storage after processing
+        sessionStorage.removeItem('newlyCreatedBatch');
+        
+        // Refresh the batches list to include the new batch
+        fetchBatches();
+      } catch (error) {
+        console.warn('Failed to process newly created batch:', error);
+      }
+    }
+  };
 
   const fetchBatches = async () => {
     try {
@@ -109,6 +157,35 @@ const PCRBatches = () => {
       case 'cancelled': return 'error';
       default: return 'default';
     }
+  };
+
+  // Calculate counts from plate layout
+  const calculateCounts = (plateLayout) => {
+    if (!plateLayout) return { samples: 0, controls: 0, allelicLadder: 0 };
+    
+    let samples = 0;
+    let controls = 0;
+    let allelicLadder = 0;
+    
+    Object.values(plateLayout).forEach(well => {
+      if (well && well.samples && well.samples.length > 0) {
+        const sample = well.samples[0];
+        switch (well.type) {
+          case 'sample':
+            samples++;
+            break;
+          case 'control':
+            if (sample?.lab_number === 'ALLELIC_LADDER') {
+              allelicLadder++;
+            } else {
+              controls++;
+            }
+            break;
+        }
+      }
+    });
+    
+    return { samples, controls, allelicLadder };
   };
 
   const renderPlateLayout = () => {
@@ -398,17 +475,22 @@ const PCRBatches = () => {
               </Grid>
               <Grid item xs={6}>
                 <Typography variant="body2" color="textSecondary">
-                  <strong>Total Samples:</strong> {batchDetails?.total_samples || 0}
-                </Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography variant="body2" color="textSecondary">
                   <strong>Created:</strong> {formatDate(batchDetails?.created_at)}
                 </Typography>
               </Grid>
-              <Grid item xs={6}>
+              <Grid item xs={4}>
                 <Typography variant="body2" color="textSecondary">
-                  <strong>Settings:</strong> {batchDetails?.settings || 'N/A'}
+                  <strong>Total Samples:</strong> {calculateCounts(batchDetails?.plate_layout).samples}
+                </Typography>
+              </Grid>
+              <Grid item xs={4}>
+                <Typography variant="body2" color="textSecondary">
+                  <strong>Total Controls:</strong> {calculateCounts(batchDetails?.plate_layout).controls}
+                </Typography>
+              </Grid>
+              <Grid item xs={4}>
+                <Typography variant="body2" color="textSecondary">
+                  <strong>Allelic Ladder:</strong> {calculateCounts(batchDetails?.plate_layout).allelicLadder}
                 </Typography>
               </Grid>
             </Grid>

@@ -1,0 +1,25 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 30
+    },
+    "auditLog": "/Users/user/LABSCIENTIFIC-LIMS/backend/logs/.2e02a856c94539ef9c0e07d570579aedfd3f2faf-audit.json",
+    "files": [
+        {
+            "date": 1752002629871,
+            "name": "/Users/user/LABSCIENTIFIC-LIMS/backend/logs/error-2025-07-08.log",
+            "hash": "1a28e8ff26634d2094a7b7078ae792c261e963143810ca95bb875537f970afb2"
+        },
+        {
+            "date": 1752039506292,
+            "name": "/Users/user/LABSCIENTIFIC-LIMS/backend/logs/error-2025-07-09.log",
+            "hash": "cbc14442d8dac900295977e17cc3e2b1f9e9665ddfe42c6c0e6dfcc52b314c88"
+        },
+        {
+            "date": 1752127525218,
+            "name": "/Users/user/LABSCIENTIFIC-LIMS/backend/logs/error-2025-07-10.log",
+            "hash": "fc645998cb5794ae1bfd24ae216b97ad0fc24ff23b3157afc25f9f83a493800e"
+        }
+    ],
+    "hashType": "sha256"
+}

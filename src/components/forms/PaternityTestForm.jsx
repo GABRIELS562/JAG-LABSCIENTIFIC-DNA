@@ -21,10 +21,11 @@ import {
   CardContent,
   IconButton
 } from '@mui/material';
-import { PhotoCamera, CloudUpload, Close } from '@mui/icons-material';
+import { PhotoCamera, CloudUpload, Close, CameraAlt, AutoFixHigh } from '@mui/icons-material';
 import { createWorker } from 'tesseract.js';
 import SignaturePad from '../ui/SignaturePad';
 import WitnessSection from '../ui/WitnessSection';
+import PhotoCapture from '../features/PhotoCapture';
 
 // Initial form state with matching fields across all sections
 const initialFormState = {
@@ -334,6 +335,66 @@ export default function PaternityTestForm() {
   const [isProcessingOCR, setIsProcessingOCR] = useState(false);
   const [ocrWorker, setOcrWorker] = useState(null);
   const [uploadedImage, setUploadedImage] = useState(null);
+  
+  // Photo capture states
+  const [photoCaptureOpen, setPhotoCaptureOpen] = useState(false);
+  const [selectedFormType, setSelectedFormType] = useState('paternity');
+
+  // Handle extracted photo data
+  const handlePhotoDataExtracted = (extractedData) => {
+    if (!extractedData) return;
+
+    // Auto-populate fields based on extracted data
+    const updates = {};
+
+    // Map extracted data to form fields
+    if (extractedData.detectedNames && extractedData.detectedNames.length > 0) {
+      // Try to assign names to appropriate sections
+      const names = extractedData.detectedNames;
+      if (names[0]) {
+        updates.child = { ...formData.child, name: names[0].split(' ')[0], surname: names[0].split(' ').slice(1).join(' ') };
+      }
+      if (names[1]) {
+        updates.father = { ...formData.father, name: names[1].split(' ')[0], surname: names[1].split(' ').slice(1).join(' ') };
+      }
+      if (names[2]) {
+        updates.mother = { ...formData.mother, name: names[2].split(' ')[0], surname: names[2].split(' ').slice(1).join(' ') };
+      }
+    }
+
+    if (extractedData.phoneContact) {
+      updates.phoneContact = extractedData.phoneContact;
+    }
+
+    if (extractedData.emailContact) {
+      updates.emailContact = extractedData.emailContact;
+    }
+
+    if (extractedData.addressArea) {
+      updates.addressArea = extractedData.addressArea;
+    }
+
+    if (extractedData.collectionDate) {
+      // Try to parse and format the date
+      const date = new Date(extractedData.collectionDate);
+      if (!isNaN(date.getTime())) {
+        updates.submissionDate = date.toISOString().split('T')[0];
+      }
+    }
+
+    // Apply updates to form
+    setFormData(prevState => ({
+      ...prevState,
+      ...updates
+    }));
+
+    // Show success message
+    setSnackbar({
+      open: true,
+      message: `Auto-populated form with ${extractedData.confidence}% confidence. Please review and verify all information.`,
+      severity: extractedData.confidence > 70 ? 'success' : 'warning'
+    });
+  };
 
   const handleChange = (section, field, value) => {
     setFormData(prevState => ({
@@ -1269,7 +1330,7 @@ export default function PaternityTestForm() {
                         sx={{ color: '#0D488F', '&.Mui-checked': { color: '#0D488F' } }}
                       />
                     }
-                    label="Paternity (Normal samples)"
+                    label="Peace of Mind Samples"
                     sx={{ '& .MuiFormControlLabel-label': { fontWeight: 500 } }}
                   />
                 </Grid>
@@ -1733,6 +1794,46 @@ export default function PaternityTestForm() {
           <Typography variant="h5" sx={{ color: '#0D488F', fontWeight: 'bold' }}>
             Paternity Test Registration
           </Typography>
+          
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+            <Button
+              variant="outlined"
+              startIcon={<CameraAlt />}
+              onClick={() => {
+                setSelectedFormType('paternity');
+                setPhotoCaptureOpen(true);
+              }}
+              sx={{ 
+                borderColor: '#0D488F',
+                color: '#0D488F',
+                '&:hover': {
+                  borderColor: '#1e4976',
+                  bgcolor: 'rgba(13, 72, 143, 0.04)'
+                }
+              }}
+            >
+              Capture Form
+            </Button>
+            
+            <Button
+              variant="outlined"
+              startIcon={<CameraAlt />}
+              onClick={() => {
+                setSelectedFormType('legal');
+                setPhotoCaptureOpen(true);
+              }}
+              sx={{ 
+                borderColor: '#ff9800',
+                color: '#ff9800',
+                '&:hover': {
+                  borderColor: '#f57c00',
+                  bgcolor: 'rgba(255, 152, 0, 0.04)'
+                }
+              }}
+            >
+              LT Legal Form
+            </Button>
+          </Box>
         </Box>
 
         <FormProgress currentSection={currentSection} sections={sections} />
@@ -1810,6 +1911,14 @@ export default function PaternityTestForm() {
             {snackbar.message}
           </Alert>
         </Snackbar>
+
+        {/* Photo Capture Dialog */}
+        <PhotoCapture
+          open={photoCaptureOpen}
+          onClose={() => setPhotoCaptureOpen(false)}
+          onDataExtracted={handlePhotoDataExtracted}
+          formType={selectedFormType}
+        />
       </Paper>
     </Box>
   );

@@ -18,7 +18,9 @@ import {
   Grid,
   CircularProgress,
   Alert,
-  Container
+  Container,
+  Checkbox,
+  Snackbar
 } from '@mui/material';
 import {
   Refresh,
@@ -27,7 +29,8 @@ import {
   BarChart,
   CheckCircle,
   Schedule,
-  Warning
+  Warning,
+  PlaylistAdd
 } from '@mui/icons-material';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -38,6 +41,8 @@ const SampleQueues = () => {
   const [samples, setSamples] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedSamples, setSelectedSamples] = useState([]);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   const queueTypes = [
     { id: 'all', label: 'All Samples', icon: BarChart, color: '#2196f3' },
@@ -52,6 +57,14 @@ const SampleQueues = () => {
   useEffect(() => {
     loadQueueCounts();
     loadSamples();
+    
+    // Set up auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      loadQueueCounts();
+      loadSamples();
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -150,6 +163,52 @@ const SampleQueues = () => {
     setActiveQueue(newValue);
   };
 
+  const handleSampleSelection = (sample, isSelected) => {
+    if (isSelected) {
+      setSelectedSamples(prev => [...prev, sample]);
+    } else {
+      setSelectedSamples(prev => prev.filter(s => s.id !== sample.id));
+    }
+  };
+
+  const handleSelectAll = (isSelected) => {
+    if (isSelected) {
+      setSelectedSamples([...samples]);
+    } else {
+      setSelectedSamples([]);
+    }
+  };
+
+  const createPCRPlate = () => {
+    if (selectedSamples.length === 0) {
+      setSnackbar({
+        open: true,
+        message: 'Please select at least one sample to create a PCR plate',
+        severity: 'warning'
+      });
+      return;
+    }
+
+    // Store selected samples in sessionStorage for PCR Plate component
+    sessionStorage.setItem('selectedSamplesForBatch', JSON.stringify(selectedSamples));
+    
+    setSnackbar({
+      open: true,
+      message: `${selectedSamples.length} samples selected for PCR plate creation`,
+      severity: 'success'
+    });
+
+    // Navigate to PCR Plate (you might need to implement navigation)
+    // For now, just show success message
+    window.location.href = '#/pcr-plate';
+  };
+
+  const isSelected = (sampleId) => {
+    return selectedSamples.some(s => s.id === sampleId);
+  };
+
+  const allSamplesSelected = samples.length > 0 && selectedSamples.length === samples.length;
+
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
@@ -162,14 +221,27 @@ const SampleQueues = () => {
             Track samples through laboratory workflow stages
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<Refresh />}
-          onClick={refreshData}
-          sx={{ bgcolor: '#1e4976', '&:hover': { bgcolor: '#2c5a8e' } }}
-        >
-          Refresh
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          {selectedSamples.length > 0 && (
+            <Button
+              variant="contained"
+              color="success"
+              startIcon={<PlaylistAdd />}
+              onClick={createPCRPlate}
+              sx={{ mr: 2 }}
+            >
+              Create PCR Plate ({selectedSamples.length})
+            </Button>
+          )}
+          <Button
+            variant="contained"
+            startIcon={<Refresh />}
+            onClick={refreshData}
+            sx={{ bgcolor: '#1e4976', '&:hover': { bgcolor: '#2c5a8e' } }}
+          >
+            Refresh
+          </Button>
+        </Box>
       </Box>
 
       {/* Queue Summary Cards */}
@@ -247,6 +319,14 @@ const SampleQueues = () => {
             <Table>
               <TableHead>
                 <TableRow>
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      checked={allSamplesSelected}
+                      indeterminate={selectedSamples.length > 0 && selectedSamples.length < samples.length}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      disabled={samples.length === 0}
+                    />
+                  </TableCell>
                   <TableCell>Lab Number</TableCell>
                   <TableCell>Case Number</TableCell>
                   <TableCell>Name</TableCell>
@@ -260,7 +340,7 @@ const SampleQueues = () => {
               <TableBody>
                 {samples.length === 0 && !loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                    <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
                       <Typography color="text.secondary">
                         {activeQueue === 0 ? 'No samples available' : `No samples in ${queueTypes[activeQueue]?.label || 'this queue'}`}
                       </Typography>
@@ -269,6 +349,12 @@ const SampleQueues = () => {
                 ) : (
                   samples.map((sample) => (
                     <TableRow key={sample.id} hover>
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          checked={isSelected(sample.id)}
+                          onChange={(e) => handleSampleSelection(sample, e.target.checked)}
+                        />
+                      </TableCell>
                       <TableCell sx={{ fontWeight: 'medium' }}>{sample.lab_number}</TableCell>
                       <TableCell>{sample.case_number || 'N/A'}</TableCell>
                       <TableCell>{sample.name} {sample.surname}</TableCell>
@@ -372,6 +458,21 @@ const SampleQueues = () => {
           </Grid>
         </CardContent>
       </Card>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+      >
+        <Alert
+          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

@@ -24,23 +24,36 @@ import {
   Group,
   Refresh
 } from '@mui/icons-material';
-import { api } from '../../services/api';
+import { optimizedApi } from '../../services/optimizedApi';
 
 const HomePage = ({ isDarkMode }) => {
   const navigate = useNavigate();
   const [dbStats, setDbStats] = useState(null);
+  const [sampleCounts, setSampleCounts] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   // Auto-refresh database on component mount
   useEffect(() => {
     refreshDatabase();
+    fetchSampleCounts();
   }, []);
+
+  const fetchSampleCounts = async () => {
+    try {
+      const response = await optimizedApi.getSampleCounts();
+      if (response.success) {
+        setSampleCounts(response.data);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch sample counts:', error);
+    }
+  };
 
   const refreshDatabase = async () => {
     try {
       setRefreshing(true);
-      const response = await api.refreshDatabase();
+      const response = await optimizedApi.refreshDatabase();
       if (response.success) {
         setDbStats(response.statistics);
         setSnackbar({
@@ -55,6 +68,8 @@ const HomePage = ({ isDarkMode }) => {
           severity: 'error'
         });
       }
+      // Also refresh sample counts
+      await fetchSampleCounts();
     } catch (error) {
       setSnackbar({
         open: true,
@@ -68,39 +83,39 @@ const HomePage = ({ isDarkMode }) => {
 
   const databaseButtons = [
     {
-      title: 'Database Viewer',
-      description: 'View all database tables and records',
+      title: 'API Status',
+      description: 'Check backend server status and health',
       icon: <Storage />,
       color: '#0D488F',
-      onClick: () => window.open('http://localhost:3001/api/db/viewer', '_blank')
+      onClick: () => window.open('http://localhost:3001/health', '_blank')
     },
     {
-      title: 'Samples Database',
-      description: 'Browse all sample records',
+      title: 'Sample Management',
+      description: 'View and manage all samples with batch tracking',
       icon: <Science />,
       color: '#8EC74F',
-      onClick: () => window.open('http://localhost:3001/api/db/viewer/samples', '_blank')
+      onClick: () => navigate('/client-register')
     },
     {
-      title: 'Batches Database',
-      description: 'View PCR batch information',
+      title: 'PCR Batches',
+      description: 'View PCR batch information and history',
       icon: <ViewModule />,
       color: '#022539',
-      onClick: () => window.open('http://localhost:3001/api/db/viewer/batches', '_blank')
+      onClick: () => navigate('/pcr-batches')
     },
     {
-      title: 'Quality Control',
-      description: 'QC records and results',
+      title: 'Electrophoresis Batches',
+      description: 'View electrophoresis batch information',
       icon: <Assessment />,
       color: '#6BA23A',
-      onClick: () => window.open('http://localhost:3001/api/db/viewer/quality-control', '_blank')
+      onClick: () => navigate('/electrophoresis-batches')
     },
     {
-      title: 'Equipment Database',
-      description: 'Lab equipment and calibration',
+      title: 'Sample Queues',
+      description: 'View sample workflow queues and status',
       icon: <TableChart />,
       color: '#0D488F',
-      onClick: () => window.open('http://localhost:3001/api/db/viewer/equipment', '_blank')
+      onClick: () => navigate('/sample-queues')
     }
   ];
 
@@ -114,23 +129,30 @@ const HomePage = ({ isDarkMode }) => {
     },
     {
       title: 'Sample Management',
-      description: 'Manage and track samples',
+      description: 'Manage and track Peace of Mind samples',
       icon: <Assignment />,
       color: '#0D488F',
       onClick: () => navigate('/client-register')
     },
     {
-      title: 'PCR Plate Layout',
-      description: 'Design and manage PCR plates',
+      title: 'LDS PCR Plate',
+      description: 'Design and manage LDS PCR plates',
       icon: <Science />,
       color: '#022539',
       onClick: () => navigate('/pcr-plate')
     },
     {
+      title: 'Electrophoresis Layout',
+      description: 'LAS Electrophoresis Batch Management',
+      icon: <ViewModule />,
+      color: '#6BA23A',
+      onClick: () => navigate('/electrophoresis-layout')
+    },
+    {
       title: 'Sample Search',
       description: 'Search and filter samples',
       icon: <Search />,
-      color: '#6BA23A',
+      color: '#8EC74F',
       onClick: () => navigate('/sample-search')
     }
   ];
@@ -154,15 +176,69 @@ const HomePage = ({ isDarkMode }) => {
           </Button>
         </Box>
         
-        {dbStats && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, flexWrap: 'wrap' }}>
-            <Chip label={`${dbStats.samples} Samples`} color="primary" size="small" />
-            <Chip label={`${dbStats.batches} Batches`} color="secondary" size="small" />
-            <Chip label={`${dbStats.qc_records} QC Records`} color="success" size="small" />
-            <Chip label={`${dbStats.equipment} Equipment`} color="warning" size="small" />
-            <Chip label={`${dbStats.test_cases} Test Cases`} color="info" size="small" />
-            <Chip label={`${dbStats.reports} Reports`} color="error" size="small" />
-          </Box>
+        {sampleCounts && (
+          <Grid container spacing={2} sx={{ justifyContent: 'center', maxWidth: 1000, mx: 'auto' }}>
+            <Grid item xs={6} sm={12/5}>
+              <Card sx={{ textAlign: 'center', bgcolor: '#f5f5f5', cursor: 'pointer' }} onClick={() => navigate('/client-register')}>
+                <CardContent sx={{ py: 1.5 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0D488F' }}>
+                    {sampleCounts.total}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Total Samples
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={6} sm={12/5}>
+              <Card sx={{ textAlign: 'center', bgcolor: '#fff3e0', cursor: 'pointer' }} onClick={() => navigate('/client-register')}>
+                <CardContent sx={{ py: 1.5 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#ff9800' }}>
+                    {sampleCounts.pending}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    📋 Pending
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={6} sm={12/5}>
+              <Card sx={{ textAlign: 'center', bgcolor: '#e8f4fd', cursor: 'pointer' }} onClick={() => navigate('/client-register')}>
+                <CardContent sx={{ py: 1.5 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
+                    {sampleCounts.pcrBatched}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    🧬 PCR Batched
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={6} sm={12/5}>
+              <Card sx={{ textAlign: 'center', bgcolor: '#f3e5f5', cursor: 'pointer' }} onClick={() => navigate('/client-register')}>
+                <CardContent sx={{ py: 1.5 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#7b1fa2' }}>
+                    {sampleCounts.electroBatched}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    ⚡ Electro Batched
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={6} sm={12/5}>
+              <Card sx={{ textAlign: 'center', bgcolor: '#ffebee', cursor: 'pointer' }} onClick={() => navigate('/client-register')}>
+                <CardContent sx={{ py: 1.5 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#d32f2f' }}>
+                    {sampleCounts.rerunBatched || 0}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    🔄 Rerun Batched
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
         )}
       </Box>
 

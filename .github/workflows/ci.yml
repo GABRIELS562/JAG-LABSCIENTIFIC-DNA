@@ -1,0 +1,304 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: |
+        npm ci
+        cd backend && npm ci
+        
+    - name: Setup test environment
+      run: |
+        cp .env.example .env.test
+        echo "NODE_ENV=test" >> .env.test
+        echo "DB_PATH=./backend/database/test_ci.db" >> .env.test
+        echo "LOG_LEVEL=error" >> .env.test
+        
+    - name: Run linting
+      run: |
+        npm run lint
+        cd backend && npm run lint
+        
+    - name: Run type checking
+      run: |
+        npm run type-check
+        
+    - name: Run unit tests (Backend)
+      run: |
+        cd backend && npm test
+        
+    - name: Run unit tests (Frontend)
+      run: |
+        npm test -- --coverage --watchAll=false
+        
+    - name: Run integration tests
+      run: |
+        cd backend && npm run test:integration
+        
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./coverage/lcov.info,./backend/coverage/lcov.info
+        fail_ci_if_error: true
+        verbose: true
+
+  e2e-test:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: |
+        npm ci
+        cd backend && npm ci
+        
+    - name: Install Playwright
+      run: |
+        npx playwright install --with-deps
+        
+    - name: Setup test environment
+      run: |
+        cp .env.example .env.test
+        echo "NODE_ENV=test" >> .env.test
+        echo "DB_PATH=./backend/database/test_e2e.db" >> .env.test
+        echo "PORT=3001" >> .env.test
+        echo "E2E_BASE_URL=http://localhost:3000" >> .env.test
+        
+    - name: Build application
+      run: |
+        npm run build
+        
+    - name: Run E2E tests
+      run: |
+        npm run test:e2e
+        
+    - name: Upload E2E test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: playwright-results
+        path: |
+          test-results/
+          playwright-report/
+        retention-days: 30
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: |
+        npm ci
+        cd backend && npm ci
+        
+    - name: Run security audit
+      run: |
+        npm audit --audit-level=moderate
+        cd backend && npm audit --audit-level=moderate
+        
+    - name: Run dependency vulnerability scan
+      run: |
+        npx audit-ci --config .audit-ci.json
+        
+    - name: SAST Scan with Semgrep
+      uses: returntocorp/semgrep-action@v1
+      with:
+        config: >-
+          p/security-audit
+          p/secrets
+          p/owasp-top-ten
+          p/javascript
+          p/typescript
+          p/react
+          p/express
+        generateSarif: "1"
+        
+    - name: Upload SARIF file
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: semgrep.sarif
+      if: always()
+
+  performance-test:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: |
+        npm ci
+        cd backend && npm ci
+        
+    - name: Build application
+      run: |
+        npm run build
+        
+    - name: Run performance tests
+      run: |
+        npm run test:performance
+        
+    - name: Upload performance results
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-results
+        path: performance-results/
+        retention-days: 30
+
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    needs: [test, e2e-test, security-scan]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: |
+        npm ci
+        cd backend && npm ci
+        
+    - name: Build application
+      run: |
+        npm run build
+        
+    - name: Create deployment package
+      run: |
+        tar -czf labscientific-lims-${{ github.sha }}.tar.gz \
+          build/ \
+          backend/ \
+          package.json \
+          package-lock.json \
+          .env.example \
+          README.md
+          
+    - name: Upload deployment artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: deployment-package
+        path: labscientific-lims-${{ github.sha }}.tar.gz
+        retention-days: 90
+        
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha
+          
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+  notify:
+    name: Notify Status
+    runs-on: ubuntu-latest
+    needs: [test, e2e-test, security-scan, performance-test, build-and-deploy]
+    if: always()
+    
+    steps:
+    - name: Notify on success
+      if: ${{ needs.test.result == 'success' && needs.e2e-test.result == 'success' && needs.security-scan.result == 'success' }}
+      run: |
+        echo "✅ All tests passed successfully!"
+        echo "Build SHA: ${{ github.sha }}"
+        echo "Branch: ${{ github.ref }}"
+        
+    - name: Notify on failure
+      if: ${{ needs.test.result == 'failure' || needs.e2e-test.result == 'failure' || needs.security-scan.result == 'failure' }}
+      run: |
+        echo "❌ Pipeline failed!"
+        echo "Test: ${{ needs.test.result }}"
+        echo "E2E: ${{ needs.e2e-test.result }}"
+        echo "Security: ${{ needs.security-scan.result }}"
+        exit 1

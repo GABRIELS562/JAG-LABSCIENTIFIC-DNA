@@ -1,0 +1,101 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: lims-app-service
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: app
+spec:
+  selector:
+    app: labscientific-lims
+    component: app
+  ports:
+  - name: frontend
+    port: 3000
+    targetPort: 3000
+  - name: backend
+    port: 3001
+    targetPort: 3001
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: redis
+spec:
+  selector:
+    app: labscientific-lims
+    component: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: postgres
+spec:
+  selector:
+    app: labscientific-lims
+    component: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: nginx
+spec:
+  selector:
+    app: labscientific-lims
+    component: nginx
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+  - name: https
+    port: 443
+    targetPort: 443
+  type: LoadBalancer
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lims-monitoring
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: monitoring
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3001"
+    prometheus.io/path: "/monitoring/metrics"
+spec:
+  selector:
+    app: labscientific-lims
+    component: app
+  ports:
+  - name: metrics
+    port: 3001
+    targetPort: 3001
+  type: ClusterIP

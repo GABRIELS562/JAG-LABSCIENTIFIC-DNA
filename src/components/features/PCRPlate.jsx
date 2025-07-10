@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Paper,
@@ -36,6 +37,7 @@ import {
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const PCRPlate = () => {
+  const navigate = useNavigate();
   const [selectedSamples, setSelectedSamples] = useState([]);
   const [plateData, setPlateData] = useState({});
   const [draggedItem, setDraggedItem] = useState(null);
@@ -50,6 +52,8 @@ const PCRPlate = () => {
   });
   const [selectedControl, setSelectedControl] = useState(null); // 'negative', 'positive', 'ladder', or null
   const [wellContextMenu, setWellContextMenu] = useState({ open: false, wellId: null, anchorEl: null });
+  const [dragHoverWell, setDragHoverWell] = useState(null);
+  const [dragHoverWells, setDragHoverWells] = useState([]);
 
   useEffect(() => {
     // Get selected samples from sessionStorage or localStorage
@@ -149,13 +153,58 @@ const PCRPlate = () => {
     e.dataTransfer.effectAllowed = 'move';
   };
 
+  const handleDragEnd = (e) => {
+    setDraggedItem(null);
+    setDragHoverWell(null);
+    setDragHoverWells([]);
+  };
+
   const handleDragOver = (e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
   };
 
+  const handleDragEnter = (e, wellId) => {
+    e.preventDefault();
+    setDragHoverWell(wellId);
+    
+    // If dragging a group, show preview of all wells that will be used
+    if (draggedItem && draggedItem.samples && Array.isArray(draggedItem.samples)) {
+      const samplesCount = draggedItem.samples.length;
+      const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      const cols = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+      
+      const startCol = wellId.slice(1);
+      const startRow = wellId[0];
+      const startRowIndex = rows.indexOf(startRow);
+      
+      const previewWells = [];
+      for (let i = 0; i < samplesCount; i++) {
+        const targetRowIndex = startRowIndex + i;
+        if (targetRowIndex < rows.length) {
+          const targetWell = `${rows[targetRowIndex]}${startCol}`;
+          previewWells.push(targetWell);
+        }
+      }
+      setDragHoverWells(previewWells);
+    } else {
+      setDragHoverWells([wellId]);
+    }
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    // Only clear hover if we're actually leaving the well area
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setDragHoverWell(null);
+      setDragHoverWells([]);
+    }
+  };
+
   const handleDrop = (e, wellId) => {
     e.preventDefault();
+    setDragHoverWell(null);
+    setDragHoverWells([]);
     
     if (!draggedItem) return;
     
@@ -629,8 +678,21 @@ const PCRPlate = () => {
         operator,
         wells: transformedWells,
         sampleCount: getPlacedSamplesCount(),
-        date: new Date().toISOString().split('T')[0]
+        date: new Date().toISOString().split('T')[0],
+        batchType: 'pcr'
       };
+
+      // Add comprehensive logging
+      console.log('🔍 PCR Plate - Starting batch finalization');
+      console.log('📊 Batch data:', {
+        batchNumber,
+        operator,
+        sampleCount: getPlacedSamplesCount(),
+        wellCount: Object.keys(transformedWells).length,
+        date: batchData.date
+      });
+      console.log('🧪 Wells data:', transformedWells);
+      console.log('📡 API URL:', `${API_URL}/api/generate-batch`);
 
       // Call the API to generate the batch
       const authToken = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
@@ -643,34 +705,84 @@ const PCRPlate = () => {
         headers['Authorization'] = `Bearer ${authToken}`;
       }
       
+      console.log('📤 Sending request to backend...');
       const response = await fetch(`${API_URL}/api/generate-batch`, {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(batchData)
       });
+      
+      console.log('📥 Response status:', response.status);
+      console.log('📥 Response ok:', response.ok);
 
       if (response.ok) {
         const result = await response.json();
+        console.log('✅ Success response:', result);
         
-        // Clear the selected samples from sessionStorage
+        // Update sample status to 'pcr_batched' in the database
+        const sampleIds = Object.values(plateData)
+          .filter(well => well.samples && well.samples.length > 0)
+          .flatMap(well => well.samples.map(sample => sample.id));
+          
+        if (sampleIds.length > 0) {
+          try {
+            await fetch(`${API_URL}/api/samples/workflow-status`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                sampleIds: sampleIds,
+                workflowStatus: 'pcr_batched'
+              })
+            });
+          } catch (error) {
+            console.warn('Failed to update sample status:', error);
+          }
+        }
+        
+        // Store samples for electrophoresis
+        const samplesForElectrophoresis = Object.values(plateData)
+          .filter(well => well.samples && well.samples.length > 0)
+          .flatMap(well => well.samples.map(sample => ({
+            ...sample,
+            pcr_batch: batchNumber
+          })));
+          
+        sessionStorage.setItem('selectedSamplesForElectrophoresis', JSON.stringify(samplesForElectrophoresis));
+        
+        // Use the batch number returned from the backend
+        const finalBatchNumber = result.batchNumber || batchNumber;
+        
+        // Store the complete batch data for the PCR batches page
+        const completeBatchData = {
+          ...batchData,
+          id: result.batchId,
+          batchNumber: finalBatchNumber,
+          wells: transformedWells,
+          created_at: new Date().toISOString(),
+          status: 'active'
+        };
+        sessionStorage.setItem('newlyCreatedBatch', JSON.stringify(completeBatchData));
+        
+        // Clear the selected samples from PCR sessionStorage
         sessionStorage.removeItem('selectedSamplesForBatch');
-        
-        // Reset the plate and sample state for next batch
-        setSelectedSamples([]);
-        initializePlate();
-        
-        // Generate new batch number for next use
-        await generateBatchNumber();
         
         setFinalizeDialog(false);
         
         setSnackbar({
           open: true,
-          message: `Batch ${batchNumber} finalized! Plate cleared and ready for next batch.`,
+          message: `PCR Batch ${finalBatchNumber} finalized! Navigating to LDS PCR Batch Plate...`,
           severity: 'success'
         });
+        
+        // Navigate to LDS PCR Batch Plate after a short delay
+        setTimeout(() => {
+          navigate('/pcr-batches');
+        }, 2000);
       } else {
         const error = await response.json();
+        console.log('❌ Error response:', error);
         setSnackbar({
           open: true,
           message: `Error finalizing batch: ${error.error || 'Unknown error'}`,
@@ -810,6 +922,7 @@ const PCRPlate = () => {
                 }}
                 draggable
                 onDragStart={(e) => handleDragStart(e, group)}
+                onDragEnd={handleDragEnd}
               >
                 <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -843,6 +956,7 @@ const PCRPlate = () => {
                             handleDragStart(e, group);
                           }
                         }}
+                        onDragEnd={handleDragEnd}
                       >
                         <DragIndicator sx={{ fontSize: 12, color: 'primary.main', opacity: 0.7 }} />
                         <Chip 
@@ -874,6 +988,7 @@ const PCRPlate = () => {
                 }}
                 draggable
                 onDragStart={(e) => handleDragStart(e, sample)}
+                onDragEnd={handleDragEnd}
               >
                 <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', minHeight: 24 }}>
@@ -1019,6 +1134,9 @@ const PCRPlate = () => {
                 {Array.from({ length: 12 }, (_, i) => {
                   const wellId = `${row}${(i + 1).toString().padStart(2, '0')}`;
                   const well = plateData[wellId];
+                  const isHovered = dragHoverWells.includes(wellId);
+                  const isValidDrop = isHovered && well.samples.length === 0;
+                  
                   return (
                     <Box
                       key={wellId}
@@ -1026,11 +1144,15 @@ const PCRPlate = () => {
                         position: 'relative',
                         width: 40,
                         height: 40,
-                        border: selectedControl && well.samples.length === 0 ? 
-                          `2px dashed ${selectedControl === 'negative' ? '#f44336' : selectedControl === 'positive' ? '#4caf50' : '#ff9800'}` : 
-                          '2px solid #ddd',
+                        border: isHovered ? 
+                          (isValidDrop ? '3px solid #4caf50' : '3px solid #f44336') : 
+                          selectedControl && well.samples.length === 0 ? 
+                            `2px dashed ${selectedControl === 'negative' ? '#f44336' : selectedControl === 'positive' ? '#4caf50' : '#ff9800'}` : 
+                            '2px solid #ddd',
                         borderRadius: '50%',
-                        backgroundColor: getWellColor(well),
+                        backgroundColor: isHovered ? 
+                          (isValidDrop ? '#e8f5e8' : '#ffebee') : 
+                          getWellColor(well),
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -1043,6 +1165,8 @@ const PCRPlate = () => {
                         transition: 'all 0.2s ease'
                       }}
                       onDragOver={handleDragOver}
+                      onDragEnter={(e) => handleDragEnter(e, wellId)}
+                      onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDrop(e, wellId)}
                       onClick={() => handleWellClick(wellId)}
                       onContextMenu={(e) => handleWellRightClick(e, wellId)}

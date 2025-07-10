@@ -97,8 +97,9 @@ class DatabaseService {
         case_id, lab_number, name, surname, id_dob, date_of_birth,
         place_of_birth, nationality, occupation, address, phone_number,
         email, id_number, id_type, marital_status, ethnicity,
-        collection_date, submission_date, relation, additional_notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        collection_date, submission_date, relation, additional_notes,
+        case_number, gender, age, sample_type, notes, status, workflow_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     return stmt.run(
@@ -121,7 +122,14 @@ class DatabaseService {
       sampleData.collection_date,
       sampleData.submission_date,
       sampleData.relation,
-      sampleData.additional_notes
+      sampleData.additional_notes,
+      sampleData.case_number,
+      sampleData.gender,
+      sampleData.age,
+      sampleData.sample_type,
+      sampleData.notes,
+      sampleData.status || 'active',
+      sampleData.workflow_status || 'sample_collected'
     );
   }
 
@@ -164,17 +172,16 @@ class DatabaseService {
 
   getAllSamples() {
     const stmt = this.db.prepare(`
-      SELECT s.*, tc.case_number, b.batch_number
+      SELECT s.*, b.batch_number
       FROM samples s
-      LEFT JOIN test_cases tc ON s.case_id = tc.id
       LEFT JOIN batches b ON s.batch_id = b.id
       ORDER BY 
-        tc.case_number ASC,
+        s.case_number ASC,
         CAST(SUBSTR(s.lab_number, INSTR(s.lab_number, '_') + 1) AS INTEGER) ASC,
         CASE s.relation
-          WHEN 'Child' THEN 1
-          WHEN 'Alleged Father' THEN 2
-          WHEN 'Mother' THEN 3
+          WHEN 'child' THEN 1
+          WHEN 'alleged_father' THEN 2
+          WHEN 'mother' THEN 3
           ELSE 4
         END ASC
     `);
@@ -768,6 +775,47 @@ class DatabaseService {
     });
     
     return updateBatch(sampleIds, workflowStatus);
+  }
+
+  // Clear all samples from database
+  clearAllSamples() {
+    const stmt = this.db.prepare('DELETE FROM samples');
+    stmt.run();
+  }
+
+  // Get total sample count
+  getSampleCount() {
+    const stmt = this.db.prepare('SELECT COUNT(*) as count FROM samples');
+    const result = stmt.get();
+    return result.count;
+  }
+
+  // Get samples for a specific batch
+  getSamplesByBatchId(batchId) {
+    const stmt = this.db.prepare(`
+      SELECT s.*, b.batch_number
+      FROM samples s
+      LEFT JOIN batches b ON s.batch_id = b.id
+      WHERE s.batch_id = ?
+      ORDER BY 
+        s.case_number ASC,
+        CAST(SUBSTR(s.lab_number, INSTR(s.lab_number, '_') + 1) AS INTEGER) ASC
+    `);
+    return stmt.all(batchId);
+  }
+
+  // Get samples for a specific batch by batch number
+  getSamplesByBatchNumber(batchNumber) {
+    const stmt = this.db.prepare(`
+      SELECT s.*, b.batch_number
+      FROM samples s
+      LEFT JOIN batches b ON s.batch_id = b.id
+      WHERE b.batch_number = ?
+      ORDER BY 
+        s.case_number ASC,
+        CAST(SUBSTR(s.lab_number, INSTR(s.lab_number, '_') + 1) AS INTEGER) ASC
+    `);
+    return stmt.all(batchNumber);
   }
 
   // Close database connection

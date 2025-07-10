@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -30,7 +30,12 @@ import {
   DialogContent,
   DialogActions,
   Stack,
-  Divider
+  Divider,
+  Snackbar,
+  Skeleton,
+  LinearProgress,
+  Pagination,
+  FormGroup
 } from '@mui/material';
 import {
   Search,
@@ -40,83 +45,139 @@ import {
   Assignment,
   Science,
   PlaylistAdd,
-  Group
+  Group,
+  Refresh,
+  CloudOff,
+  CloudDone,
+  Warning
 } from '@mui/icons-material';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { optimizedApi } from '../../services/optimizedApi';
 
 export default function ClientRegister() {
   const navigate = useNavigate();
   const [samples, setSamples] = useState([]);
-  const [filteredSamples, setFilteredSamples] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [batchFilter, setBatchFilter] = useState('all');
   const [selectedSamples, setSelectedSamples] = useState([]);
+  const [connectionStatus, setConnectionStatus] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalSamples, setTotalSamples] = useState(0);
+  
+  // Dialog state
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
   const [newBatchNumber, setNewBatchNumber] = useState('');
-  const [sampleGroups, setSampleGroups] = useState([]);
+  
+  // Status counts
+  const [statusCounts, setStatusCounts] = useState({
+    total: 0,
+    pending: 0,
+    pcrBatched: 0,
+    electroBatched: 0,
+    rerunBatched: 0,
+    completed: 0,
+    active: 0,
+    // Legacy for backward compatibility
+    processing: 0
+  });
 
   useEffect(() => {
     fetchSamples();
-  }, []);
+    fetchStatusCounts();
+  }, [currentPage, pageSize, searchTerm, statusFilter]);
 
+  // Debounced search effect
   useEffect(() => {
-    filterSamples();
-  }, [samples, searchTerm, statusFilter, batchFilter]);
+    const timeoutId = setTimeout(() => {
+      if (currentPage !== 1) {
+        setCurrentPage(1);
+      }
+    }, 300); // 300ms debounce for search
 
-  const fetchSamples = async () => {
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, statusFilter]);
+
+  const fetchSamples = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/samples`);
-      const data = await response.json();
+      setError(null);
+      
+      const filters = {
+        status: statusFilter,
+        search: searchTerm
+      };
+      
+      const data = await optimizedApi.getSamples(currentPage, pageSize, filters);
       
       if (data.success) {
-        setSamples(data.data || []);
+        const samplesData = data.data || [];
+        setSamples(samplesData);
+        
+        // Update pagination info
+        if (data.pagination) {
+          setTotalPages(data.pagination.pages);
+          setTotalSamples(data.pagination.total);
+        }
+        
+        setConnectionStatus(true);
+        
+        if (currentPage === 1) {
+          setSnackbar({
+            open: true,
+            message: `Loaded ${samplesData.length} of ${data.pagination?.total || 0} Peace of Mind samples`,
+            severity: 'success'
+          });
+        }
       } else {
-        setError('Failed to fetch samples');
+        setError('Failed to fetch samples: ' + (data.error || 'Unknown error'));
+        setConnectionStatus(false);
       }
     } catch (error) {
-      setError('Error connecting to server');
+      setError('Error connecting to server: ' + error.message);
+      setConnectionStatus(false);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load samples. Check connection.',
+        severity: 'error'
+      });
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, statusFilter, searchTerm]);
 
-  const filterSamples = () => {
-    let filtered = [...samples];
-
-    // Search filter
-    if (searchTerm) {
-      filtered = filtered.filter(sample =>
-        sample.lab_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sample.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sample.surname?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sample.case_number?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+  const fetchStatusCounts = useCallback(async () => {
+    try {
+      const data = await optimizedApi.getSampleCounts();
+      if (data.success) {
+        setStatusCounts(data.data);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch status counts:', error);
     }
+  }, []);
 
-    // Status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(sample => sample.status === statusFilter);
-    }
-
-    // Batch filter
-    if (batchFilter === 'to_be_batched') {
-      filtered = filtered.filter(sample => sample.status === 'pending' && !sample.batch_id);
-    } else if (batchFilter === 'batched') {
-      filtered = filtered.filter(sample => sample.batch_id);
-    }
-
-    setFilteredSamples(filtered);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    optimizedApi.clearCache(); // Clear cache to force fresh data
+    await fetchSamples();
+    await fetchStatusCounts();
+    setIsRefreshing(false);
   };
 
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending':
         return 'warning';
+      case 'active':
+        return 'primary';
       case 'processing':
         return 'info';
       case 'completed':
@@ -129,10 +190,22 @@ export default function ClientRegister() {
   };
 
   const getBatchStatus = (sample) => {
-    if (sample.batch_id) {
-      return { label: 'Batched', color: 'success' };
-    } else if (sample.status === 'pending') {
-      return { label: 'To be Batched', color: 'warning' };
+    if (sample.lab_batch_number?.includes('_RR')) {
+      return { label: '🔄 Rerun Batched', color: 'error' };
+    } else if (sample.lab_batch_number?.startsWith('LDS_')) {
+      return { label: '🧬 PCR Batched', color: 'info' };
+    } else if (sample.lab_batch_number?.startsWith('ELEC_')) {
+      return { label: '⚡ Electro Batched', color: 'secondary' };
+    } else if (sample.workflow_status === 'analysis_completed') {
+      return { label: '✅ Completed', color: 'success' };
+    } else if (sample.workflow_status === 'rerun_batched') {
+      return { label: '🔄 Rerun Batched', color: 'error' };
+    } else if (sample.batch_id || sample.workflow_status === 'pcr_batched') {
+      return { label: '🧬 PCR Batched', color: 'info' };
+    } else if (sample.workflow_status === 'electro_batched') {
+      return { label: '⚡ Electro Batched', color: 'secondary' };
+    } else if (sample.workflow_status === 'sample_collected' || sample.workflow_status === 'pcr_ready') {
+      return { label: '📋 Pending', color: 'warning' };
     } else {
       return { label: 'N/A', color: 'default' };
     }
@@ -149,52 +222,63 @@ export default function ClientRegister() {
     return labNumber;
   };
 
-  const groupSamplesByCase = (samples) => {
-    const groups = {};
-    samples.forEach(sample => {
-      if (sample.case_number) {
-        if (!groups[sample.case_number]) {
-          groups[sample.case_number] = [];
-        }
-        groups[sample.case_number].push(sample);
-      }
+
+  // Helper function to get samples from the same case in priority order
+  const getCaseSamples = (caseNumber) => {
+    if (!caseNumber) return [];
+    
+    const caseSamples = samples.filter(s => s.case_number === caseNumber);
+    
+    // Sort by relation priority: child first, then alleged_father, then mother
+    const getRelationPriority = (relation) => {
+      if (relation.startsWith('child')) return 1; // child(25_002)F -> 1
+      if (relation === 'alleged_father') return 2;
+      if (relation === 'mother') return 3;
+      return 999; // unknown relations last
+    };
+    
+    return caseSamples.sort((a, b) => {
+      const aPriority = getRelationPriority(a.relation);
+      const bPriority = getRelationPriority(b.relation);
+      return aPriority - bPriority;
     });
-    return groups;
   };
 
   const handleSampleSelect = (sample) => {
-    const caseNumber = sample.case_number;
-    if (!caseNumber) {
-      // Individual sample selection
-      setSelectedSamples(prev => {
-        const isSelected = prev.some(s => s.id === sample.id);
-        if (isSelected) {
-          return prev.filter(s => s.id !== sample.id);
+    setSelectedSamples(prev => {
+      const isSelected = prev.some(s => s.id === sample.id);
+      
+      if (isSelected) {
+        // If deselecting, remove all samples from this case
+        if (sample.case_number) {
+          return prev.filter(s => s.case_number !== sample.case_number);
         } else {
+          // If no case number, just remove this sample
+          return prev.filter(s => s.id !== sample.id);
+        }
+      } else {
+        // If selecting, add all samples from this case in priority order
+        if (sample.case_number) {
+          const caseSamples = getCaseSamples(sample.case_number);
+          // Remove any existing samples from this case first
+          const withoutCase = prev.filter(s => s.case_number !== sample.case_number);
+          // Add all case samples in priority order
+          return [...withoutCase, ...caseSamples];
+        } else {
+          // If no case number, just add this sample
           return [...prev, sample];
         }
-      });
-    } else {
-      // Group selection by case
-      const caseGroup = filteredSamples.filter(s => s.case_number === caseNumber);
-      const isGroupSelected = caseGroup.every(s => selectedSamples.some(selected => selected.id === s.id));
-      
-      setSelectedSamples(prev => {
-        if (isGroupSelected) {
-          // Remove all samples from this case
-          return prev.filter(s => s.case_number !== caseNumber);
-        } else {
-          // Add all samples from this case
-          const nonCaseSelected = prev.filter(s => s.case_number !== caseNumber);
-          return [...nonCaseSelected, ...caseGroup];
-        }
-      });
-    }
+      }
+    });
   };
 
   const handleSelectAll = () => {
-    const pendingSamples = filteredSamples.filter(s => s.status === 'pending' && !s.batch_id);
-    setSelectedSamples(pendingSamples);
+    const availableSamples = samples.filter(s => 
+      (s.status === 'pending' || s.status === 'active') && 
+      !s.batch_id &&
+      (s.workflow_status === 'sample_collected' || s.workflow_status === 'pcr_ready')
+    );
+    setSelectedSamples(availableSamples);
   };
 
   const handleDeselectAll = () => {
@@ -227,7 +311,7 @@ export default function ClientRegister() {
   const handleBatchAssignment = async () => {
     try {
       // In a real app, this would call the API to assign samples to batch
-      const response = await fetch(`${API_URL}/api/batches`, {
+      const response = await fetch(`${optimizedApi.baseURL}/api/batches`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -261,17 +345,117 @@ export default function ClientRegister() {
   };
 
   const getPendingSamples = () => {
-    return filteredSamples.filter(s => s.status === 'pending' && !s.batch_id);
+    return samples.filter(s => 
+      (s.status === 'pending' || s.status === 'active') && 
+      !s.batch_id &&
+      (s.workflow_status === 'sample_collected' || s.workflow_status === 'pcr_ready')
+    );
   };
 
-  const stats = {
-    total: samples.length,
-    pending: samples.filter(s => s.status === 'pending').length,
-    processing: samples.filter(s => s.status === 'processing').length,
-    completed: samples.filter(s => s.status === 'completed').length,
-    toBeBatched: samples.filter(s => s.status === 'pending' && !s.batch_id).length,
-    batched: samples.filter(s => s.batch_id).length
-  };
+
+  // Render samples table without case grouping
+  const renderSamplesTable = () => (
+    <TableContainer component={Paper} sx={{ mt: 3 }}>
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell padding="checkbox"></TableCell>
+            <TableCell>Lab Number</TableCell>
+            <TableCell>Name</TableCell>
+            <TableCell>Surname</TableCell>
+            <TableCell>Relation</TableCell>
+            <TableCell>Batch Status</TableCell>
+            <TableCell>Batch Number</TableCell>
+            <TableCell>Collection Date</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {samples.map(sample => {
+            // Check if this sample or any sample from its case is selected
+            const isSelected = sample.case_number 
+              ? selectedSamples.some(s => s.case_number === sample.case_number)
+              : selectedSamples.some(s => s.id === sample.id);
+            return (
+              <TableRow
+                key={sample.id}
+                hover
+                selected={isSelected}
+                sx={{
+                  '&.Mui-selected': {
+                    backgroundColor: '#e3f2fd',
+                    '&:hover': { backgroundColor: '#bbdefb' },
+                  },
+                }}
+              >
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    checked={isSelected}
+                    onChange={() => handleSampleSelect(sample)}
+                    sx={{
+                      color: '#1976d2',
+                      '&.Mui-checked': { color: '#1976d2' },
+                    }}
+                  />
+                </TableCell>
+                <TableCell>{formatLabNumber(sample.lab_number)}</TableCell>
+                <TableCell>{sample.name}</TableCell>
+                <TableCell>{sample.surname}</TableCell>
+                <TableCell>{sample.relation}</TableCell>
+                <TableCell>
+                  <Chip 
+                    label={getBatchStatus(sample).label} 
+                    color={getBatchStatus(sample).color} 
+                    size="small" 
+                  />
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                    {sample.lab_batch_number || '-'}
+                  </Typography>
+                </TableCell>
+                <TableCell>{formatDate(sample.collection_date)}</TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+
+  const renderPagination = () => (
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2, p: 2 }}>
+      <Typography variant="body2" color="text.secondary">
+        Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalSamples)} of {totalSamples} samples
+      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <FormControl size="small">
+          <InputLabel>Per Page</InputLabel>
+          <Select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setCurrentPage(1);
+            }}
+            label="Per Page"
+            sx={{ minWidth: 80 }}
+          >
+            <MenuItem value={10}>10</MenuItem>
+            <MenuItem value={25}>25</MenuItem>
+            <MenuItem value={50}>50</MenuItem>
+            <MenuItem value={100}>100</MenuItem>
+          </Select>
+        </FormControl>
+        <Pagination
+          count={totalPages}
+          page={currentPage}
+          onChange={(event, page) => setCurrentPage(page)}
+          color="primary"
+          showFirstButton
+          showLastButton
+        />
+      </Box>
+    </Box>
+  );
 
   if (loading) {
     return (
@@ -284,18 +468,134 @@ export default function ClientRegister() {
 
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto', p: 3 }}>
+      {/* Connection Status Bar */}
+      {!connectionStatus && (
+        <Alert 
+          severity="warning" 
+          sx={{ mb: 2 }}
+          icon={<CloudOff />}
+          action={
+            <Button 
+              color="inherit" 
+              size="small" 
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
+              {isRefreshing ? 'Retrying...' : 'Retry'}
+            </Button>
+          }
+        >
+          Server connection lost. Some features may not work properly.
+        </Alert>
+      )}
+
+      {/* Loading Progress Bar */}
+      {(loading || isRefreshing) && (
+        <LinearProgress sx={{ mb: 2 }} />
+      )}
+
+      {/* Header with Status Counts */}
+      <Box sx={{ mb: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography variant="h4" sx={{ color: '#0D488F', fontWeight: 'bold' }}>
+              Peace of Mind Samples
+            </Typography>
+            {connectionStatus ? (
+              <CloudDone sx={{ color: 'success.main' }} />
+            ) : (
+              <CloudOff sx={{ color: 'warning.main' }} />
+            )}
+          </Box>
+          
+          <Button
+            variant="outlined"
+            startIcon={isRefreshing ? <CircularProgress size={20} /> : <Refresh />}
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            sx={{ minWidth: 120 }}
+          >
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
+        </Box>
+
+        {/* Status Count Cards */}
+        <Grid container spacing={2} sx={{ mb: 2 }}>
+          <Grid item xs={12/5}>
+            <Card sx={{ textAlign: 'center', bgcolor: '#f5f5f5', cursor: 'pointer' }} onClick={() => setStatusFilter('all')}>
+              <CardContent sx={{ py: 1.5 }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0D488F' }}>
+                  {statusCounts.total}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Total Samples
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12/5}>
+            <Card sx={{ textAlign: 'center', bgcolor: '#fff3e0', cursor: 'pointer' }} onClick={() => setStatusFilter('pending')}>
+              <CardContent sx={{ py: 1.5 }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#ff9800' }}>
+                  {statusCounts.pending}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  📋 Pending
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12/5}>
+            <Card sx={{ textAlign: 'center', bgcolor: '#e8f4fd', cursor: 'pointer' }} onClick={() => setStatusFilter('pcr_batched')}>
+              <CardContent sx={{ py: 1.5 }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
+                  {statusCounts.pcrBatched}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  🧬 PCR Batched
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12/5}>
+            <Card sx={{ textAlign: 'center', bgcolor: '#f3e5f5', cursor: 'pointer' }} onClick={() => setStatusFilter('electro_batched')}>
+              <CardContent sx={{ py: 1.5 }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#7b1fa2' }}>
+                  {statusCounts.electroBatched}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  ⚡ Electro Batched
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12/5}>
+            <Card sx={{ textAlign: 'center', bgcolor: '#ffebee', cursor: 'pointer' }} onClick={() => setStatusFilter('rerun_batched')}>
+              <CardContent sx={{ py: 1.5 }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#d32f2f' }}>
+                  {statusCounts.rerunBatched}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  🔄 Rerun Batched
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </Box>
+
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" sx={{ color: '#0D488F', fontWeight: 'bold' }}>
-          Samples
-        </Typography>
         
         {selectedSamples.length > 0 && (
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
             <Chip 
               label={`${selectedSamples.length} selected`} 
               color="primary" 
               variant="outlined"
             />
+            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+              💡 Family groups selected together
+            </Typography>
             <Button
               variant="contained"
               startIcon={<PlaylistAdd />}
@@ -330,57 +630,6 @@ export default function ClientRegister() {
         </Alert>
       )}
 
-      {/* Statistics Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={2}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" color="primary">{stats.total}</Typography>
-              <Typography variant="body2" color="text.secondary">Total Samples</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={2}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" color="warning.main">{stats.pending}</Typography>
-              <Typography variant="body2" color="text.secondary">Pending</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={2}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" color="info.main">{stats.processing}</Typography>
-              <Typography variant="body2" color="text.secondary">Processing</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={2}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" color="success.main">{stats.completed}</Typography>
-              <Typography variant="body2" color="text.secondary">Completed</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={2}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" color="warning.main">{stats.toBeBatched}</Typography>
-              <Typography variant="body2" color="text.secondary">To be Batched</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={2}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" color="success.main">{stats.batched}</Typography>
-              <Typography variant="body2" color="text.secondary">Batched</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
 
       {/* Filters */}
       <Paper sx={{ p: 3, mb: 3 }}>
@@ -408,23 +657,10 @@ export default function ClientRegister() {
               >
                 <MenuItem value="all">All Statuses</MenuItem>
                 <MenuItem value="pending">Pending</MenuItem>
+                <MenuItem value="active">Active</MenuItem>
                 <MenuItem value="processing">Processing</MenuItem>
                 <MenuItem value="completed">Completed</MenuItem>
                 <MenuItem value="cancelled">Cancelled</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <FormControl fullWidth>
-              <InputLabel>Batch Status</InputLabel>
-              <Select
-                value={batchFilter}
-                onChange={(e) => setBatchFilter(e.target.value)}
-                label="Batch Status"
-              >
-                <MenuItem value="all">All Samples</MenuItem>
-                <MenuItem value="to_be_batched">To be Batched</MenuItem>
-                <MenuItem value="batched">Batched</MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -455,116 +691,13 @@ export default function ClientRegister() {
       </Paper>
 
       {/* Samples Table */}
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-              <TableCell padding="checkbox">
-                <Checkbox
-                  indeterminate={selectedSamples.length > 0 && selectedSamples.length < getPendingSamples().length}
-                  checked={getPendingSamples().length > 0 && selectedSamples.length === getPendingSamples().length}
-                  onChange={selectedSamples.length === getPendingSamples().length ? handleDeselectAll : handleSelectAll}
-                />
-              </TableCell>
-              <TableCell><strong>Lab Number</strong></TableCell>
-              <TableCell><strong>Name</strong></TableCell>
-              <TableCell><strong>Relation</strong></TableCell>
-              <TableCell><strong>Collection Date</strong></TableCell>
-              <TableCell><strong>Submission Date</strong></TableCell>
-              <TableCell><strong>Status</strong></TableCell>
-              <TableCell><strong>Batch Status</strong></TableCell>
-              <TableCell><strong>Actions</strong></TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredSamples.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={9} sx={{ textAlign: 'center', py: 4 }}>
-                  <Typography variant="body1" color="text.secondary">
-                    No samples found matching your criteria
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredSamples.map((sample) => {
-                const batchStatus = getBatchStatus(sample);
-                const isSelected = selectedSamples.some(s => s.id === sample.id);
-                const isPending = sample.status === 'pending' && !sample.batch_id;
-                return (
-                  <TableRow key={sample.id} hover selected={isSelected}>
-                    <TableCell padding="checkbox">
-                      {isPending && (
-                        <Checkbox
-                          checked={isSelected}
-                          onChange={() => handleSampleSelect(sample)}
-                        />
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 'bold' }}>
-                        {formatLabNumber(sample.lab_number)}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      {sample.name} {sample.surname}
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {sample.relation || 'N/A'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>{formatDate(sample.collection_date)}</TableCell>
-                    <TableCell>{formatDate(sample.submission_date)}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={sample.status || 'Unknown'}
-                        color={getStatusColor(sample.status)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={batchStatus.label}
-                        color={batchStatus.color}
-                        size="small"
-                        variant="outlined"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Tooltip title="View Details">
-                          <IconButton size="small" color="primary">
-                            <Visibility />
-                          </IconButton>
-                        </Tooltip>
-                        {sample.status === 'pending' && !sample.batch_id && (
-                          <Tooltip title="Add to Batch">
-                            <IconButton size="small" color="secondary">
-                              <Assignment />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                        {sample.status === 'completed' && (
-                          <Tooltip title="Download Report">
-                            <IconButton size="small" color="success">
-                              <GetApp />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      {renderSamplesTable()}
+      {renderPagination()}
 
       {/* Summary */}
       <Box sx={{ mt: 3, textAlign: 'center' }}>
         <Typography variant="body2" color="text.secondary">
-          Showing {filteredSamples.length} of {samples.length} total samples
+          Showing {samples.length} of {totalSamples} total samples
         </Typography>
       </Box>
 
@@ -589,32 +722,7 @@ export default function ClientRegister() {
             </Typography>
             
             <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
-              {Object.entries(groupSamplesByCase(selectedSamples)).map(([caseNumber, caseSamples]) => (
-                <Paper key={caseNumber} sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>
-                  <Typography variant="subtitle1" color="primary" sx={{ mb: 1 }}>
-                    Case: {caseNumber}
-                  </Typography>
-                  <Grid container spacing={1}>
-                    {caseSamples.map(sample => (
-                      <Grid item xs={12} sm={6} key={sample.id}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Chip 
-                            label={sample.lab_number} 
-                            size="small" 
-                            variant="outlined"
-                          />
-                          <Typography variant="body2">
-                            {sample.name} {sample.surname} ({sample.relation})
-                          </Typography>
-                        </Box>
-                      </Grid>
-                    ))}
-                  </Grid>
-                </Paper>
-              ))}
-              
-              {/* Individual samples without case numbers */}
-              {selectedSamples.filter(s => !s.case_number).map(sample => (
+              {selectedSamples.map(sample => (
                 <Box key={sample.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                   <Chip 
                     label={sample.lab_number} 
@@ -622,7 +730,7 @@ export default function ClientRegister() {
                     variant="outlined"
                   />
                   <Typography variant="body2">
-                    {sample.name} {sample.surname}
+                    {sample.name} {sample.surname} ({sample.relation})
                   </Typography>
                 </Box>
               ))}
@@ -650,6 +758,21 @@ export default function ClientRegister() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+      >
+        <Alert
+          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

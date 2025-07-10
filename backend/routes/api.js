@@ -588,6 +588,30 @@ router.get("/batches", async (req, res) => {
   }
 });
 
+// Get samples for a specific batch
+router.get("/batches/:batchNumber/samples", async (req, res) => {
+  try {
+    if (DB_MODE === 'sqlite') {
+      const { batchNumber } = req.params;
+      const samples = db.getSamplesByBatchNumber(batchNumber);
+      res.json({ 
+        success: true, 
+        data: samples,
+        count: samples.length,
+        batchNumber: batchNumber,
+        database: 'SQLite'
+      });
+    } else {
+      res.status(501).json({ 
+        success: false, 
+        error: "Feature only available with SQLite database" 
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Get well assignments for a specific batch
 router.get("/well-assignments/:batchId", async (req, res) => {
   try {

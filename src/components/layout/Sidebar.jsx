@@ -29,7 +29,8 @@ import {
   Assessment,
   Group,
   Queue,
-  ElectricBolt
+  ElectricBolt,
+  Replay
 } from '@mui/icons-material';
 import Logo from '../ui/Logo';
 
@@ -45,90 +46,112 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       icon: <Home />,
       label: 'Home',
       hasSubMenu: false,
+      path: '/',
       onClick: () => navigate('/')
     },
     { 
       icon: <PersonAdd />, 
       label: 'Register Client',
       hasSubMenu: false,
+      path: '/register-client',
       onClick: () => navigate('/register-client')
     },
     { 
       icon: <Group />, 
       label: 'Samples',
       hasSubMenu: false,
+      path: '/client-register',
       onClick: () => navigate('/client-register')
     },
     { 
       icon: <EditNote />, 
       label: 'PCR Plate',
       hasSubMenu: false,
+      path: '/pcr-plate',
       onClick: () => navigate('/pcr-plate')
     },
     { 
       icon: <Visibility />, 
       label: 'LDS PCR Batch',
       hasSubMenu: false,
+      path: '/pcr-batches',
       onClick: () => navigate('/pcr-batches')
     },
     { 
-      icon: <Science />, 
-      label: 'Electrophoresis Plate',
+      icon: <ElectricBolt />, 
+      label: 'Electrophoresis Plate Layout',
       hasSubMenu: false,
-      onClick: () => navigate('/generate-batch')
+      path: '/electrophoresis-layout',
+      onClick: () => navigate('/electrophoresis-layout')
     },
     { 
       icon: <ElectricBolt />, 
       label: 'LDS Electrophoresis Batch',
       hasSubMenu: false,
+      path: '/electrophoresis-batches',
       onClick: () => navigate('/electrophoresis-batches')
+    },
+    { 
+      icon: <Replay />, 
+      label: 'Reruns',
+      hasSubMenu: false,
+      path: '/reruns',
+      onClick: () => navigate('/reruns')
     },
     { 
       icon: <Science />, 
       label: 'Genetic Analysis',
       hasSubMenu: false,
+      path: '/genetic-analysis',
       onClick: () => navigate('/genetic-analysis')
     },
     { 
       icon: <Science />, 
       label: 'Lab Results',
       hasSubMenu: false,
+      path: '/lab-results',
       onClick: () => navigate('/lab-results')
     },
     { 
       icon: <Description />,
       label: 'Reports',
       hasSubMenu: false,
+      path: '/reports',
       onClick: () => navigate('/reports')
     },
     { 
       icon: <Assessment />, 
       label: 'Quality Control',
       hasSubMenu: true,
+      path: '/quality-control',
       onClick: () => navigate('/quality-control')
     },
     { 
       icon: <Search />, 
       label: 'Sample Search',
       hasSubMenu: false,
+      path: '/sample-search',
       onClick: () => navigate('/sample-search')
     },
     { 
       icon: <Queue />, 
       label: 'Sample Queues',
       hasSubMenu: false,
+      path: '/sample-queues',
       onClick: () => navigate('/sample-queues')
     },
     { 
       icon: <TableChart />, 
       label: 'Statistics',
       hasSubMenu: false,
+      path: '/statistics',
       onClick: () => navigate('/statistics')
     },
     { 
       icon: <ExitToApp />, 
       label: 'Log Out',
       hasSubMenu: false,
+      path: '/logout',
       onClick: () => navigate('/logout')
     }
   ];
@@ -137,6 +160,12 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
     if (setMobileOpen) {
       setMobileOpen(!mobileOpen);
     }
+  };
+
+  // Function to check if a menu item is active based on current location
+  const isActiveItem = (item) => {
+    const currentPath = location.pathname;
+    return currentPath === item.path;
   };
 
   const drawerContent = (
@@ -209,14 +238,22 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
                   setMobileOpen(false);
                 }
               }}
-              selected={false}
+              selected={isActiveItem(item)}
               sx={{
                 minHeight: 48,
                 px: 2.5,
                 '&.Mui-selected': {
-                  bgcolor: 'rgba(255, 255, 255, 0.12)',
+                  bgcolor: isDarkMode 
+                    ? 'rgba(255, 255, 255, 0.2)' 
+                    : 'rgba(13, 72, 143, 0.2)',
+                  borderLeft: '4px solid',
+                  borderLeftColor: isDarkMode ? '#fff' : '#0D488F',
+                  borderRadius: '0 8px 8px 0',
+                  mx: 1,
                   '&:hover': {
-                    bgcolor: 'rgba(255, 255, 255, 0.15)',
+                    bgcolor: isDarkMode 
+                      ? 'rgba(255, 255, 255, 0.25)' 
+                      : 'rgba(13, 72, 143, 0.25)',
                   },
                 },
                 '&:hover': {
@@ -230,7 +267,9 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
               <ListItemIcon 
                 sx={{ 
                   minWidth: 40, 
-                  color: 'rgba(255, 255, 255, 0.7)',
+                  color: isActiveItem(item) 
+                    ? (isDarkMode ? '#fff' : '#0D488F')
+                    : 'rgba(255, 255, 255, 0.7)',
                   mr: 1,
                   transition: 'color 0.2s ease',
                 }}
@@ -242,7 +281,11 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
                 sx={{
                   '& .MuiListItemText-primary': {
                     fontSize: '0.9rem',
-                    fontWeight: 500,
+                    fontWeight: isActiveItem(item) ? 900 : 500,
+                    color: isActiveItem(item) 
+                      ? (isDarkMode ? '#fff' : '#fff')
+                      : 'rgba(255, 255, 255, 0.9)',
+                    transition: 'color 0.2s ease, font-weight 0.2s ease',
                   }
                 }}
               />

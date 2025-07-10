@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { api } from '../../services/api';
+import { optimizedApi } from '../../services/optimizedApi';
 
 export default function SampleSearch() {
   const [query, setQuery] = useState('');
@@ -18,7 +18,7 @@ export default function SampleSearch() {
   const loadAllSamples = async () => {
     try {
       setLoading(true);
-      const response = await api.getSamples();
+      const response = await optimizedApi.getAllSamples();
       if (response.success) {
         setSamples(response.data);
       } else {
@@ -41,7 +41,7 @@ export default function SampleSearch() {
 
     try {
       setLoading(true);
-      const response = await api.searchSamples(searchQuery);
+      const response = await optimizedApi.searchSamples(searchQuery);
       if (response.success) {
         setSamples(response.data);
       } else {
