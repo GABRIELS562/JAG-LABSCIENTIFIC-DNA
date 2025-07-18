@@ -1,0 +1,531 @@
+# CI/CD Pipeline for LIMS Application
+# This workflow provides comprehensive CI/CD with testing, building, and deployment
+
+name: LIMS CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, release/* ]
+    tags: [ v* ]
+  pull_request:
+    branches: [ main, develop ]
+    types: [ opened, synchronize, reopened ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # Security and Code Quality
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/secrets
+            p/ci
+            p/owasp-top-ten
+            p/dockerfile
+            p/kubernetes
+
+  # Frontend Testing
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run Prettier check
+        run: npm run format:check
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Run component tests
+        run: npm run test:component
+
+      - name: Generate test coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage/lcov.info
+          flags: frontend
+          name: frontend-coverage
+
+  # Backend Testing
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: lims_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ./backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run database migrations
+        run: npm run migrate:test
+        env:
+          DATABASE_URL: postgresql://postgres:test@localhost:5432/lims_test
+
+      - name: Run unit tests
+        run: npm run test:unit
+        env:
+          DATABASE_URL: postgresql://postgres:test@localhost:5432/lims_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run integration tests
+        run: npm run test:integration
+        env:
+          DATABASE_URL: postgresql://postgres:test@localhost:5432/lims_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run API tests
+        run: npm run test:api
+        env:
+          DATABASE_URL: postgresql://postgres:test@localhost:5432/lims_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Generate test coverage
+        run: npm run test:coverage
+        env:
+          DATABASE_URL: postgresql://postgres:test@localhost:5432/lims_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./backend/coverage/lcov.info
+          flags: backend
+          name: backend-coverage
+
+  # End-to-End Testing
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [frontend-tests, backend-tests]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Start application
+        run: |
+          docker-compose -f docker-compose.test.yml up -d --build
+          sleep 30
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+
+      - name: Upload E2E test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: e2e-test-results
+          path: |
+            test-results/
+            playwright-report/
+
+      - name: Stop application
+        if: always()
+        run: docker-compose -f docker-compose.test.yml down
+
+  # Build and Push Container Images
+  build-and-push:
+    name: Build and Push Images
+    runs-on: ubuntu-latest
+    needs: [security-scan, frontend-tests, backend-tests, e2e-tests]
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDTIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+            REVISION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v3
+        with:
+          name: sbom
+          path: sbom.spdx.json
+
+  # Container Security Scan
+  container-security-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # Kubernetes Manifest Validation
+  k8s-validation:
+    name: K8S Manifest Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Kubernetes tools
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.12.0'
+
+      - name: Validate Kubernetes manifests
+        run: |
+          # Validate raw manifests
+          kubectl apply --dry-run=client -f k8s/
+          
+          # Validate Helm charts
+          helm template lims ./helm/lims --values ./helm/lims/values.yaml > rendered-manifests.yaml
+          kubectl apply --dry-run=client -f rendered-manifests.yaml
+          
+          # Lint Helm charts
+          helm lint ./helm/lims
+
+      - name: Run Polaris validation
+        uses: fairwindsops/polaris/.github/actions/polaris@master
+        with:
+          config: .polaris.yaml
+          only-show-failed-tests: true
+
+      - name: Run Conftest policy validation
+        uses: instrumenta/conftest-action@master
+        with:
+          files: k8s/*.yaml helm/lims/templates/*.yaml
+          policy: policies/
+
+  # Deploy to Development
+  deploy-dev:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    needs: [build-and-push, container-security-scan, k8s-validation]
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: development
+      url: https://lims-dev.labscientific.local
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Kubernetes tools
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.12.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG_DEV }}" | base64 -d > ~/.kube/config
+          kubectl config current-context
+
+      - name: Deploy to Development
+        run: |
+          helm upgrade --install lims-dev ./helm/lims \
+            --namespace labscientific-lims-dev \
+            --create-namespace \
+            --values ./helm/lims/values-dev.yaml \
+            --set image.tag=${{ github.sha }} \
+            --set global.environment=development \
+            --wait --timeout=600s
+
+      - name: Run smoke tests
+        run: |
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=lims \
+            --namespace labscientific-lims-dev --timeout=300s
+          
+          # Run basic health checks
+          kubectl exec -n labscientific-lims-dev \
+            $(kubectl get pod -n labscientific-lims-dev -l app.kubernetes.io/name=lims -o jsonpath='{.items[0].metadata.name}') \
+            -- curl -f http://localhost:3000/health
+
+  # Deploy to Staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build-and-push, container-security-scan, k8s-validation]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: staging
+      url: https://lims-staging.labscientific.local
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Kubernetes tools
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.12.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > ~/.kube/config
+          kubectl config current-context
+
+      - name: Deploy to Staging
+        run: |
+          helm upgrade --install lims-staging ./helm/lims \
+            --namespace labscientific-lims-staging \
+            --create-namespace \
+            --values ./helm/lims/values-staging.yaml \
+            --set image.tag=${{ github.sha }} \
+            --set global.environment=staging \
+            --wait --timeout=600s
+
+      - name: Run integration tests
+        run: |
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=lims \
+            --namespace labscientific-lims-staging --timeout=300s
+          
+          # Run comprehensive integration tests
+          npm run test:integration:staging
+        env:
+          STAGING_URL: https://lims-staging.labscientific.local
+
+  # Deploy to Production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment:
+      name: production
+      url: https://lims.labscientific.local
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Kubernetes tools
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.12.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG_PROD }}" | base64 -d > ~/.kube/config
+          kubectl config current-context
+
+      - name: Deploy to Production
+        run: |
+          helm upgrade --install lims ./helm/lims \
+            --namespace labscientific-lims \
+            --create-namespace \
+            --values ./helm/lims/values-prod.yaml \
+            --set image.tag=${{ github.sha }} \
+            --set global.environment=production \
+            --wait --timeout=600s
+
+      - name: Run production smoke tests
+        run: |
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=lims \
+            --namespace labscientific-lims --timeout=300s
+          
+          # Run critical path tests
+          npm run test:smoke:production
+        env:
+          PRODUCTION_URL: https://lims.labscientific.local
+
+      - name: Update deployment status
+        uses: chrnorm/deployment-status@v2
+        if: always()
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          state: ${{ job.status }}
+          deployment-id: ${{ github.run_id }}
+
+  # Cleanup
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: always()
+    steps:
+      - name: Prune old container images
+        uses: actions/delete-package-versions@v4
+        with:
+          package-name: ${{ env.IMAGE_NAME }}
+          package-type: container
+          min-versions-to-keep: 10
+          delete-only-untagged-versions: true
+
+      - name: Clean up artifacts
+        uses: geekyeggo/delete-artifact@v2
+        with:
+          name: |
+            e2e-test-results
+            sbom
+          failOnError: false

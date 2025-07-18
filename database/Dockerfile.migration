@@ -1,0 +1,57 @@
+# Dockerfile for Database Migration Runner
+# This container runs database migrations and seeding operations
+
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install PostgreSQL client tools
+RUN apk add --no-cache \
+    postgresql-client \
+    bash \
+    curl \
+    jq \
+    && rm -rf /var/cache/apk/*
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy migration files
+COPY migration-manager.js ./
+COPY migrations/ ./migrations/
+COPY seeds/ ./seeds/
+
+# Create necessary directories
+RUN mkdir -p ./backups ./logs
+
+# Set permissions
+RUN chmod +x migration-manager.js
+
+# Create non-root user
+RUN addgroup -g 1001 -S migration && \
+    adduser -S migration -u 1001 -G migration
+
+# Change ownership of app directory
+RUN chown -R migration:migration /app
+
+# Switch to non-root user
+USER migration
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "const {DatabaseManager} = require('./migration-manager.js'); const db = new DatabaseManager(); db.connect().then(() => {console.log('✅ Database connection successful'); db.disconnect(); process.exit(0);}).catch(err => {console.error('❌ Database connection failed:', err.message); process.exit(1);});"
+
+# Default command
+CMD ["node", "migration-manager.js", "status"]
+
+# Labels for metadata
+LABEL maintainer="DevOps Team <devops@labscientific.com>"
+LABEL version="1.0.0"
+LABEL description="Database migration runner for LIMS application"
+LABEL org.opencontainers.image.source="https://github.com/your-org/labscientific-lims"
+LABEL org.opencontainers.image.documentation="https://github.com/your-org/labscientific-lims/blob/main/database/README.md"
+LABEL org.opencontainers.image.licenses="MIT"

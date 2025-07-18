@@ -1,0 +1,136 @@
+{
+  "name": "lims-integration-tests",
+  "version": "1.0.0",
+  "description": "Integration tests for LIMS application",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha --recursive --timeout 30000 --require ./setup/integration-test-setup.js 'integration/**/*.test.js'",
+    "test:external": "mocha --recursive --timeout 30000 --require ./setup/integration-test-setup.js 'integration/external-api.test.js'",
+    "test:service-mesh": "mocha --recursive --timeout 30000 --require ./setup/integration-test-setup.js 'integration/service-mesh.test.js'",
+    "test:contract": "mocha --recursive --timeout 30000 --require ./setup/integration-test-setup.js 'integration/contract-testing.test.js'",
+    "test:parallel": "mocha --recursive --timeout 30000 --require ./setup/integration-test-setup.js --parallel 'integration/**/*.test.js'",
+    "test:watch": "mocha --recursive --timeout 30000 --require ./setup/integration-test-setup.js --watch 'integration/**/*.test.js'",
+    "test:coverage": "nyc --reporter=html --reporter=text mocha --recursive --timeout 30000 --require ./setup/integration-test-setup.js 'integration/**/*.test.js'",
+    "test:junit": "mocha --recursive --timeout 30000 --require ./setup/integration-test-setup.js --reporter mocha-junit-reporter 'integration/**/*.test.js'",
+    "test:performance": "mocha --recursive --timeout 60000 --require ./setup/integration-test-setup.js 'performance/**/*.test.js'",
+    "test:security": "mocha --recursive --timeout 30000 --require ./setup/integration-test-setup.js 'security/**/*.test.js'",
+    "test:smoke": "mocha --recursive --timeout 15000 --require ./setup/integration-test-setup.js 'smoke/**/*.test.js'",
+    "test:e2e": "mocha --recursive --timeout 60000 --require ./setup/integration-test-setup.js 'e2e/**/*.test.js'",
+    "pact:verify": "pact-verifier-cli --provider-base-url=http://localhost:3000 --pact-broker-base-url=http://localhost:9292 --provider-version=1.0.0",
+    "pact:publish": "pact-broker publish pacts --consumer-app-version=1.0.0 --broker-base-url=http://localhost:9292",
+    "mock:services": "node utils/mock-services.js",
+    "lint": "eslint --fix .",
+    "lint:check": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "clean": "rm -rf coverage/ reports/ pacts/ .nyc_output/",
+    "setup": "npm install && npm run clean",
+    "ci": "npm run lint:check && npm run format:check && npm run test:coverage && npm run test:junit",
+    "dev": "npm run mock:services & npm run test:watch"
+  },
+  "keywords": [
+    "lims",
+    "integration-tests",
+    "healthcare",
+    "laboratory",
+    "testing"
+  ],
+  "author": "DevOps Team",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "chai": "^4.3.10",
+    "mocha": "^10.2.0",
+    "nock": "^13.3.8",
+    "ws": "^8.14.2",
+    "express": "^4.18.2",
+    "@pact-foundation/pact": "^12.1.0",
+    "uuid": "^9.0.1",
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "nyc": "^15.1.0",
+    "mocha-junit-reporter": "^2.2.1",
+    "eslint": "^8.54.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-mocha": "^10.2.0",
+    "prettier": "^3.1.0",
+    "sinon": "^17.0.1",
+    "supertest": "^6.3.3",
+    "pact-verifier-cli": "^1.0.0",
+    "Artillery": "^2.0.0",
+    "k6": "^0.46.0"
+  },
+  "nyc": {
+    "include": [
+      "**/*.js"
+    ],
+    "exclude": [
+      "coverage/**",
+      "node_modules/**",
+      "test/**",
+      "*.test.js"
+    ],
+    "reporter": [
+      "html",
+      "text",
+      "lcov"
+    ],
+    "check-coverage": true,
+    "lines": 80,
+    "statements": 80,
+    "functions": 80,
+    "branches": 80
+  },
+  "mocha": {
+    "timeout": 30000,
+    "recursive": true,
+    "exit": true,
+    "colors": true,
+    "reporter": "spec"
+  },
+  "eslintConfig": {
+    "env": {
+      "node": true,
+      "es2021": true,
+      "mocha": true
+    },
+    "extends": [
+      "eslint:recommended",
+      "prettier"
+    ],
+    "plugins": [
+      "mocha"
+    ],
+    "parserOptions": {
+      "ecmaVersion": 12,
+      "sourceType": "module"
+    },
+    "rules": {
+      "no-unused-vars": "warn",
+      "no-console": "off",
+      "mocha/no-exclusive-tests": "error",
+      "mocha/no-skipped-tests": "warn"
+    }
+  },
+  "prettier": {
+    "semi": true,
+    "trailingComma": "es5",
+    "singleQuote": true,
+    "printWidth": 100,
+    "tabWidth": 2,
+    "useTabs": false
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/labscientific-lims.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/labscientific-lims/issues"
+  },
+  "homepage": "https://github.com/your-org/labscientific-lims#readme"
+}

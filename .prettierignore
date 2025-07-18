@@ -1,0 +1,447 @@
+# Prettier ignore file for LIMS Application
+# Files and directories to exclude from Prettier formatting
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+.nuxt/
+.vuepress/dist/
+
+# Coverage and test results
+coverage/
+test-results/
+*.lcov
+junit.xml
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Cache directories
+.cache/
+.tmp/
+temp/
+.sass-cache/
+.eslintcache
+.stylelintcache
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+docs/
+*.md
+!README.md
+!CHANGELOG.md
+
+# Configuration files
+*.config.js
+*.conf.js
+webpack.*.js
+rollup.*.js
+
+# Minified files
+*.min.js
+*.min.css
+*.min.html
+
+# Generated files
+*.generated.*
+auto-generated/
+
+# Vendor files
+vendor/
+third-party/
+
+# Static assets
+public/
+static/
+assets/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Binary files
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.svg
+*.ico
+*.woff
+*.woff2
+*.ttf
+*.eot
+
+# Archives
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+
+# Certificates
+*.pem
+*.key
+*.crt
+*.cert
+
+# Kubernetes
+*.yaml
+*.yml
+!package.json
+
+# Terraform
+*.tf
+*.tfstate
+*.tfvars
+
+# Helm
+Chart.yaml
+values.yaml
+templates/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+.gitmodules
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci/
+.travis.yml
+Jenkinsfile
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+
+# Lock files
+*.lock
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Security scan results
+security-results/
+
+# Sonar
+.sonar/
+sonar-project.properties
+
+# ESLint
+.eslintrc.*
+.eslintignore
+
+# Prettier
+.prettierrc.*
+.prettierignore
+
+# Husky
+.husky/
+
+# Test files
+*.test.*
+*.spec.*
+__tests__/
+tests/
+cypress/
+
+# Migration files
+migrations/
+seeds/
+
+# Local development
+.local/
+local/
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.env
+.venv
+env.bak/
+venv.bak/
+
+# Ruby
+.rbenv/
+.rvm/
+*.gem
+
+# Go
+go.mod
+go.sum
+vendor/
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+target/
+
+# C/C++
+*.o
+*.so
+*.dll
+*.exe
+
+# Rust
+target/
+Cargo.lock
+
+# PHP
+composer.lock
+vendor/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+.nfs*
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+\#*\#
+.\#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# JetBrains
+.idea/
+*.iml
+*.iws
+
+# NetBeans
+nbproject/
+build/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# Eclipse
+.project
+.metadata
+bin/
+tmp/
+*.tmp
+*.bak
+*.swp
+*~.nib
+local.properties
+.settings/
+.loadpath
+.recommenders
+
+# IntelliJ
+out/
+.idea_modules/
+*.iml
+*.ipr
+*.iws
+
+# mpeltonen/sbt-idea plugin
+.idea_modules/
+
+# JIRA plugin
+atlassian-ide-plugin.xml
+
+# Cursive Clojure plugin
+.idea/replstate.xml
+
+# Crashlytics plugin (for Android Studio and IntelliJ)
+com_crashlytics_export_strings.xml
+crashlytics.properties
+crashlytics-build.properties
+fabric.properties
+
+# Editor-based Rest Client
+.idea/httpRequests
+
+# Android Studio
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+gen/
+out/
+
+# Gradle
+.gradle
+build/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# SBT
+dist/*
+target/
+lib_managed/
+src_managed/
+project/boot/
+project/plugins/project/
+.history
+.cache
+.lib/
+
+# Scala-IDE
+.scala_dependencies
+.worksheet
+
+# ScalaTest
+test-output/
+
+# Ensime
+.ensime
+.ensime_cache/
+
+# Metals
+.metals/
+.bloop/
+project/.bloop/
+
+# VS Code
+.vscode/
+.history/
+
+# Fleet
+.fleet/
+
+# Zed
+.zed/
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+build/
+DerivedData/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.moved-aside
+*.xcuserstate
+
+# CocoaPods
+Pods/
+*.podspec
+
+# Carthage
+Carthage/Build/
+
+# Accio dependency management
+Dependencies/
+.accio/
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Code Injection
+iOSInjectionProject/

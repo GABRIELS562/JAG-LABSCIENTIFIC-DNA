@@ -1,0 +1,1336 @@
+openapi: 3.0.3
+info:
+  title: LabScientific LIMS API
+  description: |
+    **Laboratory Information Management System API**
+    
+    This is a comprehensive API for managing laboratory operations, including sample tracking, 
+    genetic analysis, client management, and reporting for healthcare organizations.
+    
+    ## Features
+    
+    - **Sample Management**: Complete sample lifecycle tracking
+    - **Genetic Analysis**: Integration with laboratory equipment and analysis workflows
+    - **Client Management**: Patient and healthcare provider relationship management
+    - **Reporting**: Real-time dashboards and regulatory-compliant reports
+    - **Security**: HIPAA-compliant data protection and access controls
+    
+    ## Authentication
+    
+    This API uses JWT (JSON Web Tokens) for authentication. Include the token in the Authorization header:
+    
+    ```
+    Authorization: Bearer <your-jwt-token>
+    ```
+    
+    ## Rate Limiting
+    
+    API requests are limited to 1000 requests per hour per authenticated user.
+    
+    ## Support
+    
+    For technical support, please contact our API support team:
+    - Email: api-support@labscientific.com
+    - Documentation: https://docs.labscientific.com/api
+    - Status Page: https://status.labscientific.com
+    
+  version: 1.0.0
+  contact:
+    name: LabScientific API Support
+    email: api-support@labscientific.com
+    url: https://labscientific.com/support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: https://labscientific.com/terms
+
+servers:
+  - url: https://api.labscientific.com/v1
+    description: Production server
+  - url: https://staging-api.labscientific.com/v1
+    description: Staging server
+  - url: http://localhost:3001/api/v1
+    description: Local development server
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  # Authentication endpoints
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: User login
+      description: Authenticate user and receive JWT token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@labscientific.com
+                password:
+                  type: string
+                  format: password
+                  example: SecurePassword123!
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: JWT authentication token
+                  user:
+                    $ref: '#/components/schemas/User'
+                  expiresIn:
+                    type: integer
+                    description: Token expiration time in seconds
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh JWT token
+      description: Refresh an existing JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  description: Refresh token
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: New JWT authentication token
+                  expiresIn:
+                    type: integer
+                    description: Token expiration time in seconds
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: User logout
+      description: Invalidate the current JWT token
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Logout successful
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # Sample endpoints
+  /samples:
+    get:
+      tags: [Samples]
+      summary: List samples
+      description: Retrieve a paginated list of samples with optional filtering
+      parameters:
+        - name: page
+          in: query
+          description: Page number
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: status
+          in: query
+          description: Filter by sample status
+          schema:
+            type: string
+            enum: [pending, in_progress, completed, failed, cancelled]
+        - name: client_id
+          in: query
+          description: Filter by client ID
+          schema:
+            type: string
+        - name: sample_type
+          in: query
+          description: Filter by sample type
+          schema:
+            type: string
+            enum: [blood, saliva, tissue, urine, swab]
+        - name: created_from
+          in: query
+          description: Filter samples created from this date
+          schema:
+            type: string
+            format: date
+        - name: created_to
+          in: query
+          description: Filter samples created to this date
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  samples:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Sample'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [Samples]
+      summary: Create sample
+      description: Create a new sample in the system
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSampleRequest'
+      responses:
+        '201':
+          description: Sample created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sample'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /samples/{id}:
+    get:
+      tags: [Samples]
+      summary: Get sample by ID
+      description: Retrieve a specific sample by its ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Sample ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Sample retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sample'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Samples]
+      summary: Update sample
+      description: Update an existing sample
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Sample ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSampleRequest'
+      responses:
+        '200':
+          description: Sample updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sample'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags: [Samples]
+      summary: Delete sample
+      description: Delete a sample (soft delete)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Sample ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Sample deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Genetic Analysis endpoints
+  /genetic-analysis:
+    get:
+      tags: [Genetic Analysis]
+      summary: List genetic analyses
+      description: Retrieve a paginated list of genetic analyses
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [queued, running, completed, failed, cancelled]
+        - name: analysis_type
+          in: query
+          schema:
+            type: string
+            enum: [targeted_sequencing, whole_exome, whole_genome, pharmacogenomics, rna_sequencing]
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  analyses:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GeneticAnalysis'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [Genetic Analysis]
+      summary: Create genetic analysis
+      description: Create a new genetic analysis request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGeneticAnalysisRequest'
+      responses:
+        '201':
+          description: Genetic analysis created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneticAnalysis'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /genetic-analysis/{id}:
+    get:
+      tags: [Genetic Analysis]
+      summary: Get genetic analysis by ID
+      description: Retrieve a specific genetic analysis by its ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Genetic analysis ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Genetic analysis retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneticAnalysis'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /genetic-analysis/{id}/status:
+    get:
+      tags: [Genetic Analysis]
+      summary: Get analysis status
+      description: Get the current status of a genetic analysis
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Genetic analysis ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Analysis status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /genetic-analysis/{id}/results:
+    get:
+      tags: [Genetic Analysis]
+      summary: Get analysis results
+      description: Get the results of a completed genetic analysis
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Genetic analysis ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Analysis results retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisResults'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Client endpoints
+  /clients:
+    get:
+      tags: [Clients]
+      summary: List clients
+      description: Retrieve a paginated list of clients
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: search
+          in: query
+          description: Search clients by name or email
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  clients:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Client'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [Clients]
+      summary: Create client
+      description: Create a new client in the system
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateClientRequest'
+      responses:
+        '201':
+          description: Client created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /clients/{id}:
+    get:
+      tags: [Clients]
+      summary: Get client by ID
+      description: Retrieve a specific client by their ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Client ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Client retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Clients]
+      summary: Update client
+      description: Update an existing client
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Client ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateClientRequest'
+      responses:
+        '200':
+          description: Client updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  # Health check endpoint
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      description: Check the health status of the API
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+                    example: 1.0.0
+                  environment:
+                    type: string
+                    example: production
+                  dependencies:
+                    type: object
+                    properties:
+                      database:
+                        type: string
+                        example: healthy
+                      redis:
+                        type: string
+                        example: healthy
+                      external_services:
+                        type: string
+                        example: healthy
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT authentication token
+    
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for service-to-service communication
+
+  schemas:
+    User:
+      type: object
+      required:
+        - id
+        - email
+        - firstName
+        - lastName
+        - role
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique user identifier
+        email:
+          type: string
+          format: email
+          description: User's email address
+        firstName:
+          type: string
+          description: User's first name
+        lastName:
+          type: string
+          description: User's last name
+        role:
+          type: string
+          enum: [admin, technician, analyst, viewer]
+          description: User's role in the system
+        createdAt:
+          type: string
+          format: date-time
+          description: User creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: User last update timestamp
+
+    Sample:
+      type: object
+      required:
+        - id
+        - sampleId
+        - clientId
+        - sampleType
+        - testType
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique sample identifier
+        sampleId:
+          type: string
+          description: Human-readable sample ID
+          example: SAMPLE_000001
+        clientId:
+          type: string
+          format: uuid
+          description: Client who owns this sample
+        sampleType:
+          type: string
+          enum: [blood, saliva, tissue, urine, swab]
+          description: Type of biological sample
+        testType:
+          type: string
+          enum: [genetic, chemical, biological, pathology]
+          description: Type of test to be performed
+        priority:
+          type: string
+          enum: [low, normal, high, urgent]
+          description: Processing priority
+        status:
+          type: string
+          enum: [pending, in_progress, completed, failed, cancelled]
+          description: Current sample status
+        volume:
+          type: number
+          format: float
+          description: Sample volume
+        unit:
+          type: string
+          description: Volume unit
+          example: mL
+        collectionDate:
+          type: string
+          format: date
+          description: Date when sample was collected
+        createdAt:
+          type: string
+          format: date-time
+          description: Sample creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Sample last update timestamp
+        notes:
+          type: string
+          description: Additional notes about the sample
+
+    CreateSampleRequest:
+      type: object
+      required:
+        - sampleId
+        - clientId
+        - sampleType
+        - testType
+      properties:
+        sampleId:
+          type: string
+          description: Human-readable sample ID
+        clientId:
+          type: string
+          format: uuid
+          description: Client who owns this sample
+        sampleType:
+          type: string
+          enum: [blood, saliva, tissue, urine, swab]
+        testType:
+          type: string
+          enum: [genetic, chemical, biological, pathology]
+        priority:
+          type: string
+          enum: [low, normal, high, urgent]
+          default: normal
+        volume:
+          type: number
+          format: float
+        unit:
+          type: string
+          default: mL
+        collectionDate:
+          type: string
+          format: date
+        notes:
+          type: string
+
+    UpdateSampleRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, in_progress, completed, failed, cancelled]
+        priority:
+          type: string
+          enum: [low, normal, high, urgent]
+        notes:
+          type: string
+
+    GeneticAnalysis:
+      type: object
+      required:
+        - id
+        - sampleId
+        - analysisType
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique analysis identifier
+        sampleId:
+          type: string
+          format: uuid
+          description: Associated sample ID
+        analysisType:
+          type: string
+          enum: [targeted_sequencing, whole_exome, whole_genome, pharmacogenomics, rna_sequencing]
+          description: Type of genetic analysis
+        genes:
+          type: array
+          items:
+            type: string
+          description: List of genes to analyze
+        priority:
+          type: string
+          enum: [low, normal, high, urgent]
+          description: Analysis priority
+        status:
+          type: string
+          enum: [queued, running, completed, failed, cancelled]
+          description: Current analysis status
+        sequencingPlatform:
+          type: string
+          description: Sequencing platform used
+        readDepth:
+          type: integer
+          description: Target read depth
+        coverageThreshold:
+          type: number
+          format: float
+          description: Coverage threshold percentage
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateGeneticAnalysisRequest:
+      type: object
+      required:
+        - sampleId
+        - analysisType
+        - genes
+      properties:
+        sampleId:
+          type: string
+          format: uuid
+        analysisType:
+          type: string
+          enum: [targeted_sequencing, whole_exome, whole_genome, pharmacogenomics, rna_sequencing]
+        genes:
+          type: array
+          items:
+            type: string
+          minItems: 1
+        priority:
+          type: string
+          enum: [low, normal, high, urgent]
+          default: normal
+        sequencingPlatform:
+          type: string
+        readDepth:
+          type: integer
+          minimum: 1
+        coverageThreshold:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+
+    AnalysisStatus:
+      type: object
+      required:
+        - id
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, running, completed, failed, cancelled]
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Completion percentage
+        startedAt:
+          type: string
+          format: date-time
+        estimatedCompletionTime:
+          type: string
+          format: date-time
+        queuePosition:
+          type: integer
+          minimum: 0
+        processingNode:
+          type: string
+          description: Processing node identifier
+
+    AnalysisResults:
+      type: object
+      required:
+        - id
+        - sampleId
+        - status
+        - results
+      properties:
+        id:
+          type: string
+          format: uuid
+        sampleId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [completed]
+        completedAt:
+          type: string
+          format: date-time
+        results:
+          type: object
+          properties:
+            variantsFound:
+              type: integer
+            pathogenicVariants:
+              type: integer
+            variantsOfUncertainSignificance:
+              type: integer
+            benignVariants:
+              type: integer
+            novelVariants:
+              type: integer
+        qualityMetrics:
+          type: object
+          properties:
+            meanCoverage:
+              type: number
+              format: float
+            percent20x:
+              type: number
+              format: float
+            q30Bases:
+              type: number
+              format: float
+            mappingRate:
+              type: number
+              format: float
+        rawDataLocation:
+          type: string
+          description: Path to raw data files
+        processedDataLocation:
+          type: string
+          description: Path to processed data files
+        reportUrl:
+          type: string
+          format: uri
+          description: URL to detailed analysis report
+
+    Client:
+      type: object
+      required:
+        - id
+        - firstName
+        - lastName
+        - email
+      properties:
+        id:
+          type: string
+          format: uuid
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+        gender:
+          type: string
+          enum: [male, female, other, prefer_not_to_say]
+        address:
+          type: object
+          properties:
+            street:
+              type: string
+            city:
+              type: string
+            state:
+              type: string
+            zipCode:
+              type: string
+            country:
+              type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateClientRequest:
+      type: object
+      required:
+        - firstName
+        - lastName
+        - email
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+        gender:
+          type: string
+          enum: [male, female, other, prefer_not_to_say]
+        address:
+          type: object
+          properties:
+            street:
+              type: string
+            city:
+              type: string
+            state:
+              type: string
+            zipCode:
+              type: string
+            country:
+              type: string
+
+    UpdateClientRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+        gender:
+          type: string
+          enum: [male, female, other, prefer_not_to_say]
+        address:
+          type: object
+          properties:
+            street:
+              type: string
+            city:
+              type: string
+            state:
+              type: string
+            zipCode:
+              type: string
+            country:
+              type: string
+
+    Pagination:
+      type: object
+      required:
+        - page
+        - limit
+        - total
+        - pages
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          description: Current page number
+        limit:
+          type: integer
+          minimum: 1
+          description: Items per page
+        total:
+          type: integer
+          minimum: 0
+          description: Total number of items
+        pages:
+          type: integer
+          minimum: 0
+          description: Total number of pages
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error details
+        timestamp:
+          type: string
+          format: date-time
+          description: Error timestamp
+        requestId:
+          type: string
+          description: Request identifier for debugging
+
+    ValidationError:
+      type: object
+      required:
+        - error
+        - message
+        - validationErrors
+      properties:
+        error:
+          type: string
+          example: Validation Error
+        message:
+          type: string
+          example: Request validation failed
+        validationErrors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                description: Field that failed validation
+              message:
+                type: string
+                description: Validation error message
+              value:
+                description: Invalid value provided
+        timestamp:
+          type: string
+          format: date-time
+        requestId:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Bad Request
+            message: Invalid request parameters
+            timestamp: 2024-01-17T10:00:00Z
+            requestId: req_123456
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Unauthorized
+            message: Authentication required
+            timestamp: 2024-01-17T10:00:00Z
+            requestId: req_123456
+
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Forbidden
+            message: Insufficient permissions
+            timestamp: 2024-01-17T10:00:00Z
+            requestId: req_123456
+
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Not Found
+            message: Resource not found
+            timestamp: 2024-01-17T10:00:00Z
+            requestId: req_123456
+
+    ValidationError:
+      description: Validation Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+          example:
+            error: Validation Error
+            message: Request validation failed
+            validationErrors:
+              - field: email
+                message: Invalid email format
+                value: invalid-email
+              - field: password
+                message: Password must be at least 8 characters long
+                value: ""
+            timestamp: 2024-01-17T10:00:00Z
+            requestId: req_123456
+
+    InternalServerError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Internal Server Error
+            message: An unexpected error occurred
+            timestamp: 2024-01-17T10:00:00Z
+            requestId: req_123456
+
+  examples:
+    SampleExample:
+      value:
+        id: 123e4567-e89b-12d3-a456-426614174000
+        sampleId: SAMPLE_000001
+        clientId: 456e7890-e89b-12d3-a456-426614174000
+        sampleType: blood
+        testType: genetic
+        priority: normal
+        status: pending
+        volume: 5.0
+        unit: mL
+        collectionDate: 2024-01-17
+        createdAt: 2024-01-17T10:00:00Z
+        updatedAt: 2024-01-17T10:00:00Z
+        notes: Sample collected for genetic analysis
+
+    GeneticAnalysisExample:
+      value:
+        id: 789e0123-e89b-12d3-a456-426614174000
+        sampleId: 123e4567-e89b-12d3-a456-426614174000
+        analysisType: whole_exome
+        genes: [BRCA1, BRCA2, TP53]
+        priority: normal
+        status: queued
+        sequencingPlatform: Illumina NovaSeq 6000
+        readDepth: 100
+        coverageThreshold: 90.0
+        createdAt: 2024-01-17T10:00:00Z
+        updatedAt: 2024-01-17T10:00:00Z
+
+    ClientExample:
+      value:
+        id: 456e7890-e89b-12d3-a456-426614174000
+        firstName: John
+        lastName: Doe
+        email: john.doe@example.com
+        phone: +1-555-0123
+        dateOfBirth: 1985-03-15
+        gender: male
+        address:
+          street: 123 Main St
+          city: Anytown
+          state: CA
+          zipCode: 12345
+          country: USA
+        createdAt: 2024-01-17T10:00:00Z
+        updatedAt: 2024-01-17T10:00:00Z
+
+tags:
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Samples
+    description: Sample management operations
+  - name: Genetic Analysis
+    description: Genetic analysis operations
+  - name: Clients
+    description: Client management operations
+  - name: System
+    description: System health and monitoring

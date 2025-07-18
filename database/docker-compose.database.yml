@@ -1,0 +1,331 @@
+# Database Infrastructure for LIMS Application
+# This Docker Compose file sets up a complete database environment for development and testing
+
+version: '3.8'
+
+services:
+  # Primary PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: lims_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lims_development
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d/migrations:ro
+      - ./init-scripts:/docker-entrypoint-initdb.d/init-scripts:ro
+      - ./backups:/backups
+    networks:
+      - lims_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d lims_development"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis for Caching and Session Management
+  redis:
+    image: redis:7-alpine
+    container_name: lims_redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - lims_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Database Administration Interface
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: lims_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@labscientific.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - "${PGADMIN_PORT:-8080}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+    networks:
+      - lims_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Database Migration Runner
+  migration-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.migration
+    container_name: lims_migration_runner
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: lims_development
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_SSL: 'false'
+      MIGRATION_ENVIRONMENT: development
+    volumes:
+      - ./migrations:/app/migrations:ro
+      - ./seeds:/app/seeds:ro
+      - ./backups:/app/backups
+      - migration_logs:/app/logs
+    networks:
+      - lims_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - migration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Database Monitoring with Prometheus
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: lims_postgres_exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: postgresql://postgres:postgres@postgres:5432/lims_development?sslmode=disable
+    ports:
+      - "${POSTGRES_EXPORTER_PORT:-9187}:9187"
+    networks:
+      - lims_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis Monitoring
+  redis_exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: lims_redis_exporter
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    ports:
+      - "${REDIS_EXPORTER_PORT:-9121}:9121"
+    networks:
+      - lims_network
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles:
+      - monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Database Backup Service
+  backup-service:
+    image: postgres:15-alpine
+    container_name: lims_backup_service
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: postgres
+      BACKUP_SCHEDULE: "0 2 * * *"  # Daily at 2 AM
+      BACKUP_RETENTION_DAYS: 30
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup-cron.sh:/backup-cron.sh:ro
+    networks:
+      - lims_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["/backup-cron.sh"]
+    profiles:
+      - backup
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Database Testing Environment
+  postgres_test:
+    image: postgres:15-alpine
+    container_name: lims_postgres_test
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lims_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "${TEST_DB_PORT:-5433}:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d/migrations:ro
+    networks:
+      - lims_network
+    profiles:
+      - testing
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d lims_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Database Load Testing
+  database_load_test:
+    build:
+      context: .
+      dockerfile: Dockerfile.load-test
+    container_name: lims_db_load_test
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: lims_development
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      LOAD_TEST_DURATION: 300
+      LOAD_TEST_CONNECTIONS: 50
+    volumes:
+      - ./tests/load:/app/tests:ro
+      - load_test_results:/app/results
+    networks:
+      - lims_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - load-test
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${PWD}/data/postgres
+      o: bind
+  
+  postgres_test_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${PWD}/data/postgres_test
+      o: bind
+  
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${PWD}/data/redis
+      o: bind
+  
+  pgadmin_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${PWD}/data/pgadmin
+      o: bind
+  
+  migration_logs:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${PWD}/logs/migration
+      o: bind
+  
+  load_test_results:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${PWD}/results/load-test
+      o: bind
+
+networks:
+  lims_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+
+# Additional configuration for different environments
+x-environment-configs:
+  development: &development
+    environment:
+      - NODE_ENV=development
+      - DB_SSL=false
+      - MIGRATION_AUTO_RUN=true
+      - SEED_AUTO_RUN=true
+  
+  staging: &staging
+    environment:
+      - NODE_ENV=staging
+      - DB_SSL=true
+      - MIGRATION_AUTO_RUN=false
+      - SEED_AUTO_RUN=false
+  
+  production: &production
+    environment:
+      - NODE_ENV=production
+      - DB_SSL=true
+      - MIGRATION_AUTO_RUN=false
+      - SEED_AUTO_RUN=false
+
+# Docker Compose profiles for different use cases
+# Usage examples:
+# docker-compose -f docker-compose.database.yml up                    # Basic database
+# docker-compose -f docker-compose.database.yml --profile migration up  # Include migration
+# docker-compose -f docker-compose.database.yml --profile monitoring up # Include monitoring
+# docker-compose -f docker-compose.database.yml --profile testing up    # Include test database
+# docker-compose -f docker-compose.database.yml --profile backup up     # Include backup service

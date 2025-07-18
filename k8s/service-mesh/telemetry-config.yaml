@@ -1,0 +1,488 @@
+# Istio Telemetry Configuration for LIMS Observability
+# This file contains comprehensive telemetry configurations for service mesh monitoring
+
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: lims-metrics
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: telemetry
+spec:
+  metrics:
+  - providers:
+    - name: prometheus
+  - overrides:
+    - match:
+        metric: ALL_METRICS
+      tagOverrides:
+        request_id:
+          value: "%REQ(X-REQUEST-ID)%"
+        user_id:
+          value: "%REQ(X-USER-ID)%"
+        lab_id:
+          value: "%REQ(X-LAB-ID)%"
+        sample_type:
+          value: "%REQ(X-SAMPLE-TYPE)%"
+        analysis_type:
+          value: "%REQ(X-ANALYSIS-TYPE)%"
+  - overrides:
+    - match:
+        metric: requests_total
+      tagOverrides:
+        custom_dimension:
+          value: "lims_application"
+    - match:
+        metric: request_duration_milliseconds
+      tagOverrides:
+        custom_dimension:
+          value: "lims_application"
+
+---
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: lims-access-logs
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: access-logs
+spec:
+  accessLogging:
+  - providers:
+    - name: otel
+  - providers:
+    - name: envoy
+  - filter:
+      expression: 'response.code >= 400'
+  - format:
+      labels:
+        timestamp: "%START_TIME%"
+        method: "%REQ(:METHOD)%"
+        path: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
+        protocol: "%PROTOCOL%"
+        response_code: "%RESPONSE_CODE%"
+        response_flags: "%RESPONSE_FLAGS%"
+        bytes_received: "%BYTES_RECEIVED%"
+        bytes_sent: "%BYTES_SENT%"
+        duration: "%DURATION%"
+        upstream_service_time: "%RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%"
+        x_forwarded_for: "%REQ(X-FORWARDED-FOR)%"
+        user_agent: "%REQ(USER-AGENT)%"
+        request_id: "%REQ(X-REQUEST-ID)%"
+        user_id: "%REQ(X-USER-ID)%"
+        lab_id: "%REQ(X-LAB-ID)%"
+        sample_id: "%REQ(X-SAMPLE-ID)%"
+        analysis_id: "%REQ(X-ANALYSIS-ID)%"
+        authority: "%REQ(:AUTHORITY)%"
+        upstream_host: "%UPSTREAM_HOST%"
+        upstream_cluster: "%UPSTREAM_CLUSTER%"
+        upstream_local_address: "%UPSTREAM_LOCAL_ADDRESS%"
+        downstream_local_address: "%DOWNSTREAM_LOCAL_ADDRESS%"
+        downstream_remote_address: "%DOWNSTREAM_REMOTE_ADDRESS%"
+        requested_server_name: "%REQUESTED_SERVER_NAME%"
+        route_name: "%ROUTE_NAME%"
+
+---
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: lims-tracing
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: tracing
+spec:
+  tracing:
+  - providers:
+    - name: jaeger
+  - customTags:
+      user_id:
+        header:
+          name: "x-user-id"
+      lab_id:
+        header:
+          name: "x-lab-id"
+      sample_id:
+        header:
+          name: "x-sample-id"
+      analysis_id:
+        header:
+          name: "x-analysis-id"
+      request_type:
+        header:
+          name: "x-request-type"
+      api_version:
+        header:
+          name: "x-api-version"
+      client_version:
+        header:
+          name: "x-client-version"
+      correlation_id:
+        header:
+          name: "x-correlation-id"
+      business_context:
+        header:
+          name: "x-business-context"
+      experiment:
+        header:
+          name: "x-experiment"
+  - randomSamplingPercentage: 1.0
+
+---
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: lims-telemetry-config
+  namespace: istio-system
+  labels:
+    app: lims
+    component: telemetry-config
+spec:
+  meshConfig:
+    defaultConfig:
+      proxyStatsMatcher:
+        inclusionRegexps:
+        - ".*outlier_detection.*"
+        - ".*circuit_breaker.*"
+        - ".*upstream_rq_retry.*"
+        - ".*upstream_rq_pending.*"
+        - ".*_cx_.*"
+        - ".*lims.*"
+        exclusionRegexps:
+        - ".*osconfig.*"
+        - ".*grpc.*"
+      proxyMetadata:
+        PILOT_ENABLE_WORKLOAD_ENTRY_AUTOREGISTRATION: true
+        PILOT_ENABLE_CROSS_CLUSTER_WORKLOAD_ENTRY: true
+        BOOTSTRAP_XDS_AGENT: true
+    extensionProviders:
+    - name: prometheus
+      prometheus:
+        service: prometheus.monitoring.svc.cluster.local
+        port: 9090
+    - name: jaeger
+      envoyOtelAls:
+        service: jaeger-collector.istio-system.svc.cluster.local
+        port: 4317
+    - name: otel
+      envoyOtelAls:
+        service: opentelemetry-collector.istio-system.svc.cluster.local
+        port: 4317
+    - name: envoy
+      envoyFileAccessLog:
+        path: "/dev/stdout"
+        format: |
+          [%START_TIME%] "%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%"
+          %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT%
+          %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% "%REQ(X-FORWARDED-FOR)%"
+          "%REQ(USER-AGENT)%" "%REQ(X-REQUEST-ID)%" "%REQ(:AUTHORITY)%"
+          "%UPSTREAM_HOST%" "%REQ(X-USER-ID)%" "%REQ(X-LAB-ID)%" "%REQ(X-SAMPLE-ID)%"
+  values:
+    telemetry:
+      v2:
+        enabled: true
+        prometheus:
+          configOverride:
+            metric_relabeling_configs:
+            - source_labels: [__name__]
+              regex: 'istio_.*'
+              target_label: __name__
+              replacement: 'lims_${1}'
+            - source_labels: [__name__]
+              regex: 'envoy_.*'
+              target_label: __name__
+              replacement: 'lims_${1}'
+            disable_host_header_fallback: true
+        stackdriver:
+          enabled: false
+        stats:
+          enabled: true
+          prometheus:
+            enabled: true
+            add_service_cluster: true
+            add_service_version: true
+
+---
+apiVersion: v1
+kind: EnvoyFilter
+metadata:
+  name: lims-custom-metrics
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: custom-metrics
+spec:
+  workloadSelector:
+    labels:
+      app: lims
+  configPatches:
+  - applyTo: HTTP_FILTER
+    match:
+      context: SIDECAR_INBOUND
+      listener:
+        filterChain:
+          filter:
+            name: "envoy.filters.network.http_connection_manager"
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.filters.http.wasm
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+          config:
+            name: "lims_custom_metrics"
+            vm_config:
+              vm_id: "lims_custom_metrics"
+              runtime: "envoy.wasm.runtime.v8"
+              code:
+                local:
+                  inline_string: |
+                    class LimsMetrics {
+                      constructor(rootContext) {
+                        this.rootContext = rootContext;
+                      }
+                      
+                      onHttpRequestHeaders() {
+                        const headers = this.getRequestHeaders();
+                        const userAgent = headers["user-agent"];
+                        const userId = headers["x-user-id"];
+                        const labId = headers["x-lab-id"];
+                        const sampleId = headers["x-sample-id"];
+                        const analysisId = headers["x-analysis-id"];
+                        
+                        // Custom metrics for LIMS business logic
+                        if (sampleId) {
+                          this.rootContext.incrementCounter("lims_sample_requests_total", 
+                            {lab_id: labId, sample_id: sampleId, user_id: userId});
+                        }
+                        
+                        if (analysisId) {
+                          this.rootContext.incrementCounter("lims_analysis_requests_total", 
+                            {lab_id: labId, analysis_id: analysisId, user_id: userId});
+                        }
+                        
+                        // Track user agent for client analytics
+                        if (userAgent && userAgent.includes("LIMS-Client")) {
+                          this.rootContext.incrementCounter("lims_client_requests_total", 
+                            {client_version: userAgent.split("/")[1], user_id: userId});
+                        }
+                        
+                        return FilterHeadersStatus.Continue;
+                      }
+                      
+                      onHttpResponseHeaders() {
+                        const responseCode = this.getResponseHeader(":status");
+                        const headers = this.getRequestHeaders();
+                        const path = headers[":path"];
+                        const userId = headers["x-user-id"];
+                        const labId = headers["x-lab-id"];
+                        
+                        // Business logic metrics
+                        if (path.includes("/api/samples") && responseCode === "201") {
+                          this.rootContext.incrementCounter("lims_samples_created_total", 
+                            {lab_id: labId, user_id: userId});
+                        }
+                        
+                        if (path.includes("/api/analyses") && responseCode === "200") {
+                          this.rootContext.incrementCounter("lims_analyses_completed_total", 
+                            {lab_id: labId, user_id: userId});
+                        }
+                        
+                        if (path.includes("/api/reports") && responseCode === "200") {
+                          this.rootContext.incrementCounter("lims_reports_generated_total", 
+                            {lab_id: labId, user_id: userId});
+                        }
+                        
+                        return FilterHeadersStatus.Continue;
+                      }
+                    }
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lims-telemetry-config
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: telemetry-config
+data:
+  telemetry.yaml: |
+    # Telemetry Configuration for LIMS Application
+    telemetry:
+      metrics:
+        enabled: true
+        prometheus:
+          endpoint: "prometheus.monitoring.svc.cluster.local:9090"
+          path: "/metrics"
+          scrape_interval: "15s"
+        custom_metrics:
+          - name: "lims_sample_processing_duration"
+            type: "histogram"
+            description: "Time taken to process samples"
+            buckets: [0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0]
+            labels:
+              - "sample_type"
+              - "lab_id"
+              - "user_id"
+              - "processing_stage"
+          - name: "lims_genetic_analysis_success_rate"
+            type: "counter"
+            description: "Success rate of genetic analyses"
+            labels:
+              - "analysis_type"
+              - "lab_id"
+              - "instrument_id"
+              - "user_id"
+          - name: "lims_active_users"
+            type: "gauge"
+            description: "Number of active users in the system"
+            labels:
+              - "lab_id"
+              - "user_role"
+          - name: "lims_sample_backlog"
+            type: "gauge"
+            description: "Number of samples waiting for processing"
+            labels:
+              - "lab_id"
+              - "priority"
+              - "sample_type"
+          - name: "lims_report_generation_time"
+            type: "histogram"
+            description: "Time taken to generate reports"
+            buckets: [1.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0]
+            labels:
+              - "report_type"
+              - "lab_id"
+              - "user_id"
+              - "format"
+              
+      tracing:
+        enabled: true
+        jaeger:
+          endpoint: "jaeger-collector.istio-system.svc.cluster.local:14268"
+          agent_endpoint: "jaeger-agent.istio-system.svc.cluster.local:6831"
+          sampling_rate: 0.1
+          max_tag_value_length: 256
+        custom_tags:
+          - name: "lims.user_id"
+            header: "x-user-id"
+          - name: "lims.lab_id"
+            header: "x-lab-id"
+          - name: "lims.sample_id"
+            header: "x-sample-id"
+          - name: "lims.analysis_id"
+            header: "x-analysis-id"
+          - name: "lims.request_type"
+            header: "x-request-type"
+          - name: "lims.business_context"
+            header: "x-business-context"
+            
+      logging:
+        enabled: true
+        level: "info"
+        format: "json"
+        outputs:
+          - "stdout"
+          - "file:///var/log/lims-telemetry.log"
+        access_log:
+          enabled: true
+          format: |
+            {
+              "timestamp": "%START_TIME%",
+              "method": "%REQ(:METHOD)%",
+              "path": "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%",
+              "protocol": "%PROTOCOL%",
+              "response_code": "%RESPONSE_CODE%",
+              "response_flags": "%RESPONSE_FLAGS%",
+              "bytes_received": "%BYTES_RECEIVED%",
+              "bytes_sent": "%BYTES_SENT%",
+              "duration": "%DURATION%",
+              "upstream_service_time": "%RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%",
+              "x_forwarded_for": "%REQ(X-FORWARDED-FOR)%",
+              "user_agent": "%REQ(USER-AGENT)%",
+              "request_id": "%REQ(X-REQUEST-ID)%",
+              "user_id": "%REQ(X-USER-ID)%",
+              "lab_id": "%REQ(X-LAB-ID)%",
+              "sample_id": "%REQ(X-SAMPLE-ID)%",
+              "analysis_id": "%REQ(X-ANALYSIS-ID)%",
+              "authority": "%REQ(:AUTHORITY)%",
+              "upstream_host": "%UPSTREAM_HOST%",
+              "upstream_cluster": "%UPSTREAM_CLUSTER%",
+              "route_name": "%ROUTE_NAME%"
+            }
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: EnvoyFilter
+metadata:
+  name: lims-custom-headers
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: custom-headers
+spec:
+  workloadSelector:
+    labels:
+      app: lims
+  configPatches:
+  - applyTo: HTTP_FILTER
+    match:
+      context: SIDECAR_INBOUND
+      listener:
+        filterChain:
+          filter:
+            name: "envoy.filters.network.http_connection_manager"
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.filters.http.lua
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+          inline_code: |
+            function envoy_on_request(request_handle)
+              -- Add correlation ID if not present
+              if not request_handle:headers():get("x-correlation-id") then
+                request_handle:headers():add("x-correlation-id", request_handle:headers():get("x-request-id"))
+              end
+              
+              -- Add timestamp header
+              request_handle:headers():add("x-request-timestamp", os.time())
+              
+              -- Add service information
+              request_handle:headers():add("x-service-name", "lims-app")
+              request_handle:headers():add("x-service-version", "v1.0.0")
+              
+              -- Extract business context from URL
+              local path = request_handle:headers():get(":path")
+              if string.match(path, "/api/samples") then
+                request_handle:headers():add("x-business-context", "sample-management")
+              elseif string.match(path, "/api/analyses") then
+                request_handle:headers():add("x-business-context", "genetic-analysis")
+              elseif string.match(path, "/api/reports") then
+                request_handle:headers():add("x-business-context", "report-generation")
+              elseif string.match(path, "/api/users") then
+                request_handle:headers():add("x-business-context", "user-management")
+              else
+                request_handle:headers():add("x-business-context", "general")
+              end
+            end
+            
+            function envoy_on_response(response_handle)
+              -- Add response timestamp
+              response_handle:headers():add("x-response-timestamp", os.time())
+              
+              -- Add cache control headers for static assets
+              local path = response_handle:headers():get(":path")
+              if string.match(path, "%.css$") or string.match(path, "%.js$") or string.match(path, "%.png$") then
+                response_handle:headers():add("cache-control", "public, max-age=31536000")
+              end
+              
+              -- Add security headers
+              response_handle:headers():add("x-content-type-options", "nosniff")
+              response_handle:headers():add("x-frame-options", "SAMEORIGIN")
+              response_handle:headers():add("x-xss-protection", "1; mode=block")
+              response_handle:headers():add("referrer-policy", "strict-origin-when-cross-origin")
+            end

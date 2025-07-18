@@ -1,0 +1,286 @@
+# Artillery.io Load Testing Configuration for LIMS Application
+# This configuration defines comprehensive load testing scenarios for the LIMS system
+
+config:
+  # Test target configuration
+  target: 'http://localhost:3000'
+  
+  # Load testing phases
+  phases:
+    # Warm-up phase
+    - duration: 30
+      arrivalRate: 1
+      name: "Warm-up"
+      
+    # Gradual ramp-up
+    - duration: 60
+      arrivalRate: 5
+      rampTo: 20
+      name: "Ramp-up"
+      
+    # Sustained load
+    - duration: 300
+      arrivalRate: 20
+      name: "Sustained load"
+      
+    # Peak load
+    - duration: 120
+      arrivalRate: 50
+      name: "Peak load"
+      
+    # Stress test
+    - duration: 60
+      arrivalRate: 100
+      name: "Stress test"
+      
+    # Cool-down
+    - duration: 30
+      arrivalRate: 1
+      name: "Cool-down"
+
+  # HTTP configuration
+  http:
+    timeout: 30
+    pool: 50
+    
+  # Environment variables
+  environments:
+    development:
+      target: 'http://localhost:3000'
+      phases:
+        - duration: 30
+          arrivalRate: 5
+    staging:
+      target: 'https://staging.lims.example.com'
+      phases:
+        - duration: 60
+          arrivalRate: 10
+    production:
+      target: 'https://lims.example.com'
+      phases:
+        - duration: 300
+          arrivalRate: 20
+
+  # Processor configuration
+  processor: './performance-helpers.js'
+
+  # Variables for dynamic data
+  variables:
+    sampleId:
+      - "SAMPLE_001"
+      - "SAMPLE_002"
+      - "SAMPLE_003"
+      - "SAMPLE_004"
+      - "SAMPLE_005"
+    clientId:
+      - "CLIENT_001"
+      - "CLIENT_002"
+      - "CLIENT_003"
+    testType:
+      - "genetic"
+      - "chemical"
+      - "biological"
+
+  # Default headers
+  defaults:
+    headers:
+      'Content-Type': 'application/json'
+      'Accept': 'application/json'
+      'User-Agent': 'Artillery Load Test'
+
+  # Plugins
+  plugins:
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+    publish-metrics:
+      - type: cloudwatch
+        region: us-east-1
+        namespace: LIMS/LoadTesting
+    expect:
+      outputFormat: json
+      outputFile: artillery-results.json
+
+# Test scenarios
+scenarios:
+  # User authentication flow
+  - name: "User Authentication"
+    weight: 10
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            username: "test@example.com"
+            password: "testpassword"
+          expect:
+            - statusCode: 200
+            - hasProperty: "token"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      - get:
+          url: "/api/auth/profile"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+
+  # Sample management workflow
+  - name: "Sample Management"
+    weight: 30
+    flow:
+      - function: "authenticateUser"
+      - post:
+          url: "/api/samples"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            sampleId: "{{ sampleId }}"
+            clientId: "{{ clientId }}"
+            testType: "{{ testType }}"
+            priority: "normal"
+            notes: "Load test sample"
+          expect:
+            - statusCode: 201
+          capture:
+            - json: "$.id"
+              as: "newSampleId"
+      - get:
+          url: "/api/samples/{{ newSampleId }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+      - patch:
+          url: "/api/samples/{{ newSampleId }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            status: "in_progress"
+          expect:
+            - statusCode: 200
+
+  # Search and filtering
+  - name: "Search and Filter"
+    weight: 25
+    flow:
+      - function: "authenticateUser"
+      - get:
+          url: "/api/samples/search"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          qs:
+            q: "{{ sampleId }}"
+            type: "{{ testType }}"
+            limit: 20
+          expect:
+            - statusCode: 200
+      - get:
+          url: "/api/samples"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          qs:
+            page: 1
+            limit: 50
+            sortBy: "createdAt"
+            sortOrder: "desc"
+          expect:
+            - statusCode: 200
+
+  # Client registration
+  - name: "Client Registration"
+    weight: 10
+    flow:
+      - function: "authenticateUser"
+      - post:
+          url: "/api/clients"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            name: "Load Test Client {{ $randomString() }}"
+            email: "loadtest-{{ $randomString() }}@example.com"
+            phone: "+1234567890"
+            address: "123 Test Street"
+            contactPerson: "Test Person"
+          expect:
+            - statusCode: 201
+          capture:
+            - json: "$.id"
+              as: "clientId"
+      - get:
+          url: "/api/clients/{{ clientId }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+
+  # Genetic analysis workflow
+  - name: "Genetic Analysis"
+    weight: 15
+    flow:
+      - function: "authenticateUser"
+      - post:
+          url: "/api/genetic-analysis"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            sampleId: "{{ sampleId }}"
+            analysisType: "snp"
+            genes: ["BRCA1", "BRCA2", "TP53"]
+            priority: "high"
+          expect:
+            - statusCode: 201
+          capture:
+            - json: "$.id"
+              as: "analysisId"
+      - get:
+          url: "/api/genetic-analysis/{{ analysisId }}/status"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+      - get:
+          url: "/api/genetic-analysis/{{ analysisId }}/results"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: [200, 202]
+
+  # Reporting system
+  - name: "Reporting"
+    weight: 10
+    flow:
+      - function: "authenticateUser"
+      - post:
+          url: "/api/reports/generate"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            reportType: "monthly"
+            dateRange:
+              start: "2024-01-01"
+              end: "2024-01-31"
+            filters:
+              testType: "{{ testType }}"
+            format: "pdf"
+          expect:
+            - statusCode: 202
+          capture:
+            - json: "$.jobId"
+              as: "reportJobId"
+      - get:
+          url: "/api/reports/status/{{ reportJobId }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+
+# Before and after hooks
+before:
+  flow:
+    - log: "Starting load test for LIMS application"
+    - function: "setupTestData"
+
+after:
+  flow:
+    - log: "Load test completed"
+    - function: "cleanupTestData"

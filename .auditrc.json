@@ -1,0 +1,21 @@
+{
+  "allowlist": [
+    "GHSA-example-allowlisted-vulnerability"
+  ],
+  "low": true,
+  "moderate": true,
+  "high": true,
+  "critical": true,
+  "report-type": "summary",
+  "retry-count": 3,
+  "pass-enoaudit": true,
+  "show-found": true,
+  "show-not-found": false,
+  "skip-dev": false,
+  "whitelist": [
+    "GHSA-example-legacy-whitelist"
+  ],
+  "advisories": [
+    "GHSA-example-specific-advisory"
+  ]
+}

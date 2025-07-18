@@ -1,0 +1,375 @@
+# Development Docker Compose Configuration for LIMS
+# This configuration provides a complete local development environment
+# with cloud-ready patterns and multi-environment support
+
+version: '3.8'
+
+services:
+  # LIMS Application
+  lims-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      target: development
+    container_name: lims-app-dev
+    ports:
+      - "3000:3000"
+      - "9229:9229"  # Node.js debugger
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - ./logs:/app/logs
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://lims_user:lims_password@postgres:5432/lims_dev
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=debug
+      - ENABLE_DEBUG=true
+      - HOT_RELOAD=true
+      - API_VERSION=v1
+      - CORS_ORIGIN=http://localhost:3000
+      - SESSION_SECRET=dev-session-secret
+      - JWT_SECRET=dev-jwt-secret
+      - ENCRYPTION_KEY=dev-encryption-key-32-characters
+      # Cloud-ready environment variables (for future deployment)
+      - CLOUD_PROVIDER=${CLOUD_PROVIDER:-local}
+      - CLOUD_REGION=${CLOUD_REGION:-us-east-1}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - INSTANCE_ID=${HOSTNAME:-local-dev}
+      - DEPLOYMENT_VERSION=${GIT_COMMIT:-dev}
+      # Feature flags for cloud services
+      - USE_CLOUD_STORAGE=${USE_CLOUD_STORAGE:-false}
+      - USE_CLOUD_SECRETS=${USE_CLOUD_SECRETS:-false}
+      - USE_CLOUD_MONITORING=${USE_CLOUD_MONITORING:-false}
+      - USE_CLOUD_LOGGING=${USE_CLOUD_LOGGING:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - lims-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "com.labscientific.service=lims-app"
+      - "com.labscientific.environment=development"
+      - "com.labscientific.tier=application"
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: lims-postgres-dev
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=lims_dev
+      - POSTGRES_USER=lims_user
+      - POSTGRES_PASSWORD=lims_password
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+      # Cloud-ready settings
+      - POSTGRES_SHARED_PRELOAD_LIBRARIES=pg_stat_statements
+      - POSTGRES_LOG_STATEMENT=all
+      - POSTGRES_LOG_MIN_DURATION_STATEMENT=0
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+      - ./database/backup:/backup
+      - ./database/migrations:/migrations
+    networks:
+      - lims-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lims_user -d lims_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      - "com.labscientific.service=postgres"
+      - "com.labscientific.environment=development"
+      - "com.labscientific.tier=database"
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: lims-redis-dev
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - lims-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      - "com.labscientific.service=redis"
+      - "com.labscientific.environment=development"
+      - "com.labscientific.tier=cache"
+
+  # Development Tools Container
+  dev-tools:
+    image: alpine:latest
+    container_name: lims-dev-tools
+    command: tail -f /dev/null
+    volumes:
+      - .:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WORKSPACE=/workspace
+    networks:
+      - lims-network
+    profiles:
+      - tools
+    labels:
+      - "com.labscientific.service=dev-tools"
+      - "com.labscientific.environment=development"
+      - "com.labscientific.tier=tools"
+
+  # Monitoring Stack (Local)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: lims-prometheus-dev
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus/prometheus.dev.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - lims-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    labels:
+      - "com.labscientific.service=prometheus"
+      - "com.labscientific.environment=development"
+      - "com.labscientific.tier=monitoring"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: lims-grafana-dev
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - lims-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+    labels:
+      - "com.labscientific.service=grafana"
+      - "com.labscientific.environment=development"
+      - "com.labscientific.tier=monitoring"
+
+  # Jaeger Tracing
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: lims-jaeger-dev
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+    networks:
+      - lims-network
+    restart: unless-stopped
+    profiles:
+      - tracing
+    labels:
+      - "com.labscientific.service=jaeger"
+      - "com.labscientific.environment=development"
+      - "com.labscientific.tier=tracing"
+
+  # Local S3 Compatible Storage (MinIO)
+  minio:
+    image: minio/minio:latest
+    container_name: lims-minio-dev
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - lims-network
+    restart: unless-stopped
+    profiles:
+      - storage
+    labels:
+      - "com.labscientific.service=minio"
+      - "com.labscientific.environment=development"
+      - "com.labscientific.tier=storage"
+
+  # Mail Server (for development)
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: lims-mailhog-dev
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks:
+      - lims-network
+    restart: unless-stopped
+    profiles:
+      - mail
+    labels:
+      - "com.labscientific.service=mailhog"
+      - "com.labscientific.environment=development"
+      - "com.labscientific.tier=mail"
+
+  # Nginx Reverse Proxy (simulating cloud load balancer)
+  nginx:
+    image: nginx:alpine
+    container_name: lims-nginx-dev
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./nginx/logs:/var/log/nginx
+    networks:
+      - lims-network
+    restart: unless-stopped
+    depends_on:
+      - lims-app
+    profiles:
+      - proxy
+    labels:
+      - "com.labscientific.service=nginx"
+      - "com.labscientific.environment=development"
+      - "com.labscientific.tier=proxy"
+
+  # Database Migration Runner
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.migrate
+    container_name: lims-migrate-dev
+    environment:
+      - DATABASE_URL=postgresql://lims_user:lims_password@postgres:5432/lims_dev
+    volumes:
+      - ./database/migrations:/migrations
+    networks:
+      - lims-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - migration
+    labels:
+      - "com.labscientific.service=migrate"
+      - "com.labscientific.environment=development"
+      - "com.labscientific.tier=migration"
+
+  # Test Runner
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: lims-test-runner
+    environment:
+      - NODE_ENV=test
+      - DATABASE_URL=postgresql://lims_user:lims_password@postgres:5432/lims_test
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - ./test-results:/app/test-results
+      - ./coverage:/app/coverage
+    networks:
+      - lims-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles:
+      - test
+    labels:
+      - "com.labscientific.service=test-runner"
+      - "com.labscientific.environment=development"
+      - "com.labscientific.tier=test"
+
+networks:
+  lims-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  postgres_data:
+    driver: local
+    labels:
+      - "com.labscientific.volume=postgres-data"
+  redis_data:
+    driver: local
+    labels:
+      - "com.labscientific.volume=redis-data"
+  prometheus_data:
+    driver: local
+    labels:
+      - "com.labscientific.volume=prometheus-data"
+  grafana_data:
+    driver: local
+    labels:
+      - "com.labscientific.volume=grafana-data"
+  minio_data:
+    driver: local
+    labels:
+      - "com.labscientific.volume=minio-data"
+
+# Health check configuration
+x-healthcheck-config: &healthcheck
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 30s
+
+# Logging configuration
+x-logging-config: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# Cloud-ready labels
+x-cloud-labels: &cloud-labels
+  com.labscientific.project: "lims"
+  com.labscientific.version: "${VERSION:-dev}"
+  com.labscientific.build: "${BUILD_NUMBER:-local}"
+  com.labscientific.git-commit: "${GIT_COMMIT:-unknown}"
+  com.labscientific.cloud-ready: "true"

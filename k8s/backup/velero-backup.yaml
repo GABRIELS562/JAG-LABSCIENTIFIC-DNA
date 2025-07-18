@@ -1,0 +1,610 @@
+# Velero Backup Configuration for LIMS Disaster Recovery
+# This file contains comprehensive backup and disaster recovery configurations
+
+apiVersion: velero.io/v1
+kind: Backup
+metadata:
+  name: lims-daily-backup
+  namespace: velero
+  labels:
+    app: lims
+    backup-type: daily
+spec:
+  # Include all LIMS namespaces
+  includedNamespaces:
+  - labscientific-lims
+  - labscientific-lims-staging
+  - labscientific-lims-dev
+  - monitoring
+  
+  # Exclude temporary and cache resources
+  excludedResources:
+  - events
+  - events.events.k8s.io
+  - pods
+  - replicasets
+  - replicasets.apps
+  - endpoints
+  - endpointslices
+  - jobs
+  - jobs.batch
+  
+  # Include cluster-scoped resources
+  includeClusterResources: true
+  
+  # Backup storage location
+  storageLocation: lims-backup-location
+  
+  # Volume snapshot location
+  volumeSnapshotLocations:
+  - lims-volume-snapshot-location
+  
+  # Backup TTL (30 days)
+  ttl: 720h0m0s
+  
+  # Backup hooks for database consistency
+  hooks:
+    resources:
+    - name: postgresql-backup-hook
+      includedNamespaces:
+      - labscientific-lims
+      - labscientific-lims-staging
+      - labscientific-lims-dev
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: lims
+          app.kubernetes.io/component: postgresql
+      pre:
+      - exec:
+          container: postgresql
+          command:
+          - /bin/bash
+          - -c
+          - |
+            echo "Starting PostgreSQL backup preparation..."
+            pg_dump -h localhost -U $POSTGRES_USER -d $POSTGRES_DB > /tmp/backup.sql
+            echo "PostgreSQL backup preparation completed"
+          onError: Fail
+      post:
+      - exec:
+          container: postgresql
+          command:
+          - /bin/bash
+          - -c
+          - |
+            echo "Cleaning up PostgreSQL backup files..."
+            rm -f /tmp/backup.sql
+            echo "PostgreSQL backup cleanup completed"
+    
+    - name: redis-backup-hook
+      includedNamespaces:
+      - labscientific-lims
+      - labscientific-lims-staging
+      - labscientific-lims-dev
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: lims
+          app.kubernetes.io/component: redis
+      pre:
+      - exec:
+          container: redis
+          command:
+          - /bin/bash
+          - -c
+          - |
+            echo "Starting Redis backup preparation..."
+            redis-cli BGSAVE
+            echo "Redis backup preparation completed"
+          onError: Fail
+
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: lims-daily-backup-schedule
+  namespace: velero
+  labels:
+    app: lims
+    backup-type: scheduled
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  template:
+    metadata:
+      labels:
+        app: lims
+        backup-type: daily-scheduled
+    spec:
+      includedNamespaces:
+      - labscientific-lims
+      - labscientific-lims-staging
+      - labscientific-lims-dev
+      - monitoring
+      
+      excludedResources:
+      - events
+      - events.events.k8s.io
+      - pods
+      - replicasets
+      - replicasets.apps
+      - endpoints
+      - endpointslices
+      - jobs
+      - jobs.batch
+      
+      includeClusterResources: true
+      storageLocation: lims-backup-location
+      volumeSnapshotLocations:
+      - lims-volume-snapshot-location
+      ttl: 720h0m0s
+      
+      hooks:
+        resources:
+        - name: postgresql-backup-hook
+          includedNamespaces:
+          - labscientific-lims
+          - labscientific-lims-staging
+          - labscientific-lims-dev
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: lims
+              app.kubernetes.io/component: postgresql
+          pre:
+          - exec:
+              container: postgresql
+              command:
+              - /bin/bash
+              - -c
+              - |
+                echo "Starting scheduled PostgreSQL backup..."
+                pg_dump -h localhost -U $POSTGRES_USER -d $POSTGRES_DB > /tmp/scheduled_backup.sql
+                echo "Scheduled PostgreSQL backup completed"
+              onError: Fail
+          post:
+          - exec:
+              container: postgresql
+              command:
+              - /bin/bash
+              - -c
+              - |
+                echo "Cleaning up scheduled PostgreSQL backup files..."
+                rm -f /tmp/scheduled_backup.sql
+                echo "Scheduled PostgreSQL backup cleanup completed"
+
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: lims-weekly-backup-schedule
+  namespace: velero
+  labels:
+    app: lims
+    backup-type: weekly
+spec:
+  schedule: "0 3 * * 0"  # Weekly on Sunday at 3 AM
+  template:
+    metadata:
+      labels:
+        app: lims
+        backup-type: weekly-scheduled
+    spec:
+      includedNamespaces:
+      - labscientific-lims
+      - labscientific-lims-staging
+      - labscientific-lims-dev
+      - monitoring
+      - istio-system
+      
+      includeClusterResources: true
+      storageLocation: lims-backup-location
+      volumeSnapshotLocations:
+      - lims-volume-snapshot-location
+      ttl: 2160h0m0s  # 90 days
+      
+      hooks:
+        resources:
+        - name: full-database-backup-hook
+          includedNamespaces:
+          - labscientific-lims
+          - labscientific-lims-staging
+          - labscientific-lims-dev
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: lims
+              app.kubernetes.io/component: postgresql
+          pre:
+          - exec:
+              container: postgresql
+              command:
+              - /bin/bash
+              - -c
+              - |
+                echo "Starting weekly full database backup..."
+                pg_dumpall -h localhost -U $POSTGRES_USER > /tmp/weekly_full_backup.sql
+                echo "Weekly full database backup completed"
+              onError: Fail
+          post:
+          - exec:
+              container: postgresql
+              command:
+              - /bin/bash
+              - -c
+              - |
+                echo "Cleaning up weekly backup files..."
+                rm -f /tmp/weekly_full_backup.sql
+                echo "Weekly backup cleanup completed"
+
+---
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: lims-backup-location
+  namespace: velero
+  labels:
+    app: lims
+    component: backup-storage
+spec:
+  provider: aws
+  objectStorage:
+    bucket: lims-velero-backups
+    prefix: lims-cluster
+  config:
+    region: us-east-1
+    s3ForcePathStyle: "false"
+    s3Url: https://s3.amazonaws.com
+  accessMode: ReadWrite
+  backupSyncPeriod: 1h
+  validationFrequency: 24h
+
+---
+apiVersion: velero.io/v1
+kind: VolumeSnapshotLocation
+metadata:
+  name: lims-volume-snapshot-location
+  namespace: velero
+  labels:
+    app: lims
+    component: volume-snapshot
+spec:
+  provider: aws
+  config:
+    region: us-east-1
+    profile: default
+
+---
+apiVersion: velero.io/v1
+kind: Restore
+metadata:
+  name: lims-disaster-recovery-restore
+  namespace: velero
+  labels:
+    app: lims
+    restore-type: disaster-recovery
+spec:
+  # Backup to restore from
+  backupName: lims-daily-backup-20231201-020000
+  
+  # Restore to specific namespaces
+  includedNamespaces:
+  - labscientific-lims
+  - monitoring
+  
+  # Exclude pods and jobs (they will be recreated)
+  excludedResources:
+  - pods
+  - jobs
+  - jobs.batch
+  
+  # Restore cluster resources
+  includeClusterResources: true
+  
+  # Namespace mappings for disaster recovery
+  namespaceMapping:
+    labscientific-lims: labscientific-lims-restored
+    monitoring: monitoring-restored
+  
+  # Restore hooks
+  hooks:
+    resources:
+    - name: postgresql-restore-hook
+      includedNamespaces:
+      - labscientific-lims-restored
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: lims
+          app.kubernetes.io/component: postgresql
+      post:
+      - exec:
+          container: postgresql
+          command:
+          - /bin/bash
+          - -c
+          - |
+            echo "Starting PostgreSQL post-restore verification..."
+            psql -h localhost -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT COUNT(*) FROM information_schema.tables;"
+            echo "PostgreSQL post-restore verification completed"
+          onError: Continue
+    
+    - name: application-restore-hook
+      includedNamespaces:
+      - labscientific-lims-restored
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: lims
+          app.kubernetes.io/component: app
+      post:
+      - exec:
+          container: lims-app
+          command:
+          - /bin/bash
+          - -c
+          - |
+            echo "Starting application post-restore verification..."
+            curl -f http://localhost:3000/health || echo "Health check failed"
+            echo "Application post-restore verification completed"
+          onError: Continue
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: lims-backup-verification
+  namespace: velero
+  labels:
+    app: lims
+    component: backup-verification
+spec:
+  schedule: "0 6 * * *"  # Daily at 6 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: backup-verification
+            image: velero/velero:v1.12.0
+            command:
+            - /bin/bash
+            - -c
+            - |
+              echo "Starting backup verification..."
+              
+              # Check latest backup status
+              LATEST_BACKUP=$(velero backup get --selector=app=lims --sort-by=.metadata.creationTimestamp -o json | jq -r '.items[-1].metadata.name')
+              
+              if [ "$LATEST_BACKUP" != "null" ]; then
+                echo "Latest backup: $LATEST_BACKUP"
+                
+                # Get backup details
+                BACKUP_STATUS=$(velero backup describe $LATEST_BACKUP --details --features=EnableCSI)
+                
+                echo "Backup status: $BACKUP_STATUS"
+                
+                # Check if backup completed successfully
+                if echo "$BACKUP_STATUS" | grep -q "Phase: Completed"; then
+                  echo "✅ Backup verification passed"
+                  
+                  # Send success notification
+                  curl -X POST "$SLACK_WEBHOOK_URL" \
+                    -H 'Content-Type: application/json' \
+                    -d "{\"text\":\"✅ LIMS Backup Verification Successful - $LATEST_BACKUP\"}"
+                else
+                  echo "❌ Backup verification failed"
+                  
+                  # Send failure notification
+                  curl -X POST "$SLACK_WEBHOOK_URL" \
+                    -H 'Content-Type: application/json' \
+                    -d "{\"text\":\"❌ LIMS Backup Verification Failed - $LATEST_BACKUP\"}"
+                  
+                  exit 1
+                fi
+              else
+                echo "❌ No backups found"
+                
+                # Send no backup notification
+                curl -X POST "$SLACK_WEBHOOK_URL" \
+                  -H 'Content-Type: application/json' \
+                  -d "{\"text\":\"❌ LIMS Backup Verification - No Backups Found\"}"
+                
+                exit 1
+              fi
+            env:
+            - name: SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: lims-notifications
+                  key: slack-webhook-url
+            volumeMounts:
+            - name: velero-config
+              mountPath: /root/.config/velero
+          volumes:
+          - name: velero-config
+            configMap:
+              name: velero-config
+          restartPolicy: OnFailure
+          serviceAccountName: velero
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: lims-restore-test
+  namespace: velero
+  labels:
+    app: lims
+    component: restore-test
+spec:
+  schedule: "0 4 * * 0"  # Weekly on Sunday at 4 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: restore-test
+            image: velero/velero:v1.12.0
+            command:
+            - /bin/bash
+            - -c
+            - |
+              echo "Starting restore test..."
+              
+              # Get latest backup
+              LATEST_BACKUP=$(velero backup get --selector=app=lims --sort-by=.metadata.creationTimestamp -o json | jq -r '.items[-1].metadata.name')
+              
+              if [ "$LATEST_BACKUP" != "null" ]; then
+                echo "Testing restore from backup: $LATEST_BACKUP"
+                
+                # Create test namespace
+                kubectl create namespace lims-restore-test || true
+                
+                # Create restore
+                RESTORE_NAME="lims-restore-test-$(date +%Y%m%d-%H%M%S)"
+                
+                cat <<EOF | kubectl apply -f -
+              apiVersion: velero.io/v1
+              kind: Restore
+              metadata:
+                name: $RESTORE_NAME
+                namespace: velero
+              spec:
+                backupName: $LATEST_BACKUP
+                includedNamespaces:
+                - labscientific-lims
+                namespaceMapping:
+                  labscientific-lims: lims-restore-test
+                excludedResources:
+                - pods
+                - jobs
+                - jobs.batch
+                includeClusterResources: false
+              EOF
+                
+                # Wait for restore to complete
+                echo "Waiting for restore to complete..."
+                kubectl wait --for=condition=complete --timeout=600s restore/$RESTORE_NAME -n velero
+                
+                # Verify restore
+                if kubectl get pods -n lims-restore-test | grep -q "Running"; then
+                  echo "✅ Restore test passed"
+                  
+                  # Send success notification
+                  curl -X POST "$SLACK_WEBHOOK_URL" \
+                    -H 'Content-Type: application/json' \
+                    -d "{\"text\":\"✅ LIMS Restore Test Successful - $RESTORE_NAME\"}"
+                else
+                  echo "❌ Restore test failed"
+                  
+                  # Send failure notification
+                  curl -X POST "$SLACK_WEBHOOK_URL" \
+                    -H 'Content-Type: application/json' \
+                    -d "{\"text\":\"❌ LIMS Restore Test Failed - $RESTORE_NAME\"}"
+                fi
+                
+                # Cleanup test namespace
+                kubectl delete namespace lims-restore-test --ignore-not-found=true
+                
+              else
+                echo "❌ No backups found for restore test"
+                
+                # Send no backup notification
+                curl -X POST "$SLACK_WEBHOOK_URL" \
+                  -H 'Content-Type: application/json' \
+                  -d "{\"text\":\"❌ LIMS Restore Test - No Backups Found\"}"
+                
+                exit 1
+              fi
+            env:
+            - name: SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: lims-notifications
+                  key: slack-webhook-url
+            volumeMounts:
+            - name: velero-config
+              mountPath: /root/.config/velero
+          volumes:
+          - name: velero-config
+            configMap:
+              name: velero-config
+          restartPolicy: OnFailure
+          serviceAccountName: velero
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: velero-config
+  namespace: velero
+  labels:
+    app: lims
+    component: backup-config
+data:
+  config.yaml: |
+    clientConfig:
+      burst: 30
+      qps: 20
+    
+    # Backup configuration
+    backupSyncPeriod: 1h
+    backupStorageLocation: lims-backup-location
+    volumeSnapshotLocations:
+    - lims-volume-snapshot-location
+    
+    # Restore configuration
+    restoreResourcePriorities: |
+      - namespaces
+      - storageclass
+      - persistentvolumes
+      - persistentvolumeclaims
+      - secrets
+      - configmaps
+      - serviceaccounts
+      - rbac.authorization.k8s.io
+      - networking.k8s.io
+      - apps
+      - extensions
+      - policy
+      - batch
+      - apiregistration.k8s.io
+      - admissionregistration.k8s.io
+      - crd.projectcalico.org
+      - projectcalico.org
+      - istio.io
+      - networking.istio.io
+      - security.istio.io
+      - telemetry.istio.io
+      - install.istio.io
+    
+    # Feature flags
+    features: EnableCSI
+    
+    # Default backup TTL
+    defaultBackupTTL: 720h0m0s
+    
+    # Garbage collection frequency
+    garbageCollectionFrequency: 1h
+    
+    # Log level
+    logLevel: info
+    
+    # Backup sync period
+    backupSyncPeriod: 1h
+    
+    # Restore only mode
+    restoreOnlyMode: false
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: lims-notifications
+  namespace: velero
+  labels:
+    app: lims
+    component: notifications
+type: Opaque
+data:
+  # Base64 encoded Slack webhook URL
+  slack-webhook-url: aHR0cHM6Ly9ob29rcy5zbGFjay5jb20vc2VydmljZXMvVEVTVC9URVNUL1RFU1Q=  # Replace with actual webhook URL

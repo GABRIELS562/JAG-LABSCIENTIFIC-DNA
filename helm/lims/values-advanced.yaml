@@ -1,0 +1,888 @@
+# Advanced values for LIMS Helm chart
+# This file demonstrates comprehensive configuration for production environments
+
+# Global configuration
+global:
+  imageRegistry: "ghcr.io"
+  imagePullSecrets:
+    - name: ghcr-secret
+  storageClass: "gp3-encrypted"
+  labels:
+    app.kubernetes.io/managed-by: "helm"
+    app.kubernetes.io/part-of: "lims"
+  annotations:
+    helm.sh/hook-weight: "1"
+
+# Common labels and annotations
+labels:
+  environment: "production"
+  tier: "application"
+  component: "lims"
+  version: "2.0.0"
+
+annotations:
+  deployment.kubernetes.io/revision: "1"
+  kubernetes.io/change-cause: "Advanced LIMS deployment"
+
+# Environment configuration
+environment: "production"
+replicaCount: 5
+
+# Update strategy
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 2
+    maxUnavailable: 1
+
+# Application image configuration
+image:
+  repository: ghcr.io/labscientific/lims
+  tag: "2.0.0"
+  pullPolicy: Always
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 3000
+  apiPort: 3001
+  additionalPorts:
+    - name: websocket
+      port: 8080
+      protocol: TCP
+    - name: upload
+      port: 3002
+      protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit-connections: "100"
+    nginx.ingress.kubernetes.io/rate-limit-requests-per-second: "10"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/enable-brotli: "true"
+    nginx.ingress.kubernetes.io/brotli-level: "6"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$remote_addr"
+    nginx.ingress.kubernetes.io/load-balance: "ewma"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/websocket-services: "lims-websocket-service"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/server-snippet: |
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+      add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+  hosts:
+    - host: lims.labscientific.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service:
+            name: lims-app
+            port: 3000
+        - path: /api
+          pathType: Prefix
+          service:
+            name: lims-app
+            port: 3001
+    - host: api.labscientific.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service:
+            name: lims-app
+            port: 3001
+    - host: ws.labscientific.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service:
+            name: lims-websocket
+            port: 8080
+  tls:
+    - secretName: lims-tls-certificate
+      hosts:
+        - lims.labscientific.com
+        - api.labscientific.com
+        - ws.labscientific.com
+
+# Container resources
+resources:
+  requests:
+    memory: "2Gi"
+    cpu: "1000m"
+    ephemeral-storage: "4Gi"
+  limits:
+    memory: "8Gi"
+    cpu: "4000m"
+    ephemeral-storage: "20Gi"
+
+# Security context
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - NET_BIND_SERVICE
+  seccompProfile:
+    type: RuntimeDefault
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+# Probes configuration
+livenessProbe:
+  enabled: true
+  path: /monitoring/live
+  port: 3001
+  scheme: HTTP
+  httpHeaders:
+    - name: User-Agent
+      value: "k8s-liveness-probe"
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
+  successThreshold: 1
+
+readinessProbe:
+  enabled: true
+  path: /monitoring/ready
+  port: 3001
+  scheme: HTTP
+  httpHeaders:
+    - name: User-Agent
+      value: "k8s-readiness-probe"
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+  successThreshold: 1
+
+startupProbe:
+  enabled: true
+  path: /monitoring/startup
+  port: 3001
+  scheme: HTTP
+  httpHeaders:
+    - name: User-Agent
+      value: "k8s-startup-probe"
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+  successThreshold: 1
+
+# Autoscaling configuration
+hpa:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+      selectPolicy: Min
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+        - type: Pods
+          value: 4
+          periodSeconds: 15
+      selectPolicy: Max
+
+# Vertical Pod Autoscaler
+vpa:
+  enabled: true
+  updatePolicy:
+    updateMode: "Auto"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: lims
+        maxAllowed:
+          cpu: 8
+          memory: 16Gi
+        minAllowed:
+          cpu: 500m
+          memory: 1Gi
+        controlledResources:
+          - cpu
+          - memory
+        controlledValues: RequestsAndLimits
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+  maxUnavailable: 1
+
+# Affinity and anti-affinity
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values:
+                - lims
+        topologyKey: kubernetes.io/hostname
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        preference:
+          matchExpressions:
+            - key: node-type
+              operator: In
+              values:
+                - application
+      - weight: 50
+        preference:
+          matchExpressions:
+            - key: kubernetes.io/arch
+              operator: In
+              values:
+                - amd64
+
+# Node selector
+nodeSelector:
+  kubernetes.io/os: linux
+  node-type: application
+
+# Tolerations
+tolerations:
+  - key: "application"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
+  - key: "high-memory"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
+
+# Topology spread constraints
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: lims
+  - maxSkew: 2
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: lims
+
+# Pod lifecycle
+lifecycle:
+  preStop:
+    exec:
+      command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Gracefully shutting down application..."
+          sleep 15
+          kill -TERM 1
+          sleep 30
+
+terminationGracePeriodSeconds: 60
+
+# DNS configuration
+dnsPolicy: ClusterFirst
+dnsConfig:
+  options:
+    - name: ndots
+      value: "2"
+    - name: edns0
+
+# Priority class
+priorityClassName: high-priority
+
+# Volume mounts
+volumeMounts:
+  - name: app-data
+    mountPath: /app/data
+  - name: app-logs
+    mountPath: /app/logs
+  - name: app-temp
+    mountPath: /app/temp
+  - name: app-config
+    mountPath: /app/config
+    readOnly: true
+  - name: app-cache
+    mountPath: /app/cache
+  - name: certificates
+    mountPath: /app/certs
+    readOnly: true
+
+# Volumes
+volumes:
+  - name: app-data
+    persistentVolumeClaim:
+      claimName: lims-app-data-pvc
+  - name: app-logs
+    emptyDir:
+      sizeLimit: "2Gi"
+  - name: app-temp
+    emptyDir:
+      sizeLimit: "4Gi"
+  - name: app-cache
+    emptyDir:
+      sizeLimit: "1Gi"
+  - name: app-config
+    configMap:
+      name: lims-app-config
+      defaultMode: 0444
+  - name: certificates
+    secret:
+      secretName: lims-app-certs
+      defaultMode: 0444
+
+# Persistent Volume Claims
+persistence:
+  enabled: true
+  storageClass: "gp3-encrypted"
+  accessMode: ReadWriteOnce
+  size: 100Gi
+  annotations:
+    volume.beta.kubernetes.io/storage-class: "gp3-encrypted"
+
+# Init containers
+initContainers:
+  migration:
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "200m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1001
+      runAsGroup: 1001
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
+  
+  cacheWarmer:
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "100m"
+      limits:
+        memory: "128Mi"
+        cpu: "200m"
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1001
+      runAsGroup: 1001
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
+
+# Sidecar containers
+sidecars:
+  - name: log-forwarder
+    image:
+      repository: fluent/fluent-bit
+      tag: 2.2.0
+      pullPolicy: Always
+    ports:
+      - name: metrics
+        containerPort: 2020
+        protocol: TCP
+    env:
+      - name: NODE_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
+      - name: POD_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: POD_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+    volumeMounts:
+      - name: app-logs
+        mountPath: /var/log/app
+        readOnly: true
+      - name: fluent-bit-config
+        mountPath: /fluent-bit/etc
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1001
+      runAsGroup: 1001
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
+
+# Environment variables
+extraEnvVars:
+  - name: ENABLE_CLUSTERING
+    value: "true"
+  - name: WORKER_PROCESSES
+    value: "4"
+  - name: CACHE_TTL
+    value: "3600"
+  - name: MONITORING_ENABLED
+    value: "true"
+  - name: METRICS_INTERVAL
+    value: "30000"
+  - name: HEALTH_CHECK_INTERVAL
+    value: "60000"
+
+# Service Account
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/lims-service-role
+  name: lims-service-account
+  automountServiceAccountToken: true
+
+# RBAC
+rbac:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["pods", "services", "endpoints", "configmaps", "secrets"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["apps"]
+      resources: ["deployments", "replicasets"]
+      verbs: ["get", "list", "watch", "patch"]
+    - apiGroups: ["networking.k8s.io"]
+      resources: ["ingresses"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["metrics.k8s.io"]
+      resources: ["pods", "nodes"]
+      verbs: ["get", "list"]
+
+# Network Policy
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000
+        - protocol: TCP
+          port: 3001
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9090
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    port: 9090
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+    serviceMonitor:
+      enabled: true
+      labels:
+        release: prometheus
+      annotations:
+        prometheus.io/scrape: "true"
+  
+  prometheusRules:
+    enabled: true
+    rules:
+      - alert: LIMSHighCPUUsage
+        expr: avg(rate(container_cpu_usage_seconds_total{pod=~"lims-.*"}[5m])) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+        annotations:
+          summary: "LIMS application high CPU usage"
+          description: "LIMS application CPU usage is above 80% for 5 minutes"
+      
+      - alert: LIMSHighMemoryUsage
+        expr: avg(container_memory_working_set_bytes{pod=~"lims-.*"}) / avg(container_spec_memory_limit_bytes{pod=~"lims-.*"}) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+        annotations:
+          summary: "LIMS application high memory usage"
+          description: "LIMS application memory usage is above 80% for 5 minutes"
+      
+      - alert: LIMSPodRestarts
+        expr: increase(kube_pod_container_status_restarts_total{pod=~"lims-.*"}[15m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          service: lims
+        annotations:
+          summary: "LIMS pod restarted"
+          description: "LIMS pod {{ $labels.pod }} has restarted"
+      
+      - alert: LIMSServiceDown
+        expr: up{job="lims"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: lims
+        annotations:
+          summary: "LIMS service is down"
+          description: "LIMS service has been down for more than 5 minutes"
+
+# Logging configuration
+logging:
+  enabled: true
+  level: info
+  format: json
+  elasticsearch:
+    enabled: false
+    host: elasticsearch.logging.svc.cluster.local
+    port: 9200
+    index: lims-logs
+  
+  fluentbit:
+    enabled: true
+    config: |
+      [SERVICE]
+          Flush         5
+          Log_Level     info
+          Daemon        off
+          Parsers_File  parsers.conf
+          HTTP_Server   On
+          HTTP_Listen   0.0.0.0
+          HTTP_Port     2020
+      
+      [INPUT]
+          Name              tail
+          Path              /var/log/app/*.log
+          Parser            json
+          Tag               lims.*
+          Refresh_Interval  5
+          Mem_Buf_Limit     50MB
+          Skip_Long_Lines   On
+      
+      [OUTPUT]
+          Name  stdout
+          Match *
+
+# Tracing configuration
+tracing:
+  enabled: true
+  jaeger:
+    enabled: true
+    agent:
+      host: jaeger-agent.tracing.svc.cluster.local
+      port: 6831
+    collector:
+      endpoint: http://jaeger-collector.tracing.svc.cluster.local:14268/api/traces
+  
+  serviceName: lims
+  samplingRate: 0.1
+
+# Database configuration
+database:
+  enabled: true
+  migrations:
+    enabled: true
+    job:
+      enabled: true
+      restartPolicy: OnFailure
+      backoffLimit: 3
+  
+  postgresql:
+    enabled: true
+    auth:
+      postgresPassword: "secure-postgres-password"
+      username: "lims_user"
+      password: "lims-db-password"
+      database: "labscientific_lims"
+    architecture: standalone
+    primary:
+      persistence:
+        enabled: true
+        size: 100Gi
+        storageClass: gp3-encrypted
+      resources:
+        requests:
+          memory: "2Gi"
+          cpu: "1000m"
+        limits:
+          memory: "8Gi"
+          cpu: "4000m"
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+
+# Cache configuration
+cache:
+  enabled: true
+  warmup:
+    enabled: true
+  
+  redis:
+    enabled: true
+    auth:
+      enabled: true
+      password: "redis-secure-password"
+    architecture: standalone
+    master:
+      persistence:
+        enabled: true
+        size: 20Gi
+        storageClass: gp3-encrypted
+      resources:
+        requests:
+          memory: "1Gi"
+          cpu: "500m"
+        limits:
+          memory: "4Gi"
+          cpu: "2000m"
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+
+# Backup configuration
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: 30  # Keep 30 days of backups
+  storage:
+    type: "s3"
+    bucket: "lims-backups"
+    region: "us-east-1"
+    storageClass: "GLACIER"
+  
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+
+# Service mesh configuration
+serviceMesh:
+  enabled: true
+  istio:
+    enabled: true
+    sidecarInjection: true
+    mtls:
+      mode: STRICT
+    
+    virtualService:
+      enabled: true
+      gateways:
+        - lims-gateway
+      hosts:
+        - lims.labscientific.com
+        - api.labscientific.com
+      
+      http:
+        - match:
+            - uri:
+                prefix: /api
+          route:
+            - destination:
+                host: lims-app-service
+                port:
+                  number: 3001
+        - match:
+            - uri:
+                prefix: /
+          route:
+            - destination:
+                host: lims-app-service
+                port:
+                  number: 3000
+    
+    destinationRule:
+      enabled: true
+      trafficPolicy:
+        tls:
+          mode: ISTIO_MUTUAL
+        connectionPool:
+          tcp:
+            maxConnections: 100
+          http:
+            http1MaxPendingRequests: 100
+            maxRequestsPerConnection: 10
+        outlierDetection:
+          consecutiveErrors: 3
+          interval: 30s
+          baseEjectionTime: 30s
+          maxEjectionPercent: 50
+
+# External secrets
+externalSecrets:
+  enabled: true
+  secretStore:
+    kind: ClusterSecretStore
+    name: vault-backend
+  
+  secrets:
+    - name: lims-database-secret
+      refreshInterval: 24h
+      secretKey: database-url
+      remoteRef:
+        key: secret/lims/database
+        property: url
+    
+    - name: lims-redis-secret
+      refreshInterval: 24h
+      secretKey: redis-url
+      remoteRef:
+        key: secret/lims/redis
+        property: url
+    
+    - name: lims-jwt-secret
+      refreshInterval: 24h
+      secretKey: jwt-secret
+      remoteRef:
+        key: secret/lims/jwt
+        property: secret
+
+# Vault integration
+vault:
+  enabled: true
+  role: lims-app
+  secretPath: secret/lims/config
+  
+  agent:
+    image: vault:1.15.2
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+
+# Tests configuration
+tests:
+  enabled: true
+  image:
+    repository: busybox
+    tag: 1.36
+    pullPolicy: IfNotPresent
+  
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "10m"
+    limits:
+      memory: "64Mi"
+      cpu: "50m"
+
+# Custom resource definitions
+customResources:
+  enabled: false
+  resources: []
+
+# Pod annotations
+podAnnotations:
+  co.elastic.logs/enabled: "true"
+  co.elastic.logs/json.keys_under_root: "true"
+  co.elastic.logs/json.add_error_key: "true"
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: "/metrics"
+
+# Pod labels
+podLabels:
+  app.kubernetes.io/name: lims
+  app.kubernetes.io/instance: lims
+  app.kubernetes.io/version: "2.0.0"
+  app.kubernetes.io/component: application
+  app.kubernetes.io/part-of: lims
+  app.kubernetes.io/managed-by: helm

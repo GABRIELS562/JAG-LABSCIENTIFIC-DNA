@@ -1,0 +1,107 @@
+# Dockerfile for Mock Services
+# This container provides mock implementations of external services for testing
+
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache \
+    curl \
+    bash \
+    && rm -rf /var/cache/apk/*
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy mock service files
+COPY utils/mock-services.js ./
+COPY config/ ./config/
+
+# Create necessary directories
+RUN mkdir -p logs
+
+# Create startup script
+RUN cat > start-mock-services.js << 'EOF'
+const MockServiceManager = require('./mock-services');
+
+const mockManager = new MockServiceManager();
+
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('Received SIGTERM, shutting down gracefully');
+  mockManager.stopAllServices();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('Received SIGINT, shutting down gracefully');
+  mockManager.stopAllServices();
+  process.exit(0);
+});
+
+// Start all mock services
+mockManager.startAllServices();
+
+// Keep the process alive
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+console.log('Mock services started, waiting for connections...');
+EOF
+
+# Create health check endpoint
+RUN cat > health-check.js << 'EOF'
+const express = require('express');
+const app = express();
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
+
+app.listen(3000, () => {
+  console.log('Health check server running on port 3000');
+});
+EOF
+
+# Set permissions
+RUN chmod +x start-mock-services.js health-check.js
+
+# Create non-root user
+RUN addgroup -g 1001 -S mockservices && \
+    adduser -S mockservices -u 1001 -G mockservices
+
+# Change ownership of app directory
+RUN chown -R mockservices:mockservices /app
+
+# Switch to non-root user
+USER mockservices
+
+# Expose ports for mock services
+EXPOSE 3000 3010 3011 3012 3013 3014 3015 3016
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3000/health || exit 1
+
+# Start services
+CMD ["sh", "-c", "node health-check.js & node start-mock-services.js"]
+
+# Labels for metadata
+LABEL maintainer="DevOps Team <devops@labscientific.com>"
+LABEL version="1.0.0"
+LABEL description="Mock external services for LIMS integration testing"
+LABEL org.opencontainers.image.source="https://github.com/your-org/labscientific-lims"
+LABEL org.opencontainers.image.documentation="https://github.com/your-org/labscientific-lims/blob/main/tests/README.md"
+LABEL org.opencontainers.image.licenses="MIT"

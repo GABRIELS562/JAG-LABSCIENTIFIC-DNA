@@ -1,0 +1,252 @@
+# Docker Compose for Integration Testing Environment
+# This configuration sets up all services needed for integration testing
+
+version: '3.8'
+
+services:
+  # PostgreSQL database for testing
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: lims-postgres-test
+    environment:
+      POSTGRES_DB: lims_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: testpassword
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./sql/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d lims_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lims-test-network
+
+  # Redis for caching and session management
+  redis-test:
+    image: redis:7-alpine
+    container_name: lims-redis-test
+    ports:
+      - "6380:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_test_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lims-test-network
+
+  # RabbitMQ for message queuing
+  rabbitmq-test:
+    image: rabbitmq:3-management-alpine
+    container_name: lims-rabbitmq-test
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: testpassword
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    volumes:
+      - rabbitmq_test_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - lims-test-network
+
+  # Jaeger for distributed tracing
+  jaeger-test:
+    image: jaegertracing/all-in-one:latest
+    container_name: lims-jaeger-test
+    environment:
+      COLLECTOR_OTLP_ENABLED: true
+    ports:
+      - "16687:16686"
+      - "14269:14268"
+    networks:
+      - lims-test-network
+
+  # Prometheus for metrics collection
+  prometheus-test:
+    image: prom/prometheus:latest
+    container_name: lims-prometheus-test
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./config/prometheus-test.yml:/etc/prometheus/prometheus.yml
+      - prometheus_test_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - lims-test-network
+
+  # Grafana for monitoring dashboards
+  grafana-test:
+    image: grafana/grafana:latest
+    container_name: lims-grafana-test
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: testpassword
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_test_data:/var/lib/grafana
+      - ./config/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+    depends_on:
+      - prometheus-test
+    networks:
+      - lims-test-network
+
+  # Pact Broker for contract testing
+  pact-broker-test:
+    image: pactfoundation/pact-broker:latest
+    container_name: lims-pact-broker-test
+    environment:
+      PACT_BROKER_DATABASE_URL: postgres://postgres:testpassword@postgres-test:5432/pact_broker
+      PACT_BROKER_BASIC_AUTH_USERNAME: admin
+      PACT_BROKER_BASIC_AUTH_PASSWORD: testpassword
+    ports:
+      - "9293:9292"
+    depends_on:
+      - postgres-test
+    networks:
+      - lims-test-network
+
+  # Mock external services container
+  mock-services-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.mock-services
+    container_name: lims-mock-services-test
+    environment:
+      NODE_ENV: test
+      PORT: 3000
+    ports:
+      - "3010:3010"  # Lab Equipment API
+      - "3011:3011"  # EMR API
+      - "3012:3012"  # Cloud Storage API
+      - "3013:3013"  # Notification API
+      - "3014:3014"  # Message Queue API
+      - "3015:3015"  # WebSocket API
+      - "3016:3016"  # Service Mesh API
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - lims-test-network
+
+  # Test runner container
+  integration-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.integration-tests
+    container_name: lims-integration-tests
+    environment:
+      NODE_ENV: test
+      DB_HOST: postgres-test
+      DB_PORT: 5432
+      DB_NAME: lims_test
+      DB_USER: postgres
+      DB_PASSWORD: testpassword
+      REDIS_HOST: redis-test
+      REDIS_PORT: 6379
+      RABBITMQ_HOST: rabbitmq-test
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: admin
+      RABBITMQ_PASS: testpassword
+      JAEGER_ENDPOINT: http://jaeger-test:14268/api/traces
+      PROMETHEUS_GATEWAY: http://prometheus-test:9090
+      PACT_BROKER_URL: http://pact-broker-test:9292
+      USE_MOCK_SERVICES: "true"
+      LAB_EQUIPMENT_API_URL: http://mock-services-test:3010
+      EMR_API_URL: http://mock-services-test:3011
+      CLOUD_STORAGE_API_URL: http://mock-services-test:3012
+      EXTERNAL_NOTIFICATIONS_API_URL: http://mock-services-test:3013
+      MESSAGE_QUEUE_URL: http://mock-services-test:3014
+      WEBSOCKET_SERVICE_URL: ws://mock-services-test:3015
+      SERVICE_MESH_URL: http://mock-services-test:3016
+    volumes:
+      - ./reports:/app/reports
+      - ./coverage:/app/coverage
+      - ./pacts:/app/pacts
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+      rabbitmq-test:
+        condition: service_healthy
+      mock-services-test:
+        condition: service_healthy
+    networks:
+      - lims-test-network
+    command: ["npm", "run", "test"]
+
+  # Load testing with Artillery
+  load-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.load-test
+    container_name: lims-load-test
+    environment:
+      TARGET_URL: http://mock-services-test:3000
+      CONCURRENT_USERS: 10
+      TEST_DURATION: 60s
+    volumes:
+      - ./reports:/app/reports
+    depends_on:
+      - mock-services-test
+    networks:
+      - lims-test-network
+    profiles:
+      - load-testing
+
+  # Security testing with OWASP ZAP
+  security-test:
+    image: owasp/zap2docker-stable:latest
+    container_name: lims-security-test
+    volumes:
+      - ./reports:/zap/wrk/reports
+    depends_on:
+      - mock-services-test
+    networks:
+      - lims-test-network
+    profiles:
+      - security-testing
+    command: |
+      zap-baseline.py -t http://mock-services-test:3000 -J /zap/wrk/reports/security-report.json
+
+volumes:
+  postgres_test_data:
+    driver: local
+  redis_test_data:
+    driver: local
+  rabbitmq_test_data:
+    driver: local
+  prometheus_test_data:
+    driver: local
+  grafana_test_data:
+    driver: local
+
+networks:
+  lims-test-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

@@ -1,0 +1,172 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.prometheusRules.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "lims.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "lims.labels" . | nindent 4 }}
+    {{- if .Values.monitoring.prometheusRules.labels }}
+    {{- toYaml .Values.monitoring.prometheusRules.labels | nindent 4 }}
+    {{- end }}
+  {{- if .Values.monitoring.prometheusRules.annotations }}
+  annotations:
+    {{- toYaml .Values.monitoring.prometheusRules.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  groups:
+  - name: lims.rules
+    rules:
+    {{- range .Values.monitoring.prometheusRules.rules }}
+    - alert: {{ .alert }}
+      expr: {{ .expr }}
+      for: {{ .for }}
+      labels:
+        {{- toYaml .labels | nindent 8 }}
+        app: {{ include "lims.name" $ }}
+        instance: {{ $.Release.Name }}
+      annotations:
+        {{- toYaml .annotations | nindent 8 }}
+        runbook_url: "https://docs.labscientific.com/runbooks/{{ .alert | lower }}"
+    {{- end }}
+  
+  - name: lims.database.rules
+    rules:
+    - alert: PostgreSQLDown
+      expr: pg_up{service="{{ include "lims.fullname" . }}-postgresql"} == 0
+      for: 5m
+      labels:
+        severity: critical
+        service: lims
+        component: postgresql
+      annotations:
+        summary: "PostgreSQL instance is down"
+        description: "PostgreSQL instance {{ $labels.instance }} has been down for more than 5 minutes"
+    
+    - alert: PostgreSQLHighConnections
+      expr: pg_stat_database_numbackends{service="{{ include "lims.fullname" . }}-postgresql"} / pg_settings_max_connections{service="{{ include "lims.fullname" . }}-postgresql"} > 0.8
+      for: 5m
+      labels:
+        severity: warning
+        service: lims
+        component: postgresql
+      annotations:
+        summary: "PostgreSQL high connection usage"
+        description: "PostgreSQL connection usage is above 80%"
+    
+    - alert: PostgreSQLSlowQueries
+      expr: rate(pg_stat_database_tup_fetched{service="{{ include "lims.fullname" . }}-postgresql"}[5m]) / rate(pg_stat_database_tup_returned{service="{{ include "lims.fullname" . }}-postgresql"}[5m]) < 0.1
+      for: 5m
+      labels:
+        severity: warning
+        service: lims
+        component: postgresql
+      annotations:
+        summary: "PostgreSQL slow queries detected"
+        description: "PostgreSQL query performance is degraded"
+  
+  - name: lims.cache.rules
+    rules:
+    - alert: RedisDown
+      expr: redis_up{service="{{ include "lims.fullname" . }}-redis"} == 0
+      for: 5m
+      labels:
+        severity: critical
+        service: lims
+        component: redis
+      annotations:
+        summary: "Redis instance is down"
+        description: "Redis instance {{ $labels.instance }} has been down for more than 5 minutes"
+    
+    - alert: RedisHighMemoryUsage
+      expr: redis_memory_used_bytes{service="{{ include "lims.fullname" . }}-redis"} / redis_memory_max_bytes{service="{{ include "lims.fullname" . }}-redis"} > 0.8
+      for: 5m
+      labels:
+        severity: warning
+        service: lims
+        component: redis
+      annotations:
+        summary: "Redis high memory usage"
+        description: "Redis memory usage is above 80%"
+    
+    - alert: RedisHighConnections
+      expr: redis_connected_clients{service="{{ include "lims.fullname" . }}-redis"} > 100
+      for: 5m
+      labels:
+        severity: warning
+        service: lims
+        component: redis
+      annotations:
+        summary: "Redis high connection count"
+        description: "Redis has more than 100 connected clients"
+  
+  - name: lims.kubernetes.rules
+    rules:
+    - alert: KubernetesPodCrashLooping
+      expr: rate(kube_pod_container_status_restarts_total{pod=~"{{ include "lims.fullname" . }}-.*"}[15m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+        service: lims
+        component: kubernetes
+      annotations:
+        summary: "Pod is crash looping"
+        description: "Pod {{ $labels.pod }} is crash looping"
+    
+    - alert: KubernetesPodNotReady
+      expr: kube_pod_status_ready{condition="false", pod=~"{{ include "lims.fullname" . }}-.*"} == 1
+      for: 5m
+      labels:
+        severity: warning
+        service: lims
+        component: kubernetes
+      annotations:
+        summary: "Pod is not ready"
+        description: "Pod {{ $labels.pod }} has been not ready for more than 5 minutes"
+    
+    - alert: KubernetesDeploymentReplicasMismatch
+      expr: kube_deployment_status_replicas_available{deployment="{{ include "lims.fullname" . }}"} != kube_deployment_spec_replicas{deployment="{{ include "lims.fullname" . }}"}
+      for: 5m
+      labels:
+        severity: warning
+        service: lims
+        component: kubernetes
+      annotations:
+        summary: "Deployment replicas mismatch"
+        description: "Deployment {{ $labels.deployment }} has mismatched replicas"
+    
+    - alert: KubernetesHPAMaxedOut
+      expr: kube_hpa_status_current_replicas{hpa="{{ include "lims.fullname" . }}"} == kube_hpa_spec_max_replicas{hpa="{{ include "lims.fullname" . }}"}
+      for: 5m
+      labels:
+        severity: warning
+        service: lims
+        component: kubernetes
+      annotations:
+        summary: "HPA has reached maximum replicas"
+        description: "HPA {{ $labels.hpa }} has reached maximum replicas"
+  
+  - name: lims.network.rules
+    rules:
+    - alert: IngressHighLatency
+      expr: histogram_quantile(0.95, rate(nginx_ingress_controller_request_duration_seconds_bucket{ingress=~"{{ include "lims.fullname" . }}.*"}[5m])) > 1
+      for: 5m
+      labels:
+        severity: warning
+        service: lims
+        component: ingress
+      annotations:
+        summary: "Ingress high latency"
+        description: "Ingress {{ $labels.ingress }} has high latency (95th percentile > 1s)"
+    
+    - alert: IngressHighErrorRate
+      expr: rate(nginx_ingress_controller_requests_total{ingress=~"{{ include "lims.fullname" . }}.*", status=~"5.."}[5m]) / rate(nginx_ingress_controller_requests_total{ingress=~"{{ include "lims.fullname" . }}.*"}[5m]) > 0.05
+      for: 5m
+      labels:
+        severity: warning
+        service: lims
+        component: ingress
+      annotations:
+        summary: "Ingress high error rate"
+        description: "Ingress {{ $labels.ingress }} has high error rate (>5%)"
+{{- end }}

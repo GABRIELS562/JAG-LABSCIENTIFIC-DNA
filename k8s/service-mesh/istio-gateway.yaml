@@ -1,0 +1,465 @@
+# Istio Gateway and VirtualService Configuration for LIMS
+# This file contains service mesh configurations for advanced traffic management
+
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: lims-gateway
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: gateway
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: lims-tls-secret
+    hosts:
+    - lims.labscientific.local
+    - api.lims.labscientific.local
+    - reports.lims.labscientific.local
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - lims.labscientific.local
+    - api.lims.labscientific.local
+    - reports.lims.labscientific.local
+    tls:
+      httpsRedirect: true
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: lims-virtual-service
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: virtual-service
+spec:
+  hosts:
+  - lims.labscientific.local
+  - api.lims.labscientific.local
+  - reports.lims.labscientific.local
+  gateways:
+  - lims-gateway
+  - mesh
+  http:
+  # API Routes
+  - match:
+    - uri:
+        prefix: /api/v1/
+    - headers:
+        host:
+          exact: api.lims.labscientific.local
+    route:
+    - destination:
+        host: lims-app-service
+        port:
+          number: 3000
+        subset: v1
+    fault:
+      delay:
+        percentage:
+          value: 0.1
+        fixedDelay: 5s
+    retries:
+      attempts: 3
+      perTryTimeout: 30s
+      retryOn: gateway-error,connect-failure,refused-stream
+    timeout: 60s
+    
+  # Reports Routes
+  - match:
+    - uri:
+        prefix: /reports/
+    - headers:
+        host:
+          exact: reports.lims.labscientific.local
+    route:
+    - destination:
+        host: lims-app-service
+        port:
+          number: 3000
+        subset: v1
+    headers:
+      request:
+        set:
+          x-request-type: "report"
+    timeout: 120s
+    
+  # Main Application Routes
+  - match:
+    - uri:
+        prefix: /
+    - headers:
+        host:
+          exact: lims.labscientific.local
+    route:
+    - destination:
+        host: lims-app-service
+        port:
+          number: 3000
+        subset: v1
+      weight: 100
+    corsPolicy:
+      allowOrigins:
+      - regex: ".*\\.labscientific\\.local"
+      allowMethods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+      allowHeaders:
+      - authorization
+      - content-type
+      - x-request-id
+      - x-user-id
+      allowCredentials: true
+      maxAge: 24h
+    
+  # Health Check Route
+  - match:
+    - uri:
+        exact: /health
+    route:
+    - destination:
+        host: lims-app-service
+        port:
+          number: 3000
+        subset: v1
+    timeout: 10s
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: lims-destination-rule
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: destination-rule
+spec:
+  host: lims-app-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 30s
+        keepAlive:
+          time: 7200s
+          interval: 75s
+      http:
+        http1MaxPendingRequests: 50
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 10
+        maxRetries: 3
+        consecutiveGatewayErrors: 3
+        interval: 30s
+        baseEjectionTime: 30s
+        maxEjectionPercent: 50
+        minHealthPercent: 50
+    loadBalancer:
+      simple: LEAST_CONN
+    outlierDetection:
+      consecutiveGatewayErrors: 3
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 50
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+    trafficPolicy:
+      connectionPool:
+        tcp:
+          maxConnections: 50
+  - name: v2
+    labels:
+      version: v2
+    trafficPolicy:
+      connectionPool:
+        tcp:
+          maxConnections: 50
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: external-database
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: service-entry
+spec:
+  hosts:
+  - external-postgres.example.com
+  ports:
+  - number: 5432
+    name: postgres
+    protocol: TCP
+  location: MESH_EXTERNAL
+  resolution: DNS
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: external-apis
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: service-entry
+spec:
+  hosts:
+  - api.osiris.example.com
+  - genomics.api.example.com
+  ports:
+  - number: 443
+    name: https
+    protocol: HTTPS
+  - number: 80
+    name: http
+    protocol: HTTP
+  location: MESH_EXTERNAL
+  resolution: DNS
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: lims-auth-policy
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: authorization
+spec:
+  selector:
+    matchLabels:
+      app: lims
+      component: app
+  rules:
+  # Allow authenticated users access to application
+  - from:
+    - source:
+        principals: 
+        - cluster.local/ns/labscientific-lims/sa/lims-app
+    to:
+    - operation:
+        methods: ["GET", "POST", "PUT", "DELETE"]
+        
+  # Allow monitoring access
+  - from:
+    - source:
+        namespaces: ["monitoring"]
+    to:
+    - operation:
+        methods: ["GET"]
+        paths: ["/metrics", "/health"]
+        
+  # Allow ingress gateway access
+  - from:
+    - source:
+        principals: 
+        - cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account
+    to:
+    - operation:
+        methods: ["GET", "POST", "PUT", "DELETE"]
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: lims-peer-auth
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: peer-authentication
+spec:
+  selector:
+    matchLabels:
+      app: lims
+  mtls:
+    mode: STRICT
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: lims-request-auth
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: request-authentication
+spec:
+  selector:
+    matchLabels:
+      app: lims
+      component: app
+  jwtRules:
+  - issuer: "https://auth.labscientific.local"
+    jwksUri: "https://auth.labscientific.local/.well-known/jwks.json"
+    audiences:
+    - "lims-api"
+    - "lims-web"
+    forwardOriginalToken: true
+    fromHeaders:
+    - name: Authorization
+      prefix: "Bearer "
+    fromParams:
+    - "access_token"
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: EnvoyFilter
+metadata:
+  name: lims-rate-limit
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: rate-limit
+spec:
+  workloadSelector:
+    labels:
+      app: lims
+      component: app
+  configPatches:
+  - applyTo: HTTP_FILTER
+    match:
+      context: SIDECAR_INBOUND
+      listener:
+        filterChain:
+          filter:
+            name: "envoy.filters.network.http_connection_manager"
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.filters.http.local_ratelimit
+        typed_config:
+          "@type": type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+          value:
+            stat_prefix: lims_rate_limiter
+            token_bucket:
+              max_tokens: 100
+              tokens_per_fill: 100
+              fill_interval: 60s
+            filter_enabled:
+              runtime_key: lims_rate_limit_enabled
+              default_value:
+                numerator: 100
+                denominator: HUNDRED
+            filter_enforced:
+              runtime_key: lims_rate_limit_enforced
+              default_value:
+                numerator: 100
+                denominator: HUNDRED
+            response_headers_to_add:
+            - append: false
+              header:
+                key: x-local-rate-limit
+                value: 'true'
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Sidecar
+metadata:
+  name: lims-sidecar
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: sidecar
+spec:
+  workloadSelector:
+    labels:
+      app: lims
+  ingress:
+  - port:
+      number: 3000
+      protocol: HTTP
+      name: http
+    defaultEndpoint: 127.0.0.1:3000
+    captureMode: IPTABLES
+  - port:
+      number: 9090
+      protocol: HTTP
+      name: metrics
+    defaultEndpoint: 127.0.0.1:9090
+    captureMode: IPTABLES
+  egress:
+  - hosts:
+    - "./lims-postgresql-service.labscientific-lims.svc.cluster.local"
+    - "./lims-redis-service.labscientific-lims.svc.cluster.local"
+    - "./*"
+    - "istio-system/*"
+    - "monitoring/*"
+  - hosts:
+    - "api.osiris.example.com"
+    - "genomics.api.example.com"
+    - "external-postgres.example.com"
+    port:
+      number: 443
+      protocol: HTTPS
+      name: https
+  - hosts:
+    - "api.osiris.example.com"
+    - "genomics.api.example.com"
+    port:
+      number: 80
+      protocol: HTTP
+      name: http
+  outboundTrafficPolicy:
+    mode: REGISTRY_ONLY
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: WorkloadEntry
+metadata:
+  name: external-legacy-system
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: workload-entry
+spec:
+  address: "192.168.1.100"
+  ports:
+    legacy-api: 8080
+  labels:
+    app: legacy-lims
+    version: v1
+  serviceAccount: lims-app
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: WorkloadGroup
+metadata:
+  name: legacy-lims-systems
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: workload-group
+spec:
+  metadata:
+    labels:
+      app: legacy-lims
+      version: v1
+  template:
+    ports:
+      legacy-api: 8080
+    serviceAccount: lims-app
+  probe:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 30
+    periodSeconds: 30

@@ -1,0 +1,453 @@
+# Security Scanning Workflow for LIMS Application
+# This workflow runs comprehensive security scans on code, dependencies, and infrastructure
+
+name: Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    - cron: '0 2 * * 0'  # Weekly on Sunday at 2 AM
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  # Secret Scanning
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run TruffleHog
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --debug --only-verified
+
+      - name: Run GitLeaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  # SAST - Static Application Security Testing
+  sast-scan:
+    name: SAST Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run CodeQL Analysis
+        uses: github/codeql-action/init@v2
+        with:
+          languages: javascript, python
+          queries: security-extended,security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/secrets
+            p/ci
+            p/owasp-top-ten
+            p/dockerfile
+            p/kubernetes
+            p/nodejs
+            p/python
+            p/react
+            p/typescript
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+      - name: Run Bandit (Python Security Linter)
+        run: |
+          pip install bandit
+          bandit -r . -f json -o bandit-results.json || true
+
+      - name: Upload Bandit results
+        uses: actions/upload-artifact@v3
+        with:
+          name: bandit-results
+          path: bandit-results.json
+
+  # Dependency Scanning
+  dependency-scan:
+    name: Dependency Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: |
+          npm audit --audit-level=moderate --json > npm-audit-results.json || true
+          cat npm-audit-results.json
+
+      - name: Upload npm audit results
+        uses: actions/upload-artifact@v3
+        with:
+          name: npm-audit-results
+          path: npm-audit-results.json
+
+      - name: Run Snyk vulnerability scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=medium --json > snyk-results.json
+        continue-on-error: true
+
+      - name: Upload Snyk results
+        uses: actions/upload-artifact@v3
+        with:
+          name: snyk-results
+          path: snyk-results.json
+
+      - name: Run OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'LIMS'
+          path: '.'
+          format: 'ALL'
+          out: 'dependency-check-reports'
+          args: >
+            --enableRetired
+            --enableExperimental
+            --nodeAuditSkipDevDependencies
+
+      - name: Upload dependency check results
+        uses: actions/upload-artifact@v3
+        with:
+          name: dependency-check-reports
+          path: dependency-check-reports
+
+  # Infrastructure Security Scan
+  infrastructure-scan:
+    name: Infrastructure Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: .
+          framework: kubernetes,dockerfile,secrets,yaml
+          output_format: sarif
+          output_file_path: checkov-results.sarif
+          download_external_modules: true
+
+      - name: Upload Checkov results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: checkov-results.sarif
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-fs-results.sarif'
+
+      - name: Upload Trivy filesystem results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-fs-results.sarif'
+
+      - name: Run Kube-score
+        run: |
+          wget -O kube-score https://github.com/zegl/kube-score/releases/download/v1.16.1/kube-score_1.16.1_linux_amd64
+          chmod +x kube-score
+          ./kube-score score k8s/*.yaml --output-format json > kube-score-results.json || true
+
+      - name: Upload Kube-score results
+        uses: actions/upload-artifact@v3
+        with:
+          name: kube-score-results
+          path: kube-score-results.json
+
+      - name: Run Falco Rules Check
+        run: |
+          docker run --rm -v $(pwd):/workspace falcosecurity/falco:latest \
+            falco --rules-file /workspace/k8s/security/falco-rules.yaml \
+            --validate-rules-file || true
+
+  # Container Image Security Scan
+  container-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build container image
+        run: |
+          docker build -t lims-security-scan:latest .
+
+      - name: Run Trivy container scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'lims-security-scan:latest'
+          format: 'sarif'
+          output: 'trivy-container-results.sarif'
+
+      - name: Upload Trivy container results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-container-results.sarif'
+
+      - name: Run Grype vulnerability scan
+        uses: anchore/scan-action@v3
+        with:
+          image: 'lims-security-scan:latest'
+          format: 'sarif'
+          output-file: 'grype-results.sarif'
+
+      - name: Upload Grype results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'grype-results.sarif'
+
+      - name: Run Syft SBOM generation
+        uses: anchore/sbom-action@v0
+        with:
+          image: 'lims-security-scan:latest'
+          format: 'spdx-json'
+          output-file: 'sbom.spdx.json'
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v3
+        with:
+          name: sbom
+          path: sbom.spdx.json
+
+  # Security Policy Compliance
+  compliance-scan:
+    name: Compliance Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run OPA Conftest
+        uses: instrumenta/conftest-action@master
+        with:
+          files: k8s/*.yaml helm/lims/templates/*.yaml
+          policy: policies/security/
+
+      - name: Run Polaris
+        uses: fairwindsops/polaris/.github/actions/polaris@master
+        with:
+          config: .polaris.yaml
+          only-show-failed-tests: true
+
+      - name: Run Falco Rules Validation
+        run: |
+          docker run --rm -v $(pwd):/workspace falcosecurity/falco:latest \
+            falco --rules-file /workspace/k8s/security/falco-rules.yaml \
+            --validate-rules-file
+
+  # License Scanning
+  license-scan:
+    name: License Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run license checker
+        run: |
+          npx license-checker --json --out license-report.json
+          npx license-checker --summary
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v3
+        with:
+          name: license-report
+          path: license-report.json
+
+      - name: Check for prohibited licenses
+        run: |
+          npx license-checker --onlyAllow 'MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;CC0-1.0;Unlicense'
+
+  # Generate Security Report
+  security-report:
+    name: Generate Security Report
+    runs-on: ubuntu-latest
+    needs: [secret-scan, sast-scan, dependency-scan, infrastructure-scan, container-scan, compliance-scan, license-scan]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Generate security report
+        run: |
+          python3 << 'EOF'
+          import json
+          import os
+          from datetime import datetime
+          
+          report = {
+              "scan_date": datetime.now().isoformat(),
+              "repository": "${{ github.repository }}",
+              "commit": "${{ github.sha }}",
+              "branch": "${{ github.ref_name }}",
+              "scans": {
+                  "secret_scan": {"status": "completed", "findings": []},
+                  "sast_scan": {"status": "completed", "findings": []},
+                  "dependency_scan": {"status": "completed", "findings": []},
+                  "infrastructure_scan": {"status": "completed", "findings": []},
+                  "container_scan": {"status": "completed", "findings": []},
+                  "compliance_scan": {"status": "completed", "findings": []},
+                  "license_scan": {"status": "completed", "findings": []}
+              }
+          }
+          
+          # Process npm audit results
+          if os.path.exists('npm-audit-results/npm-audit-results.json'):
+              with open('npm-audit-results/npm-audit-results.json', 'r') as f:
+                  audit_data = json.load(f)
+                  if 'vulnerabilities' in audit_data:
+                      report['scans']['dependency_scan']['findings'].extend(
+                          list(audit_data['vulnerabilities'].keys())
+                      )
+          
+          # Process Snyk results
+          if os.path.exists('snyk-results/snyk-results.json'):
+              with open('snyk-results/snyk-results.json', 'r') as f:
+                  snyk_data = json.load(f)
+                  if 'vulnerabilities' in snyk_data:
+                      report['scans']['dependency_scan']['findings'].extend([
+                          v['id'] for v in snyk_data['vulnerabilities']
+                      ])
+          
+          # Process Bandit results
+          if os.path.exists('bandit-results/bandit-results.json'):
+              with open('bandit-results/bandit-results.json', 'r') as f:
+                  bandit_data = json.load(f)
+                  if 'results' in bandit_data:
+                      report['scans']['sast_scan']['findings'].extend([
+                          r['test_id'] for r in bandit_data['results']
+                      ])
+          
+          # Process Kube-score results
+          if os.path.exists('kube-score-results/kube-score-results.json'):
+              with open('kube-score-results/kube-score-results.json', 'r') as f:
+                  kube_data = json.load(f)
+                  if isinstance(kube_data, list):
+                      for item in kube_data:
+                          if 'checks' in item:
+                              failed_checks = [c for c in item['checks'] if c['grade'] != 'GRADE_ALLOK']
+                              report['scans']['compliance_scan']['findings'].extend([
+                                  c['check']['id'] for c in failed_checks
+                              ])
+          
+          # Calculate summary
+          total_findings = sum(len(scan['findings']) for scan in report['scans'].values())
+          report['summary'] = {
+              "total_findings": total_findings,
+              "critical_findings": 0,  # Would need to parse severity from each tool
+              "high_findings": 0,
+              "medium_findings": 0,
+              "low_findings": 0
+          }
+          
+          # Write report
+          with open('security-report.json', 'w') as f:
+              json.dump(report, f, indent=2)
+          
+          print(f"Security scan completed with {total_findings} findings")
+          print(json.dumps(report, indent=2))
+          EOF
+
+      - name: Upload security report
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-report
+          path: security-report.json
+
+      - name: Create security issue (if findings)
+        if: github.event_name == 'schedule'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('security-report.json', 'utf8'));
+            
+            if (report.summary.total_findings > 0) {
+              const body = `
+            ## Security Scan Report
+            
+            **Scan Date:** ${report.scan_date}
+            **Repository:** ${report.repository}
+            **Commit:** ${report.commit}
+            **Branch:** ${report.branch}
+            
+            ### Summary
+            - **Total Findings:** ${report.summary.total_findings}
+            - **Critical:** ${report.summary.critical_findings}
+            - **High:** ${report.summary.high_findings}
+            - **Medium:** ${report.summary.medium_findings}
+            - **Low:** ${report.summary.low_findings}
+            
+            ### Findings by Category
+            ${Object.entries(report.scans).map(([category, data]) => 
+              `- **${category}:** ${data.findings.length} findings`
+            ).join('\n')}
+            
+            Please review the security findings and take appropriate action.
+            
+            Full report available in the workflow artifacts.
+              `;
+              
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `Security Scan Report - ${report.summary.total_findings} findings`,
+                body: body,
+                labels: ['security', 'automated']
+              });
+            }

@@ -1,0 +1,86 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.prometheus.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "lims.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "lims.labels" . | nindent 4 }}
+    {{- with .Values.monitoring.prometheus.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.monitoring.prometheus.serviceMonitor.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "lims.selectorLabels" . | nindent 6 }}
+  endpoints:
+  - port: metrics
+    interval: {{ .Values.monitoring.prometheus.interval }}
+    scrapeTimeout: {{ .Values.monitoring.prometheus.scrapeTimeout }}
+    path: {{ .Values.monitoring.prometheus.path }}
+    {{- if .Values.monitoring.prometheus.relabelings }}
+    relabelings:
+      {{- toYaml .Values.monitoring.prometheus.relabelings | nindent 6 }}
+    {{- end }}
+    {{- if .Values.monitoring.prometheus.metricRelabelings }}
+    metricRelabelings:
+      {{- toYaml .Values.monitoring.prometheus.metricRelabelings | nindent 6 }}
+    {{- end }}
+  namespaceSelector:
+    matchNames:
+    - {{ .Release.Namespace }}
+{{- end }}
+
+---
+{{- if and .Values.database.postgresql.enabled .Values.database.postgresql.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "lims.fullname" . }}-postgresql
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "lims.labels" . | nindent 4 }}
+    component: postgresql
+spec:
+  selector:
+    matchLabels:
+      {{- include "lims.selectorLabels" . | nindent 6 }}
+      component: postgresql
+  endpoints:
+  - port: metrics
+    interval: 30s
+    scrapeTimeout: 10s
+    path: /metrics
+  namespaceSelector:
+    matchNames:
+    - {{ .Release.Namespace }}
+{{- end }}
+
+---
+{{- if and .Values.cache.redis.enabled .Values.cache.redis.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "lims.fullname" . }}-redis
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "lims.labels" . | nindent 4 }}
+    component: redis
+spec:
+  selector:
+    matchLabels:
+      {{- include "lims.selectorLabels" . | nindent 6 }}
+      component: redis
+  endpoints:
+  - port: metrics
+    interval: 30s
+    scrapeTimeout: 10s
+    path: /metrics
+  namespaceSelector:
+    matchNames:
+    - {{ .Release.Namespace }}
+{{- end }}

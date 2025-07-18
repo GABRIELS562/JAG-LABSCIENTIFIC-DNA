@@ -1,0 +1,642 @@
+# Database Backup and Recovery Configuration for LIMS
+# This file contains comprehensive database backup strategies
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgresql-backup
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: postgresql-backup
+spec:
+  schedule: "0 1 * * *"  # Daily at 1 AM
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: lims
+            component: postgresql-backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: postgres-backup
+            image: postgres:15
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              
+              echo "Starting PostgreSQL backup..."
+              
+              # Set backup timestamp
+              BACKUP_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+              BACKUP_DIR="/backup/postgresql"
+              BACKUP_FILE="$BACKUP_DIR/lims_backup_$BACKUP_TIMESTAMP.sql"
+              
+              # Create backup directory
+              mkdir -p $BACKUP_DIR
+              
+              # Create database dump
+              echo "Creating database dump..."
+              pg_dump -h $POSTGRES_HOST -U $POSTGRES_USER -d $POSTGRES_DB > $BACKUP_FILE
+              
+              # Compress backup
+              echo "Compressing backup..."
+              gzip $BACKUP_FILE
+              
+              # Verify backup
+              echo "Verifying backup..."
+              if [ -f "${BACKUP_FILE}.gz" ]; then
+                SIZE=$(stat -c%s "${BACKUP_FILE}.gz")
+                if [ $SIZE -gt 1024 ]; then
+                  echo "✅ Backup created successfully: ${BACKUP_FILE}.gz (${SIZE} bytes)"
+                else
+                  echo "❌ Backup file too small: ${SIZE} bytes"
+                  exit 1
+                fi
+              else
+                echo "❌ Backup file not found"
+                exit 1
+              fi
+              
+              # Upload to S3 (if configured)
+              if [ -n "$AWS_S3_BUCKET" ]; then
+                echo "Uploading backup to S3..."
+                aws s3 cp "${BACKUP_FILE}.gz" "s3://$AWS_S3_BUCKET/postgresql/$(basename ${BACKUP_FILE}.gz)"
+                echo "✅ Backup uploaded to S3"
+              fi
+              
+              # Clean up old backups (keep last 7 days)
+              echo "Cleaning up old backups..."
+              find $BACKUP_DIR -name "lims_backup_*.sql.gz" -mtime +7 -delete
+              
+              # Send notification
+              if [ -n "$SLACK_WEBHOOK_URL" ]; then
+                curl -X POST "$SLACK_WEBHOOK_URL" \
+                  -H 'Content-Type: application/json' \
+                  -d "{\"text\":\"✅ PostgreSQL Backup Completed - $(basename ${BACKUP_FILE}.gz)\"}"
+              fi
+              
+              echo "PostgreSQL backup completed successfully"
+            env:
+            - name: POSTGRES_HOST
+              value: "lims-postgresql-service"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: lims-secrets
+                  key: postgres-user
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: lims-secrets
+                  key: postgres-db
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lims-secrets
+                  key: postgres-password
+            - name: AWS_S3_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: lims-backup-config
+                  key: s3-bucket
+                  optional: true
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: lims-aws-credentials
+                  key: access-key-id
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: lims-aws-credentials
+                  key: secret-access-key
+                  optional: true
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: lims-backup-config
+                  key: aws-region
+                  optional: true
+            - name: SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: lims-notifications
+                  key: slack-webhook-url
+                  optional: true
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backup
+            - name: tmp-storage
+              mountPath: /tmp
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: lims-backup-storage
+          - name: tmp-storage
+            emptyDir: {}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: redis-backup
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: redis-backup
+spec:
+  schedule: "0 1 * * *"  # Daily at 1 AM
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: lims
+            component: redis-backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: redis-backup
+            image: redis:7
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              
+              echo "Starting Redis backup..."
+              
+              # Set backup timestamp
+              BACKUP_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+              BACKUP_DIR="/backup/redis"
+              BACKUP_FILE="$BACKUP_DIR/redis_backup_$BACKUP_TIMESTAMP.rdb"
+              
+              # Create backup directory
+              mkdir -p $BACKUP_DIR
+              
+              # Create Redis backup
+              echo "Creating Redis backup..."
+              redis-cli -h $REDIS_HOST -p $REDIS_PORT --rdb $BACKUP_FILE
+              
+              # Compress backup
+              echo "Compressing backup..."
+              gzip $BACKUP_FILE
+              
+              # Verify backup
+              echo "Verifying backup..."
+              if [ -f "${BACKUP_FILE}.gz" ]; then
+                SIZE=$(stat -c%s "${BACKUP_FILE}.gz")
+                if [ $SIZE -gt 512 ]; then
+                  echo "✅ Backup created successfully: ${BACKUP_FILE}.gz (${SIZE} bytes)"
+                else
+                  echo "❌ Backup file too small: ${SIZE} bytes"
+                  exit 1
+                fi
+              else
+                echo "❌ Backup file not found"
+                exit 1
+              fi
+              
+              # Upload to S3 (if configured)
+              if [ -n "$AWS_S3_BUCKET" ]; then
+                echo "Uploading backup to S3..."
+                aws s3 cp "${BACKUP_FILE}.gz" "s3://$AWS_S3_BUCKET/redis/$(basename ${BACKUP_FILE}.gz)"
+                echo "✅ Backup uploaded to S3"
+              fi
+              
+              # Clean up old backups (keep last 7 days)
+              echo "Cleaning up old backups..."
+              find $BACKUP_DIR -name "redis_backup_*.rdb.gz" -mtime +7 -delete
+              
+              # Send notification
+              if [ -n "$SLACK_WEBHOOK_URL" ]; then
+                curl -X POST "$SLACK_WEBHOOK_URL" \
+                  -H 'Content-Type: application/json' \
+                  -d "{\"text\":\"✅ Redis Backup Completed - $(basename ${BACKUP_FILE}.gz)\"}"
+              fi
+              
+              echo "Redis backup completed successfully"
+            env:
+            - name: REDIS_HOST
+              value: "lims-redis-service"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lims-secrets
+                  key: redis-password
+                  optional: true
+            - name: AWS_S3_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: lims-backup-config
+                  key: s3-bucket
+                  optional: true
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: lims-aws-credentials
+                  key: access-key-id
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: lims-aws-credentials
+                  key: secret-access-key
+                  optional: true
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: lims-backup-config
+                  key: aws-region
+                  optional: true
+            - name: SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: lims-notifications
+                  key: slack-webhook-url
+                  optional: true
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backup
+            - name: tmp-storage
+              mountPath: /tmp
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: lims-backup-storage
+          - name: tmp-storage
+            emptyDir: {}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+
+---
+apiVersion: v1
+kind: Job
+metadata:
+  name: postgresql-restore
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: postgresql-restore
+spec:
+  template:
+    metadata:
+      labels:
+        app: lims
+        component: postgresql-restore
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: postgres-restore
+        image: postgres:15
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          
+          echo "Starting PostgreSQL restore..."
+          
+          # Check if backup file is specified
+          if [ -z "$BACKUP_FILE" ]; then
+            echo "❌ BACKUP_FILE environment variable is required"
+            exit 1
+          fi
+          
+          # Download backup from S3 if needed
+          if [[ "$BACKUP_FILE" == s3://* ]]; then
+            echo "Downloading backup from S3..."
+            aws s3 cp "$BACKUP_FILE" /tmp/restore.sql.gz
+            BACKUP_FILE="/tmp/restore.sql.gz"
+          fi
+          
+          # Decompress backup if needed
+          if [[ "$BACKUP_FILE" == *.gz ]]; then
+            echo "Decompressing backup..."
+            gunzip -c "$BACKUP_FILE" > /tmp/restore.sql
+            BACKUP_FILE="/tmp/restore.sql"
+          fi
+          
+          # Verify backup file exists
+          if [ ! -f "$BACKUP_FILE" ]; then
+            echo "❌ Backup file not found: $BACKUP_FILE"
+            exit 1
+          fi
+          
+          echo "Backup file found: $BACKUP_FILE"
+          
+          # Create database if it doesn't exist
+          echo "Creating database if it doesn't exist..."
+          psql -h $POSTGRES_HOST -U $POSTGRES_USER -d postgres -c "CREATE DATABASE $POSTGRES_DB;" || true
+          
+          # Restore database
+          echo "Restoring database..."
+          psql -h $POSTGRES_HOST -U $POSTGRES_USER -d $POSTGRES_DB < $BACKUP_FILE
+          
+          # Verify restore
+          echo "Verifying restore..."
+          TABLE_COUNT=$(psql -h $POSTGRES_HOST -U $POSTGRES_USER -d $POSTGRES_DB -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';")
+          
+          if [ $TABLE_COUNT -gt 0 ]; then
+            echo "✅ Database restored successfully with $TABLE_COUNT tables"
+          else
+            echo "❌ Database restore failed - no tables found"
+            exit 1
+          fi
+          
+          # Send notification
+          if [ -n "$SLACK_WEBHOOK_URL" ]; then
+            curl -X POST "$SLACK_WEBHOOK_URL" \
+              -H 'Content-Type: application/json' \
+              -d "{\"text\":\"✅ PostgreSQL Restore Completed - $(basename $BACKUP_FILE)\"}"
+          fi
+          
+          echo "PostgreSQL restore completed successfully"
+        env:
+        - name: POSTGRES_HOST
+          value: "lims-postgresql-service"
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: lims-secrets
+              key: postgres-user
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: lims-secrets
+              key: postgres-db
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: lims-secrets
+              key: postgres-password
+        - name: BACKUP_FILE
+          value: ""  # Set this when running the job
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: lims-aws-credentials
+              key: access-key-id
+              optional: true
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: lims-aws-credentials
+              key: secret-access-key
+              optional: true
+        - name: AWS_DEFAULT_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: lims-backup-config
+              key: aws-region
+              optional: true
+        - name: SLACK_WEBHOOK_URL
+          valueFrom:
+            secretKeyRef:
+              name: lims-notifications
+              key: slack-webhook-url
+              optional: true
+        volumeMounts:
+        - name: backup-storage
+          mountPath: /backup
+        - name: tmp-storage
+          mountPath: /tmp
+      volumes:
+      - name: backup-storage
+        persistentVolumeClaim:
+          claimName: lims-backup-storage
+      - name: tmp-storage
+        emptyDir: {}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lims-backup-storage
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: backup-storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: fast-ssd
+  resources:
+    requests:
+      storage: 100Gi
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lims-backup-config
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: backup-config
+data:
+  # S3 configuration
+  s3-bucket: "lims-database-backups"
+  aws-region: "us-east-1"
+  
+  # Backup retention settings
+  backup-retention-days: "30"
+  
+  # Backup schedule
+  postgres-backup-schedule: "0 1 * * *"
+  redis-backup-schedule: "0 1 * * *"
+  
+  # Backup verification settings
+  verify-backups: "true"
+  verification-schedule: "0 6 * * *"
+  
+  # Compression settings
+  compress-backups: "true"
+  compression-level: "6"
+  
+  # Notification settings
+  notify-on-success: "true"
+  notify-on-failure: "true"
+  
+  # Restore settings
+  restore-timeout: "3600"
+  
+  # Database settings
+  postgres-backup-options: "--verbose --clean --if-exists --no-owner --no-privileges"
+  redis-backup-options: "--rdb-only"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: lims-aws-credentials
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: aws-credentials
+type: Opaque
+data:
+  # Base64 encoded AWS credentials
+  access-key-id: ""  # Set this to your AWS access key ID
+  secret-access-key: ""  # Set this to your AWS secret access key
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-verification
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: backup-verification
+spec:
+  schedule: "0 6 * * *"  # Daily at 6 AM
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: lims
+            component: backup-verification
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: backup-verification
+            image: postgres:15
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              
+              echo "Starting backup verification..."
+              
+              # Check PostgreSQL backups
+              echo "Verifying PostgreSQL backups..."
+              POSTGRES_BACKUPS=$(find /backup/postgresql -name "lims_backup_*.sql.gz" -mtime -1)
+              
+              if [ -n "$POSTGRES_BACKUPS" ]; then
+                for backup in $POSTGRES_BACKUPS; do
+                  echo "Verifying backup: $backup"
+                  
+                  # Check file size
+                  SIZE=$(stat -c%s "$backup")
+                  if [ $SIZE -gt 1024 ]; then
+                    echo "✅ Backup file size OK: $SIZE bytes"
+                  else
+                    echo "❌ Backup file too small: $SIZE bytes"
+                    VERIFICATION_FAILED=true
+                  fi
+                  
+                  # Check file integrity
+                  if gzip -t "$backup"; then
+                    echo "✅ Backup file integrity OK"
+                  else
+                    echo "❌ Backup file corrupted"
+                    VERIFICATION_FAILED=true
+                  fi
+                done
+              else
+                echo "❌ No recent PostgreSQL backups found"
+                VERIFICATION_FAILED=true
+              fi
+              
+              # Check Redis backups
+              echo "Verifying Redis backups..."
+              REDIS_BACKUPS=$(find /backup/redis -name "redis_backup_*.rdb.gz" -mtime -1)
+              
+              if [ -n "$REDIS_BACKUPS" ]; then
+                for backup in $REDIS_BACKUPS; do
+                  echo "Verifying backup: $backup"
+                  
+                  # Check file size
+                  SIZE=$(stat -c%s "$backup")
+                  if [ $SIZE -gt 512 ]; then
+                    echo "✅ Backup file size OK: $SIZE bytes"
+                  else
+                    echo "❌ Backup file too small: $SIZE bytes"
+                    VERIFICATION_FAILED=true
+                  fi
+                  
+                  # Check file integrity
+                  if gzip -t "$backup"; then
+                    echo "✅ Backup file integrity OK"
+                  else
+                    echo "❌ Backup file corrupted"
+                    VERIFICATION_FAILED=true
+                  fi
+                done
+              else
+                echo "❌ No recent Redis backups found"
+                VERIFICATION_FAILED=true
+              fi
+              
+              # Send notification
+              if [ -n "$SLACK_WEBHOOK_URL" ]; then
+                if [ "$VERIFICATION_FAILED" = "true" ]; then
+                  curl -X POST "$SLACK_WEBHOOK_URL" \
+                    -H 'Content-Type: application/json' \
+                    -d "{\"text\":\"❌ LIMS Backup Verification Failed\"}"
+                else
+                  curl -X POST "$SLACK_WEBHOOK_URL" \
+                    -H 'Content-Type: application/json' \
+                    -d "{\"text\":\"✅ LIMS Backup Verification Successful\"}"
+                fi
+              fi
+              
+              # Exit with error if verification failed
+              if [ "$VERIFICATION_FAILED" = "true" ]; then
+                echo "Backup verification failed"
+                exit 1
+              else
+                echo "Backup verification completed successfully"
+              fi
+            env:
+            - name: SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: lims-notifications
+                  key: slack-webhook-url
+                  optional: true
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backup
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: lims-backup-storage
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999

@@ -1,0 +1,587 @@
+# Canary Deployment Configuration for LIMS
+# This file contains advanced deployment strategies using Istio
+
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: lims-canary-vs
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: canary
+spec:
+  hosts:
+  - lims-app-service
+  http:
+  # Canary deployment with header-based routing
+  - match:
+    - headers:
+        canary:
+          exact: "true"
+    route:
+    - destination:
+        host: lims-app-service
+        subset: v2
+      weight: 100
+    fault:
+      delay:
+        percentage:
+          value: 0.1
+        fixedDelay: 2s
+      abort:
+        percentage:
+          value: 0.01
+        httpStatus: 500
+    retries:
+      attempts: 3
+      perTryTimeout: 30s
+      retryOn: gateway-error,connect-failure,refused-stream
+    timeout: 60s
+    
+  # Gradual traffic shift for canary
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: lims-app-service
+        subset: v1
+      weight: 90
+    - destination:
+        host: lims-app-service
+        subset: v2
+      weight: 10
+    fault:
+      delay:
+        percentage:
+          value: 0.1
+        fixedDelay: 1s
+    retries:
+      attempts: 3
+      perTryTimeout: 30s
+      retryOn: gateway-error,connect-failure,refused-stream
+    timeout: 60s
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: lims-canary-dr
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: canary
+spec:
+  host: lims-app-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 30s
+      http:
+        http1MaxPendingRequests: 50
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 10
+        maxRetries: 3
+    loadBalancer:
+      simple: LEAST_CONN
+    outlierDetection:
+      consecutiveGatewayErrors: 3
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 50
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+    trafficPolicy:
+      connectionPool:
+        tcp:
+          maxConnections: 50
+        http:
+          http1MaxPendingRequests: 25
+          http2MaxRequests: 50
+  - name: v2
+    labels:
+      version: v2
+    trafficPolicy:
+      connectionPool:
+        tcp:
+          maxConnections: 50
+        http:
+          http1MaxPendingRequests: 25
+          http2MaxRequests: 50
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: lims-blue-green-vs
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: blue-green
+spec:
+  hosts:
+  - lims-app-service
+  http:
+  # Blue-Green deployment with user-based routing
+  - match:
+    - headers:
+        user-group:
+          exact: "beta-testers"
+    route:
+    - destination:
+        host: lims-app-service
+        subset: green
+      weight: 100
+    headers:
+      request:
+        set:
+          x-deployment-strategy: "blue-green"
+          x-version: "green"
+    retries:
+      attempts: 3
+      perTryTimeout: 30s
+      retryOn: gateway-error,connect-failure,refused-stream
+    timeout: 60s
+    
+  # Production traffic to blue version
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: lims-app-service
+        subset: blue
+      weight: 100
+    headers:
+      request:
+        set:
+          x-deployment-strategy: "blue-green"
+          x-version: "blue"
+    retries:
+      attempts: 3
+      perTryTimeout: 30s
+      retryOn: gateway-error,connect-failure,refused-stream
+    timeout: 60s
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: lims-blue-green-dr
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: blue-green
+spec:
+  host: lims-app-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 30s
+      http:
+        http1MaxPendingRequests: 50
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 10
+        maxRetries: 3
+    loadBalancer:
+      simple: ROUND_ROBIN
+    outlierDetection:
+      consecutiveGatewayErrors: 3
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 50
+  subsets:
+  - name: blue
+    labels:
+      deployment: blue
+    trafficPolicy:
+      connectionPool:
+        tcp:
+          maxConnections: 50
+        http:
+          http1MaxPendingRequests: 25
+          http2MaxRequests: 50
+  - name: green
+    labels:
+      deployment: green
+    trafficPolicy:
+      connectionPool:
+        tcp:
+          maxConnections: 50
+        http:
+          http1MaxPendingRequests: 25
+          http2MaxRequests: 50
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: lims-circuit-breaker
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: circuit-breaker
+spec:
+  hosts:
+  - lims-app-service
+  http:
+  # Circuit breaker configuration
+  - match:
+    - uri:
+        prefix: /api/heavy-computation
+    route:
+    - destination:
+        host: lims-app-service
+        subset: v1
+    fault:
+      abort:
+        percentage:
+          value: 0.1
+        httpStatus: 503
+    retries:
+      attempts: 3
+      perTryTimeout: 10s
+      retryOn: gateway-error,connect-failure,refused-stream
+      retryRemoteLocalities: true
+    timeout: 30s
+    
+  # Default routing
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: lims-app-service
+        subset: v1
+    retries:
+      attempts: 3
+      perTryTimeout: 30s
+      retryOn: gateway-error,connect-failure,refused-stream
+    timeout: 60s
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: lims-circuit-breaker-dr
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: circuit-breaker
+spec:
+  host: lims-app-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 10
+        connectTimeout: 10s
+        keepAlive:
+          time: 7200s
+          interval: 75s
+      http:
+        http1MaxPendingRequests: 10
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 2
+        maxRetries: 3
+        consecutiveGatewayErrors: 3
+        interval: 30s
+        baseEjectionTime: 30s
+        maxEjectionPercent: 50
+        minHealthPercent: 50
+    loadBalancer:
+      simple: LEAST_CONN
+    outlierDetection:
+      consecutiveGatewayErrors: 3
+      consecutiveLocalOriginFailures: 3
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 50
+      splitExternalLocalOriginErrors: false
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+    trafficPolicy:
+      connectionPool:
+        tcp:
+          maxConnections: 5
+        http:
+          http1MaxPendingRequests: 5
+          http2MaxRequests: 50
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: lims-a-b-testing
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: a-b-testing
+spec:
+  hosts:
+  - lims-app-service
+  http:
+  # A/B testing based on user ID
+  - match:
+    - headers:
+        user-id:
+          regex: ".*[02468]$"  # Even user IDs
+    route:
+    - destination:
+        host: lims-app-service
+        subset: variant-a
+      weight: 100
+    headers:
+      request:
+        set:
+          x-experiment: "variant-a"
+          x-user-segment: "even"
+    retries:
+      attempts: 3
+      perTryTimeout: 30s
+      retryOn: gateway-error,connect-failure,refused-stream
+    timeout: 60s
+    
+  # Odd user IDs get variant B
+  - match:
+    - headers:
+        user-id:
+          regex: ".*[13579]$"  # Odd user IDs
+    route:
+    - destination:
+        host: lims-app-service
+        subset: variant-b
+      weight: 100
+    headers:
+      request:
+        set:
+          x-experiment: "variant-b"
+          x-user-segment: "odd"
+    retries:
+      attempts: 3
+      perTryTimeout: 30s
+      retryOn: gateway-error,connect-failure,refused-stream
+    timeout: 60s
+    
+  # Default routing for users without ID
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: lims-app-service
+        subset: variant-a
+      weight: 50
+    - destination:
+        host: lims-app-service
+        subset: variant-b
+      weight: 50
+    headers:
+      request:
+        set:
+          x-experiment: "random"
+    retries:
+      attempts: 3
+      perTryTimeout: 30s
+      retryOn: gateway-error,connect-failure,refused-stream
+    timeout: 60s
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: lims-a-b-testing-dr
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: a-b-testing
+spec:
+  host: lims-app-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 30s
+      http:
+        http1MaxPendingRequests: 50
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 10
+        maxRetries: 3
+    loadBalancer:
+      simple: RANDOM
+    outlierDetection:
+      consecutiveGatewayErrors: 3
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 50
+  subsets:
+  - name: variant-a
+    labels:
+      experiment: variant-a
+    trafficPolicy:
+      connectionPool:
+        tcp:
+          maxConnections: 50
+        http:
+          http1MaxPendingRequests: 25
+          http2MaxRequests: 50
+  - name: variant-b
+    labels:
+      experiment: variant-b
+    trafficPolicy:
+      connectionPool:
+        tcp:
+          maxConnections: 50
+        http:
+          http1MaxPendingRequests: 25
+          http2MaxRequests: 50
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: lims-multi-region
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: multi-region
+spec:
+  hosts:
+  - lims-app-service
+  http:
+  # Route traffic based on region
+  - match:
+    - headers:
+        region:
+          exact: "us-east-1"
+    route:
+    - destination:
+        host: lims-app-service
+        subset: us-east-1
+      weight: 100
+    headers:
+      request:
+        set:
+          x-region: "us-east-1"
+    retries:
+      attempts: 3
+      perTryTimeout: 30s
+      retryOn: gateway-error,connect-failure,refused-stream
+    timeout: 60s
+    
+  - match:
+    - headers:
+        region:
+          exact: "us-west-2"
+    route:
+    - destination:
+        host: lims-app-service
+        subset: us-west-2
+      weight: 100
+    headers:
+      request:
+        set:
+          x-region: "us-west-2"
+    retries:
+      attempts: 3
+      perTryTimeout: 30s
+      retryOn: gateway-error,connect-failure,refused-stream
+    timeout: 60s
+    
+  # Default region
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: lims-app-service
+        subset: us-east-1
+      weight: 70
+    - destination:
+        host: lims-app-service
+        subset: us-west-2
+      weight: 30
+    headers:
+      request:
+        set:
+          x-region: "multi"
+    retries:
+      attempts: 3
+      perTryTimeout: 30s
+      retryOn: gateway-error,connect-failure,refused-stream
+    timeout: 60s
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: lims-multi-region-dr
+  namespace: labscientific-lims
+  labels:
+    app: lims
+    component: multi-region
+spec:
+  host: lims-app-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 30s
+      http:
+        http1MaxPendingRequests: 50
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 10
+        maxRetries: 3
+    loadBalancer:
+      localityLbSetting:
+        enabled: true
+        distribute:
+        - from: region/us-east-1/*
+          to:
+            "region/us-east-1/*": 80
+            "region/us-west-2/*": 20
+        - from: region/us-west-2/*
+          to:
+            "region/us-west-2/*": 80
+            "region/us-east-1/*": 20
+        failover:
+        - from: region/us-east-1
+          to: region/us-west-2
+        - from: region/us-west-2
+          to: region/us-east-1
+    outlierDetection:
+      consecutiveGatewayErrors: 3
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 50
+  subsets:
+  - name: us-east-1
+    labels:
+      region: us-east-1
+    trafficPolicy:
+      connectionPool:
+        tcp:
+          maxConnections: 50
+        http:
+          http1MaxPendingRequests: 25
+          http2MaxRequests: 50
+  - name: us-west-2
+    labels:
+      region: us-west-2
+    trafficPolicy:
+      connectionPool:
+        tcp:
+          maxConnections: 50
+        http:
+          http1MaxPendingRequests: 25
+          http2MaxRequests: 50

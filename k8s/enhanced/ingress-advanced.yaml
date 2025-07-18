@@ -1,0 +1,366 @@
+# Advanced Ingress Configuration for LIMS
+# This file demonstrates production-ready ingress with comprehensive routing and security
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lims-ingress-advanced
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: ingress
+  annotations:
+    # Basic ingress annotations
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
+    
+    # Security annotations
+    nginx.ingress.kubernetes.io/server-snippet: |
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+      add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: https:; media-src 'self'; object-src 'none'; child-src 'none'; worker-src 'self'; frame-ancestors 'self'; form-action 'self'; base-uri 'self';" always;
+      add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    
+    # Rate limiting annotations
+    nginx.ingress.kubernetes.io/rate-limit-connections: "100"
+    nginx.ingress.kubernetes.io/rate-limit-requests-per-second: "10"
+    nginx.ingress.kubernetes.io/rate-limit-window-size: "1m"
+    
+    # Load balancing annotations
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$remote_addr"
+    nginx.ingress.kubernetes.io/load-balance: "ewma"
+    nginx.ingress.kubernetes.io/upstream-keepalive-connections: "320"
+    nginx.ingress.kubernetes.io/upstream-keepalive-requests: "1000"
+    nginx.ingress.kubernetes.io/upstream-keepalive-timeout: "60"
+    
+    # Proxy and timeout annotations
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-next-upstream: "error timeout invalid_header http_502 http_503 http_504"
+    nginx.ingress.kubernetes.io/proxy-next-upstream-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-next-upstream-tries: "3"
+    
+    # Compression annotations
+    nginx.ingress.kubernetes.io/enable-brotli: "true"
+    nginx.ingress.kubernetes.io/brotli-level: "6"
+    nginx.ingress.kubernetes.io/brotli-types: "text/xml image/svg+xml application/x-font-ttf image/vnd.microsoft.icon application/x-font-opentype application/json font/eot application/vnd.ms-fontobject application/javascript font/otf application/xml application/xhtml+xml text/javascript application/x-javascript text/plain application/x-font-truetype application/xml+rss image/x-icon font/opentype text/css image/x-win-bitmap"
+    
+    # Custom upload size
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/client-body-buffer-size: "16k"
+    nginx.ingress.kubernetes.io/client-body-timeout: "60"
+    nginx.ingress.kubernetes.io/client-header-timeout: "60"
+    
+    # WebSocket support
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/websocket-services: "lims-websocket-service"
+    
+    # Monitoring annotations
+    nginx.ingress.kubernetes.io/enable-access-log: "true"
+    nginx.ingress.kubernetes.io/enable-rewrite-log: "true"
+    
+    # Certificate management
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/acme-challenge-type: "http01"
+    
+    # Custom error pages
+    nginx.ingress.kubernetes.io/custom-http-errors: "404,500,502,503,504"
+    nginx.ingress.kubernetes.io/default-backend: "lims-error-pages"
+    
+    # IP whitelisting for admin paths
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    
+    # Canary deployment annotations (commented out for production)
+    # nginx.ingress.kubernetes.io/canary: "true"
+    # nginx.ingress.kubernetes.io/canary-weight: "10"
+    # nginx.ingress.kubernetes.io/canary-by-header: "X-Canary"
+    # nginx.ingress.kubernetes.io/canary-by-cookie: "canary"
+    
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - lims.labscientific.com
+    - api.labscientific.com
+    - admin.labscientific.com
+    - ws.labscientific.com
+    secretName: lims-tls-certificate
+  - hosts:
+    - lims-staging.labscientific.com
+    - api-staging.labscientific.com
+    secretName: lims-staging-tls-certificate
+  rules:
+  # Production domain
+  - host: lims.labscientific.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-app-service-advanced
+            port:
+              number: 80
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-app-service-advanced
+            port:
+              number: 3001
+      - path: /monitoring
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-monitoring-service
+            port:
+              number: 3001
+      - path: /health
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-health-service
+            port:
+              number: 3001
+  
+  # API subdomain
+  - host: api.labscientific.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-app-service-advanced
+            port:
+              number: 3001
+      - path: /v1
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-app-service-advanced
+            port:
+              number: 3001
+      - path: /v2
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-app-service-advanced
+            port:
+              number: 3001
+  
+  # Admin subdomain
+  - host: admin.labscientific.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-admin-service
+            port:
+              number: 8080
+      - path: /metrics
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-metrics-aggregator
+            port:
+              number: 9090
+  
+  # WebSocket subdomain
+  - host: ws.labscientific.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-websocket-service
+            port:
+              number: 8080
+  
+  # Staging environment
+  - host: lims-staging.labscientific.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-app-service-advanced
+            port:
+              number: 80
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-app-service-advanced
+            port:
+              number: 3001
+  
+  # API staging subdomain
+  - host: api-staging.labscientific.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-app-service-advanced
+            port:
+              number: 3001
+
+---
+# Ingress for file uploads with special configuration
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lims-upload-ingress
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: upload-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "500m"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/client-body-timeout: "300"
+    nginx.ingress.kubernetes.io/client-header-timeout: "300"
+    nginx.ingress.kubernetes.io/rate-limit-connections: "10"
+    nginx.ingress.kubernetes.io/rate-limit-requests-per-second: "2"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - upload.labscientific.com
+    secretName: lims-upload-tls-certificate
+  rules:
+  - host: upload.labscientific.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-upload-service
+            port:
+              number: 3002
+      - path: /api/upload
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-upload-service
+            port:
+              number: 3002
+
+---
+# Ingress for internal services (admin only)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lims-internal-ingress
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: internal-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    nginx.ingress.kubernetes.io/auth-type: "basic"
+    nginx.ingress.kubernetes.io/auth-secret: "lims-basic-auth"
+    nginx.ingress.kubernetes.io/auth-realm: "LIMS Internal Services"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - internal.labscientific.com
+    secretName: lims-internal-tls-certificate
+  rules:
+  - host: internal.labscientific.com
+    http:
+      paths:
+      - path: /metrics
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-metrics-aggregator
+            port:
+              number: 9090
+      - path: /health
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-health-service
+            port:
+              number: 3001
+      - path: /admin
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-admin-service
+            port:
+              number: 8080
+
+---
+# Ingress for development/testing
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lims-dev-ingress
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: dev-ingress
+    environment: development
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header X-Environment "development" always;
+      add_header X-Debug "true" always;
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: lims-dev.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-app-service-advanced
+            port:
+              number: 80
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-app-service-advanced
+            port:
+              number: 3001
+  - host: api-dev.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-app-service-advanced
+            port:
+              number: 3001

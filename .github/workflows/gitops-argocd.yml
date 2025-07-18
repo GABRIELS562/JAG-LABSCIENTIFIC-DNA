@@ -1,0 +1,409 @@
+# GitOps ArgoCD Workflow for LIMS Application
+# This workflow manages GitOps deployments using ArgoCD
+
+name: GitOps ArgoCD Deployment
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'k8s/**'
+      - 'helm/**'
+      - 'gitops/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      app_version:
+        description: 'Application version to deploy'
+        required: true
+        type: string
+
+env:
+  ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+  ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
+  GITOPS_REPO: ${{ github.repository }}-gitops
+
+jobs:
+  # Update GitOps Repository
+  update-gitops:
+    name: Update GitOps Repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main repository
+        uses: actions/checkout@v4
+        with:
+          path: main-repo
+
+      - name: Checkout GitOps repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: gitops-repo
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.12.0'
+
+      - name: Update Helm values
+        run: |
+          cd gitops-repo
+          
+          # Determine environment and version
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENVIRONMENT="${{ github.event.inputs.environment }}"
+            APP_VERSION="${{ github.event.inputs.app_version }}"
+          else
+            if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+              ENVIRONMENT="staging"
+            else
+              ENVIRONMENT="development"
+            fi
+            APP_VERSION="${{ github.sha }}"
+          fi
+          
+          echo "Deploying version $APP_VERSION to $ENVIRONMENT"
+          
+          # Update values file
+          VALUES_FILE="environments/$ENVIRONMENT/values.yaml"
+          
+          # Update image tag
+          yq eval ".image.tag = \"$APP_VERSION\"" -i $VALUES_FILE
+          
+          # Update timestamp
+          yq eval ".deployment.timestamp = \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"" -i $VALUES_FILE
+          
+          # Update commit SHA
+          yq eval ".deployment.commit = \"${{ github.sha }}\"" -i $VALUES_FILE
+          
+          # Update branch
+          yq eval ".deployment.branch = \"${{ github.ref_name }}\"" -i $VALUES_FILE
+
+      - name: Validate Helm charts
+        run: |
+          cd gitops-repo
+          
+          # Template and validate each environment
+          for env in development staging production; do
+            if [ -f "environments/$env/values.yaml" ]; then
+              echo "Validating $env environment..."
+              helm template lims ../main-repo/helm/lims \
+                --values environments/$env/values.yaml \
+                --output-dir rendered/$env
+              
+              # Validate rendered manifests
+              kubectl apply --dry-run=client -f rendered/$env/lims/templates/
+            fi
+          done
+
+      - name: Commit and push changes
+        run: |
+          cd gitops-repo
+          
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          git add .
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update LIMS deployment
+            
+            - Version: ${{ github.event.inputs.app_version || github.sha }}
+            - Environment: ${{ github.event.inputs.environment || 'auto' }}
+            - Commit: ${{ github.sha }}
+            - Branch: ${{ github.ref_name }}
+            - Triggered by: ${{ github.event_name }}"
+            
+            git push origin main
+          fi
+
+  # Sync ArgoCD Applications
+  sync-argocd:
+    name: Sync ArgoCD Applications
+    runs-on: ubuntu-latest
+    needs: [update-gitops]
+    steps:
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd
+          sudo mv argocd /usr/local/bin/
+
+      - name: Login to ArgoCD
+        run: |
+          argocd login ${{ env.ARGOCD_SERVER }} \
+            --auth-token ${{ env.ARGOCD_TOKEN }} \
+            --insecure
+
+      - name: Sync applications
+        run: |
+          # Determine which applications to sync
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENVIRONMENT="${{ github.event.inputs.environment }}"
+            APPS=("lims-$ENVIRONMENT")
+          else
+            if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+              APPS=("lims-staging")
+            else
+              APPS=("lims-development")
+            fi
+          fi
+          
+          for app in "${APPS[@]}"; do
+            echo "Syncing application: $app"
+            
+            # Check if application exists
+            if argocd app get $app > /dev/null 2>&1; then
+              # Sync the application
+              argocd app sync $app --prune --async
+              
+              # Wait for sync to complete
+              argocd app wait $app --timeout 600 --health
+              
+              # Get sync status
+              argocd app get $app --output json > $app-status.json
+              
+              echo "Application $app sync completed"
+            else
+              echo "Application $app not found in ArgoCD"
+            fi
+          done
+
+      - name: Upload sync status
+        uses: actions/upload-artifact@v3
+        with:
+          name: argocd-sync-status
+          path: "*-status.json"
+
+  # Health Check
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    needs: [sync-argocd]
+    steps:
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd
+          sudo mv argocd /usr/local/bin/
+
+      - name: Login to ArgoCD
+        run: |
+          argocd login ${{ env.ARGOCD_SERVER }} \
+            --auth-token ${{ env.ARGOCD_TOKEN }} \
+            --insecure
+
+      - name: Check application health
+        run: |
+          # Determine which applications to check
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENVIRONMENT="${{ github.event.inputs.environment }}"
+            APPS=("lims-$ENVIRONMENT")
+          else
+            if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+              APPS=("lims-staging")
+            else
+              APPS=("lims-development")
+            fi
+          fi
+          
+          for app in "${APPS[@]}"; do
+            echo "Checking health of application: $app"
+            
+            # Get application status
+            STATUS=$(argocd app get $app --output json | jq -r '.status.health.status')
+            SYNC_STATUS=$(argocd app get $app --output json | jq -r '.status.sync.status')
+            
+            echo "Application: $app"
+            echo "Health Status: $STATUS"
+            echo "Sync Status: $SYNC_STATUS"
+            
+            if [ "$STATUS" != "Healthy" ]; then
+              echo "ERROR: Application $app is not healthy"
+              argocd app get $app
+              exit 1
+            fi
+            
+            if [ "$SYNC_STATUS" != "Synced" ]; then
+              echo "ERROR: Application $app is not synced"
+              argocd app get $app
+              exit 1
+            fi
+            
+            echo "Application $app is healthy and synced"
+          done
+
+  # Rollback on Failure
+  rollback:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: [health-check]
+    if: failure()
+    steps:
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd
+          sudo mv argocd /usr/local/bin/
+
+      - name: Login to ArgoCD
+        run: |
+          argocd login ${{ env.ARGOCD_SERVER }} \
+            --auth-token ${{ env.ARGOCD_TOKEN }} \
+            --insecure
+
+      - name: Rollback application
+        run: |
+          # Determine which applications to rollback
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENVIRONMENT="${{ github.event.inputs.environment }}"
+            APPS=("lims-$ENVIRONMENT")
+          else
+            if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+              APPS=("lims-staging")
+            else
+              APPS=("lims-development")
+            fi
+          fi
+          
+          for app in "${APPS[@]}"; do
+            echo "Rolling back application: $app"
+            
+            # Get history
+            HISTORY=$(argocd app history $app --output json)
+            
+            # Get previous successful deployment
+            PREVIOUS_REVISION=$(echo "$HISTORY" | jq -r '.[] | select(.deployStartedAt != null) | .revision' | tail -n 2 | head -n 1)
+            
+            if [ -n "$PREVIOUS_REVISION" ] && [ "$PREVIOUS_REVISION" != "null" ]; then
+              echo "Rolling back to revision: $PREVIOUS_REVISION"
+              argocd app rollback $app $PREVIOUS_REVISION
+              
+              # Wait for rollback to complete
+              argocd app wait $app --timeout 600 --health
+              
+              echo "Rollback completed for application: $app"
+            else
+              echo "No previous revision found for rollback"
+            fi
+          done
+
+  # Notification
+  notify:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: [health-check]
+    if: always()
+    steps:
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#lims-deployments'
+          text: |
+            GitOps Deployment ${{ job.status }}
+            
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Environment: ${{ github.event.inputs.environment || 'auto' }}
+            Version: ${{ github.event.inputs.app_version || github.sha }}
+            
+            Workflow: ${{ github.workflow }}
+            Run: ${{ github.run_id }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Create deployment issue on failure
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const title = `GitOps Deployment Failed - ${process.env.GITHUB_SHA.substring(0, 7)}`;
+            const body = `
+            ## Deployment Failure Report
+            
+            **Environment:** ${{ github.event.inputs.environment || 'auto' }}
+            **Version:** ${{ github.event.inputs.app_version || github.sha }}
+            **Branch:** ${{ github.ref_name }}
+            **Commit:** ${{ github.sha }}
+            **Workflow:** ${{ github.workflow }}
+            **Run ID:** ${{ github.run_id }}
+            
+            The GitOps deployment has failed. Please check the workflow logs for details.
+            
+            ### Actions Taken
+            - ✅ Attempted automatic rollback
+            - ✅ Notified team via Slack
+            - ✅ Created this issue for tracking
+            
+            ### Next Steps
+            1. Review the workflow logs: [Link to workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            2. Check ArgoCD for application status
+            3. Investigate the root cause
+            4. Apply fixes and retry deployment
+            
+            ### Labels
+            - \`deployment-failure\`
+            - \`gitops\`
+            - \`urgent\`
+            `;
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['deployment-failure', 'gitops', 'urgent']
+            });
+
+  # Metrics and Monitoring
+  metrics:
+    name: Deployment Metrics
+    runs-on: ubuntu-latest
+    needs: [health-check]
+    if: always()
+    steps:
+      - name: Send deployment metrics
+        run: |
+          # Calculate deployment duration
+          START_TIME="${{ github.event.head_commit.timestamp }}"
+          END_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          
+          # Prepare metrics payload
+          cat > metrics.json << EOF
+          {
+            "deployment": {
+              "repository": "${{ github.repository }}",
+              "branch": "${{ github.ref_name }}",
+              "commit": "${{ github.sha }}",
+              "environment": "${{ github.event.inputs.environment || 'auto' }}",
+              "version": "${{ github.event.inputs.app_version || github.sha }}",
+              "start_time": "$START_TIME",
+              "end_time": "$END_TIME",
+              "status": "${{ job.status }}",
+              "workflow_id": "${{ github.run_id }}",
+              "trigger": "${{ github.event_name }}"
+            }
+          }
+          EOF
+          
+          # Send to monitoring system (if configured)
+          if [ -n "${{ secrets.MONITORING_WEBHOOK }}" ]; then
+            curl -X POST "${{ secrets.MONITORING_WEBHOOK }}" \
+              -H "Content-Type: application/json" \
+              -d @metrics.json
+          fi
+          
+          echo "Deployment metrics sent"

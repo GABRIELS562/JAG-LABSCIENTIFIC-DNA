@@ -1,0 +1,471 @@
+# Comprehensive Alerting Rules for LIMS Application
+# This file contains production-ready alerting rules for monitoring the LIMS system
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: monitoring
+  labels:
+    app: prometheus
+    component: rules
+data:
+  lims-application.yml: |
+    groups:
+    - name: lims.application
+      rules:
+      # High-level application alerts
+      - alert: LIMSServiceDown
+        expr: up{job="lims-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: lims
+          component: application
+          runbook: "https://docs.lims.local/runbooks/service-down"
+        annotations:
+          summary: "LIMS application service is down"
+          description: "LIMS application service {{ $labels.instance }} has been down for more than 1 minute"
+          impact: "Users cannot access the LIMS application"
+          action: "Check pod status and logs immediately"
+
+      - alert: LIMSHighErrorRate
+        expr: rate(http_requests_total{job="lims-app", status=~"5.."}[5m]) / rate(http_requests_total{job="lims-app"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: application
+          runbook: "https://docs.lims.local/runbooks/high-error-rate"
+        annotations:
+          summary: "LIMS application high error rate"
+          description: "LIMS application error rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+          impact: "Users may experience errors when using the application"
+          action: "Check application logs and recent deployments"
+
+      - alert: LIMSHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="lims-app"}[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: application
+          runbook: "https://docs.lims.local/runbooks/high-latency"
+        annotations:
+          summary: "LIMS application high latency"
+          description: "LIMS application 95th percentile latency is {{ $value }}s for the last 5 minutes"
+          impact: "Users may experience slow response times"
+          action: "Check application performance metrics and resource usage"
+
+      - alert: LIMSHighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total{namespace="labscientific-lims", container="lims-app"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: application
+          runbook: "https://docs.lims.local/runbooks/high-cpu"
+        annotations:
+          summary: "LIMS application high CPU usage"
+          description: "LIMS application CPU usage is {{ $value | humanizePercentage }} for pod {{ $labels.pod }}"
+          impact: "Application performance may be degraded"
+          action: "Consider scaling up or optimizing the application"
+
+      - alert: LIMSHighMemoryUsage
+        expr: container_memory_working_set_bytes{namespace="labscientific-lims", container="lims-app"} / container_spec_memory_limit_bytes{namespace="labscientific-lims", container="lims-app"} > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: application
+          runbook: "https://docs.lims.local/runbooks/high-memory"
+        annotations:
+          summary: "LIMS application high memory usage"
+          description: "LIMS application memory usage is {{ $value | humanizePercentage }} for pod {{ $labels.pod }}"
+          impact: "Application may become unstable or crash"
+          action: "Consider scaling up or optimizing memory usage"
+
+      - alert: LIMSPodCrashLooping
+        expr: rate(kube_pod_container_status_restarts_total{namespace="labscientific-lims", container="lims-app"}[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+          service: lims
+          component: application
+          runbook: "https://docs.lims.local/runbooks/crash-loop"
+        annotations:
+          summary: "LIMS application pod crash looping"
+          description: "LIMS application pod {{ $labels.pod }} has restarted {{ $value }} times in the last 15 minutes"
+          impact: "Application availability is compromised"
+          action: "Check pod logs and events immediately"
+
+      - alert: LIMSPodNotReady
+        expr: kube_pod_status_ready{condition="false", namespace="labscientific-lims", pod=~"lims-app-.*"} == 1
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: application
+          runbook: "https://docs.lims.local/runbooks/pod-not-ready"
+        annotations:
+          summary: "LIMS application pod not ready"
+          description: "LIMS application pod {{ $labels.pod }} has been not ready for more than 5 minutes"
+          impact: "Reduced application capacity"
+          action: "Check pod readiness probes and health"
+
+      # Business logic alerts
+      - alert: LIMSGeneticAnalysisFailureRate
+        expr: rate(lims_genetic_analyses_failed_total{job="lims-app"}[5m]) / rate(lims_genetic_analyses_total{job="lims-app"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: business-logic
+          runbook: "https://docs.lims.local/runbooks/genetic-analysis-failures"
+        annotations:
+          summary: "High genetic analysis failure rate"
+          description: "Genetic analysis failure rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+          impact: "Laboratory operations may be affected"
+          action: "Check genetic analysis processing and OSIRIS integration"
+
+      - alert: LIMSSampleProcessingBacklog
+        expr: lims_samples_pending_total{job="lims-app"} > 100
+        for: 10m
+        labels:
+          severity: warning
+          service: lims
+          component: business-logic
+          runbook: "https://docs.lims.local/runbooks/sample-backlog"
+        annotations:
+          summary: "High sample processing backlog"
+          description: "There are {{ $value }} samples pending processing"
+          impact: "Sample processing may be delayed"
+          action: "Check sample processing queues and worker capacity"
+
+      - alert: LIMSBatchProcessingStalled
+        expr: time() - lims_last_batch_processed_timestamp{job="lims-app"} > 3600
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: business-logic
+          runbook: "https://docs.lims.local/runbooks/batch-processing-stalled"
+        annotations:
+          summary: "Batch processing appears stalled"
+          description: "No batches have been processed for {{ $value | humanizeDuration }}"
+          impact: "Laboratory workflow may be affected"
+          action: "Check batch processing workers and queues"
+
+  lims-database.yml: |
+    groups:
+    - name: lims.database
+      rules:
+      # PostgreSQL alerts
+      - alert: PostgreSQLDown
+        expr: pg_up{job="postgresql"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: lims
+          component: database
+          runbook: "https://docs.lims.local/runbooks/postgres-down"
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "PostgreSQL database {{ $labels.instance }} has been down for more than 1 minute"
+          impact: "Application cannot access the database"
+          action: "Check database pod status and logs immediately"
+
+      - alert: PostgreSQLHighConnections
+        expr: pg_stat_database_numbackends{job="postgresql"} / pg_settings_max_connections{job="postgresql"} > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: database
+          runbook: "https://docs.lims.local/runbooks/postgres-high-connections"
+        annotations:
+          summary: "PostgreSQL high connection usage"
+          description: "PostgreSQL connection usage is {{ $value | humanizePercentage }} for database {{ $labels.datname }}"
+          impact: "New connections may be rejected"
+          action: "Check connection pool settings and application connection management"
+
+      - alert: PostgreSQLSlowQueries
+        expr: pg_stat_statements_mean_time_ms{job="postgresql"} > 5000
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: database
+          runbook: "https://docs.lims.local/runbooks/postgres-slow-queries"
+        annotations:
+          summary: "PostgreSQL slow queries detected"
+          description: "PostgreSQL query {{ $labels.query }} has mean execution time of {{ $value }}ms"
+          impact: "Application performance may be degraded"
+          action: "Analyze and optimize slow queries"
+
+      - alert: PostgreSQLHighDiskUsage
+        expr: pg_database_size_bytes{job="postgresql"} / (pg_database_size_bytes{job="postgresql"} + pg_available_space_bytes{job="postgresql"}) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: database
+          runbook: "https://docs.lims.local/runbooks/postgres-disk-usage"
+        annotations:
+          summary: "PostgreSQL high disk usage"
+          description: "PostgreSQL disk usage is {{ $value | humanizePercentage }} for database {{ $labels.datname }}"
+          impact: "Database operations may fail due to lack of space"
+          action: "Clean up old data or increase disk space"
+
+      - alert: PostgreSQLReplicationLag
+        expr: pg_replication_lag_seconds{job="postgresql"} > 60
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: database
+          runbook: "https://docs.lims.local/runbooks/postgres-replication-lag"
+        annotations:
+          summary: "PostgreSQL replication lag"
+          description: "PostgreSQL replication lag is {{ $value }}s for replica {{ $labels.instance }}"
+          impact: "Read replicas may serve stale data"
+          action: "Check replication status and network connectivity"
+
+      - alert: PostgreSQLDeadlocks
+        expr: rate(pg_stat_database_deadlocks{job="postgresql"}[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: database
+          runbook: "https://docs.lims.local/runbooks/postgres-deadlocks"
+        annotations:
+          summary: "PostgreSQL deadlocks detected"
+          description: "PostgreSQL deadlock rate is {{ $value }} per second for database {{ $labels.datname }}"
+          impact: "Some transactions may be rolled back"
+          action: "Analyze query patterns and optimize transaction logic"
+
+  lims-cache.yml: |
+    groups:
+    - name: lims.cache
+      rules:
+      # Redis alerts
+      - alert: RedisDown
+        expr: redis_up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: lims
+          component: cache
+          runbook: "https://docs.lims.local/runbooks/redis-down"
+        annotations:
+          summary: "Redis cache is down"
+          description: "Redis cache {{ $labels.instance }} has been down for more than 1 minute"
+          impact: "Application performance may be degraded"
+          action: "Check Redis pod status and logs immediately"
+
+      - alert: RedisHighMemoryUsage
+        expr: redis_memory_used_bytes{job="redis"} / redis_memory_max_bytes{job="redis"} > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: cache
+          runbook: "https://docs.lims.local/runbooks/redis-high-memory"
+        annotations:
+          summary: "Redis high memory usage"
+          description: "Redis memory usage is {{ $value | humanizePercentage }} for instance {{ $labels.instance }}"
+          impact: "Cache operations may fail"
+          action: "Check cache expiration policies and memory configuration"
+
+      - alert: RedisHighConnections
+        expr: redis_connected_clients{job="redis"} > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: cache
+          runbook: "https://docs.lims.local/runbooks/redis-high-connections"
+        annotations:
+          summary: "Redis high connection count"
+          description: "Redis has {{ $value }} connected clients for instance {{ $labels.instance }}"
+          impact: "New connections may be rejected"
+          action: "Check application connection management"
+
+      - alert: RedisHighKeyspaceHitRate
+        expr: redis_keyspace_hits_total{job="redis"} / (redis_keyspace_hits_total{job="redis"} + redis_keyspace_misses_total{job="redis"}) < 0.9
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: cache
+          runbook: "https://docs.lims.local/runbooks/redis-low-hit-rate"
+        annotations:
+          summary: "Redis low cache hit rate"
+          description: "Redis cache hit rate is {{ $value | humanizePercentage }} for instance {{ $labels.instance }}"
+          impact: "Cache effectiveness is reduced"
+          action: "Review caching strategy and key expiration policies"
+
+      - alert: RedisSlowQueries
+        expr: redis_slowlog_length{job="redis"} > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: cache
+          runbook: "https://docs.lims.local/runbooks/redis-slow-queries"
+        annotations:
+          summary: "Redis slow queries detected"
+          description: "Redis has {{ $value }} slow queries in the slowlog for instance {{ $labels.instance }}"
+          impact: "Cache performance may be degraded"
+          action: "Analyze slow queries and optimize Redis operations"
+
+  lims-kubernetes.yml: |
+    groups:
+    - name: lims.kubernetes
+      rules:
+      # Kubernetes cluster alerts
+      - alert: KubernetesNodeNotReady
+        expr: kube_node_status_condition{condition="Ready", status="true"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: kubernetes
+          runbook: "https://docs.lims.local/runbooks/node-not-ready"
+        annotations:
+          summary: "Kubernetes node not ready"
+          description: "Kubernetes node {{ $labels.node }} has been not ready for more than 5 minutes"
+          impact: "Reduced cluster capacity"
+          action: "Check node status and logs"
+
+      - alert: KubernetesMemoryPressure
+        expr: kube_node_status_condition{condition="MemoryPressure", status="true"} == 1
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: kubernetes
+          runbook: "https://docs.lims.local/runbooks/memory-pressure"
+        annotations:
+          summary: "Kubernetes node memory pressure"
+          description: "Kubernetes node {{ $labels.node }} is experiencing memory pressure"
+          impact: "Pods may be evicted"
+          action: "Check node resource usage and consider scaling"
+
+      - alert: KubernetesDiskPressure
+        expr: kube_node_status_condition{condition="DiskPressure", status="true"} == 1
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: kubernetes
+          runbook: "https://docs.lims.local/runbooks/disk-pressure"
+        annotations:
+          summary: "Kubernetes node disk pressure"
+          description: "Kubernetes node {{ $labels.node }} is experiencing disk pressure"
+          impact: "Pods may be evicted"
+          action: "Check node disk usage and clean up if necessary"
+
+      - alert: KubernetesPodPending
+        expr: kube_pod_status_phase{phase="Pending", namespace="labscientific-lims"} == 1
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: kubernetes
+          runbook: "https://docs.lims.local/runbooks/pod-pending"
+        annotations:
+          summary: "Kubernetes pod pending"
+          description: "Kubernetes pod {{ $labels.pod }} has been pending for more than 5 minutes"
+          impact: "Reduced application capacity"
+          action: "Check pod events and resource availability"
+
+      - alert: KubernetesHPAMaxedOut
+        expr: kube_hpa_status_current_replicas{namespace="labscientific-lims"} == kube_hpa_spec_max_replicas{namespace="labscientific-lims"}
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: kubernetes
+          runbook: "https://docs.lims.local/runbooks/hpa-maxed-out"
+        annotations:
+          summary: "HPA has reached maximum replicas"
+          description: "HPA {{ $labels.hpa }} has reached maximum replicas ({{ $value }})"
+          impact: "Cannot scale further to handle increased load"
+          action: "Consider increasing HPA maximum replicas or cluster capacity"
+
+      - alert: KubernetesPVCPending
+        expr: kube_persistentvolumeclaim_status_phase{phase="Pending", namespace="labscientific-lims"} == 1
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: kubernetes
+          runbook: "https://docs.lims.local/runbooks/pvc-pending"
+        annotations:
+          summary: "PVC pending"
+          description: "PVC {{ $labels.persistentvolumeclaim }} has been pending for more than 5 minutes"
+          impact: "Pods may not start due to storage issues"
+          action: "Check storage class and available storage"
+
+  lims-network.yml: |
+    groups:
+    - name: lims.network
+      rules:
+      # Network and ingress alerts
+      - alert: IngressHighLatency
+        expr: histogram_quantile(0.95, rate(nginx_ingress_controller_request_duration_seconds_bucket{ingress=~"lims.*"}[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: ingress
+          runbook: "https://docs.lims.local/runbooks/ingress-high-latency"
+        annotations:
+          summary: "Ingress high latency"
+          description: "Ingress {{ $labels.ingress }} has 95th percentile latency of {{ $value }}s"
+          impact: "Users may experience slow response times"
+          action: "Check ingress controller and backend service performance"
+
+      - alert: IngressHighErrorRate
+        expr: rate(nginx_ingress_controller_requests_total{ingress=~"lims.*", status=~"5.."}[5m]) / rate(nginx_ingress_controller_requests_total{ingress=~"lims.*"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: lims
+          component: ingress
+          runbook: "https://docs.lims.local/runbooks/ingress-high-error-rate"
+        annotations:
+          summary: "Ingress high error rate"
+          description: "Ingress {{ $labels.ingress }} has error rate of {{ $value | humanizePercentage }}"
+          impact: "Users may experience errors when accessing the application"
+          action: "Check ingress controller logs and backend service health"
+
+      - alert: IngressCertificateExpiry
+        expr: (nginx_ingress_controller_ssl_expire_time_seconds{ingress=~"lims.*"} - time()) / 86400 < 30
+        for: 1h
+        labels:
+          severity: warning
+          service: lims
+          component: ingress
+          runbook: "https://docs.lims.local/runbooks/certificate-expiry"
+        annotations:
+          summary: "SSL certificate expiring soon"
+          description: "SSL certificate for {{ $labels.ingress }} expires in {{ $value }} days"
+          impact: "Users may encounter SSL warnings"
+          action: "Renew SSL certificate"
+
+      - alert: NetworkPolicyViolation
+        expr: rate(networkpolicy_drop_count_total{namespace="labscientific-lims"}[5m]) > 0
+        for: 5m
+        labels:
+          severity: info
+          service: lims
+          component: network
+          runbook: "https://docs.lims.local/runbooks/network-policy-violation"
+        annotations:
+          summary: "Network policy violations detected"
+          description: "{{ $value }} network policy violations per second in namespace {{ $labels.namespace }}"
+          impact: "Security policies are being enforced"
+          action: "Review network policy violations and adjust if necessary"
