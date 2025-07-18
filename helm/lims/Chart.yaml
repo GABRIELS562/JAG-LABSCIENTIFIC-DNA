@@ -1,0 +1,33 @@
+apiVersion: v2
+name: lims
+description: A Helm chart for LabScientific LIMS Application
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - lims
+  - laboratory
+  - dna-analysis
+  - paternity-testing
+home: https://github.com/GABRIELS562/LABSCIENTIFIC-LIMS
+sources:
+  - https://github.com/GABRIELS562/LABSCIENTIFIC-LIMS
+maintainers:
+  - name: DevOps Team
+    email: devops@labscientific.com
+dependencies:
+  - name: postgresql
+    version: "12.1.9"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: redis
+    version: "17.3.7"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+  - name: nginx
+    version: "13.2.10"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: nginx.enabled
+annotations:
+  category: Database
+  licenses: Apache-2.0

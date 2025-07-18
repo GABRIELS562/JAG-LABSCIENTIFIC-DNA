@@ -13,12 +13,14 @@ This branch demonstrates comprehensive DevOps skills implementation for the LabS
 - **Cron & Scheduling**: Automated tasks and system maintenance
 
 ### Certified Kubernetes Administrator (CKA)
-- **Cluster Management**: Multi-node cluster setup, RBAC, network policies
-- **Workload Management**: Deployments, StatefulSets, DaemonSets
-- **Storage**: PersistentVolumes, StorageClasses, data persistence
-- **Networking**: Service mesh, ingress controllers, DNS configuration
-- **Security**: Pod security policies, secrets management, network isolation
-- **Troubleshooting**: Debugging applications, cluster diagnostics
+- **Cluster Management**: Multi-node cluster setup, kubeadm initialization, cluster upgrades
+- **RBAC & Security**: Role-based access control, pod security policies, network policies
+- **Workload Management**: Deployments, StatefulSets, DaemonSets, rolling updates
+- **Storage**: PersistentVolumes, StorageClasses, data persistence, backup strategies
+- **Networking**: CNI plugins, service mesh, ingress controllers, DNS configuration
+- **Security**: Pod security standards, admission controllers, OPA Gatekeeper
+- **Troubleshooting**: Debugging applications, cluster diagnostics, log analysis
+- **Monitoring**: Resource quotas, limits, horizontal/vertical pod autoscaling
 
 ### Terraform Associate Certification
 - **Infrastructure as Code**: Modular terraform configurations
@@ -81,9 +83,8 @@ devops-showcase/
 │   │   ├── logrotate-setup.sh    # Log rotation
 │   │   └── network-diagnostics.sh # Network troubleshooting
 │   ├── kubernetes/               # CKA Skills
-│   │   ├── cluster-setup.sh      # Cluster initialization
-│   │   ├── rbac-setup.sh         # Role-based access control
-│   │   └── network-policies.sh   # Network security
+│   │   ├── cluster-setup.sh      # Cluster initialization & management
+│   │   └── troubleshooting.sh    # Cluster diagnostics & debugging
 │   ├── terraform/                # Terraform Associate
 │   │   ├── modules/              # Reusable modules
 │   │   ├── environments/         # Environment configs
@@ -92,10 +93,22 @@ devops-showcase/
 │       ├── gitlab-ci.yml         # GitLab CI/CD
 │       ├── jenkinsfile          # Jenkins Pipeline
 │       └── github-actions.yml    # GitHub Actions
-├── k8s/                          # Kubernetes Manifests
-│   ├── base/                     # Base configurations
-│   ├── overlays/                 # Environment overlays
-│   └── operators/                # Custom operators
+├── k8s/                          # Kubernetes Manifests (CKA Skills)
+│   ├── configmap.yaml            # Application configuration
+│   ├── deployment.yaml           # Application deployments
+│   ├── rbac.yaml                 # Role-based access control
+│   ├── network-policies.yaml     # Network security policies
+│   ├── pod-security-policies.yaml # Pod security enforcement
+│   ├── service.yaml              # Service definitions
+│   ├── ingress.yaml              # Ingress controllers
+│   └── hpa.yaml                  # Horizontal pod autoscaling
+├── helm/                         # Helm Charts (CKA Skills)
+│   └── lims/                     # LIMS Helm chart
+│       ├── Chart.yaml            # Chart metadata
+│       ├── values.yaml           # Default values
+│       └── templates/            # Kubernetes templates
+│           ├── deployment.yaml   # Deployment template
+│           └── _helpers.tpl      # Template helpers
 ├── monitoring/                   # Observability Stack
 │   ├── prometheus/               # Prometheus configs
 │   ├── grafana/                  # Grafana dashboards

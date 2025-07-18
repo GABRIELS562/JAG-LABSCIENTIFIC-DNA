@@ -1,0 +1,223 @@
+---
+# RBAC Configuration for LIMS Application - CKA Skills Demonstration
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: lims-service-account
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: rbac
+  annotations:
+    description: "Service account for LIMS application with minimal required permissions"
+
+---
+# ClusterRole for LIMS application operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: lims-cluster-role
+  labels:
+    app: labscientific-lims
+    component: rbac
+rules:
+# Pod management permissions
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods/status"]
+  verbs: ["get"]
+
+# Service and endpoint permissions
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+
+# ConfigMap and Secret permissions (read-only)
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch"]
+
+# Deployment permissions for self-management
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "patch"]
+- apiGroups: ["apps"]
+  resources: ["deployments/scale"]
+  verbs: ["get", "patch"]
+
+# Event permissions for monitoring
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["get", "list", "watch"]
+
+---
+# Role for namespace-specific operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: lims-role
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: rbac
+rules:
+# Full access to own namespace resources
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints", "configmaps"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Secret management in own namespace
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+
+# PVC management
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+
+# Job and CronJob management for backup operations
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+# ClusterRoleBinding for cluster-wide permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: lims-cluster-role-binding
+  labels:
+    app: labscientific-lims
+    component: rbac
+subjects:
+- kind: ServiceAccount
+  name: lims-service-account
+  namespace: labscientific-lims
+roleRef:
+  kind: ClusterRole
+  name: lims-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# RoleBinding for namespace-specific permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: lims-role-binding
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: rbac
+subjects:
+- kind: ServiceAccount
+  name: lims-service-account
+  namespace: labscientific-lims
+roleRef:
+  kind: Role
+  name: lims-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Admin ServiceAccount for cluster management
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: lims-admin-service-account
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: admin
+  annotations:
+    description: "Admin service account for LIMS cluster administration"
+
+---
+# ClusterRole for admin operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: lims-admin-cluster-role
+  labels:
+    app: labscientific-lims
+    component: admin
+rules:
+# Full cluster administration
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["*"]
+
+---
+# ClusterRoleBinding for admin
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: lims-admin-cluster-role-binding
+  labels:
+    app: labscientific-lims
+    component: admin
+subjects:
+- kind: ServiceAccount
+  name: lims-admin-service-account
+  namespace: labscientific-lims
+roleRef:
+  kind: ClusterRole
+  name: lims-admin-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Read-only ServiceAccount for monitoring
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: lims-monitoring-service-account
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: monitoring
+  annotations:
+    description: "Monitoring service account with read-only cluster access"
+
+---
+# ClusterRole for monitoring (read-only)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: lims-monitoring-cluster-role
+  labels:
+    app: labscientific-lims
+    component: monitoring
+rules:
+# Read-only access to all resources
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Metrics access
+- nonResourceURLs: ["/metrics", "/metrics/*"]
+  verbs: ["get"]
+
+---
+# ClusterRoleBinding for monitoring
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: lims-monitoring-cluster-role-binding
+  labels:
+    app: labscientific-lims
+    component: monitoring
+subjects:
+- kind: ServiceAccount
+  name: lims-monitoring-service-account
+  namespace: labscientific-lims
+roleRef:
+  kind: ClusterRole
+  name: lims-monitoring-cluster-role
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,432 @@
+---
+# Network Policies for LIMS Application - CKA Skills Demonstration
+# These policies implement micro-segmentation and zero-trust networking
+
+# Default deny all traffic policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lims-default-deny-all
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+
+---
+# Allow traffic to LIMS application from ingress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lims-app-ingress
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: labscientific-lims
+      component: app
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow traffic from nginx ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    - podSelector:
+        matchLabels:
+          app: nginx
+          component: nginx
+    ports:
+    - protocol: TCP
+      port: 3000
+    - protocol: TCP
+      port: 3001
+  
+  # Allow traffic from within the same namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: labscientific-lims
+    ports:
+    - protocol: TCP
+      port: 3000
+    - protocol: TCP
+      port: 3001
+
+  # Allow traffic from monitoring namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 3001
+
+---
+# Allow LIMS application to communicate with database
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lims-app-to-database
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: labscientific-lims
+      component: app
+  policyTypes:
+  - Egress
+  egress:
+  # Allow connection to PostgreSQL
+  - to:
+    - podSelector:
+        matchLabels:
+          app: labscientific-lims
+          component: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Allow connection to Redis
+  - to:
+    - podSelector:
+        matchLabels:
+          app: labscientific-lims
+          component: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+
+---
+# Allow database to receive connections from app
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lims-database-ingress
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: labscientific-lims
+      component: postgres
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow connections from LIMS application
+  - from:
+    - podSelector:
+        matchLabels:
+          app: labscientific-lims
+          component: app
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Allow connections from backup jobs
+  - from:
+    - podSelector:
+        matchLabels:
+          app: labscientific-lims
+          component: backup
+    ports:
+    - protocol: TCP
+      port: 5432
+
+---
+# Allow Redis to receive connections from app
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lims-redis-ingress
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: labscientific-lims
+      component: redis
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow connections from LIMS application
+  - from:
+    - podSelector:
+        matchLabels:
+          app: labscientific-lims
+          component: app
+    ports:
+    - protocol: TCP
+      port: 6379
+  
+  # Allow connections from queue workers
+  - from:
+    - podSelector:
+        matchLabels:
+          app: labscientific-lims
+          component: queue-worker
+    ports:
+    - protocol: TCP
+      port: 6379
+
+---
+# Allow monitoring access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lims-monitoring-access
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: labscientific-lims
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow Prometheus to scrape metrics
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    - podSelector:
+        matchLabels:
+          app: prometheus
+    ports:
+    - protocol: TCP
+      port: 3001
+    - protocol: TCP
+      port: 9090
+
+---
+# Allow DNS resolution and external communication
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lims-dns-and-external
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: labscientific-lims
+  policyTypes:
+  - Egress
+  egress:
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  
+  # Allow HTTPS for external API calls
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  
+  # Allow HTTP for external API calls
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 80
+  
+  # Allow access to Kubernetes API server
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 6443
+
+---
+# Allow backup operations
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lims-backup-access
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: labscientific-lims
+      component: backup
+  policyTypes:
+  - Egress
+  egress:
+  # Allow backup to access database
+  - to:
+    - podSelector:
+        matchLabels:
+          app: labscientific-lims
+          component: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Allow backup to access external storage (S3, etc.)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+
+---
+# Allow inter-namespace communication for monitoring
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lims-monitoring-inter-namespace
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow monitoring from system namespaces
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+
+---
+# Calico-specific network policy for advanced features
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: lims-calico-advanced-policy
+  namespace: labscientific-lims
+  labels:
+    app: labscientific-lims
+    component: network-policy
+spec:
+  selector: app == "labscientific-lims"
+  types:
+  - Ingress
+  - Egress
+  
+  # Advanced ingress rules with IP ranges
+  ingress:
+  - action: Allow
+    source:
+      nets:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+    destination:
+      ports:
+      - 3000
+      - 3001
+  
+  # Rate limiting (if supported by CNI)
+  - action: Allow
+    source:
+      selector: app == "nginx"
+    destination:
+      ports:
+      - 3000
+    metadata:
+      annotations:
+        rate-limit: "100/s"
+  
+  # Advanced egress rules
+  egress:
+  - action: Allow
+    destination:
+      nets:
+      - 0.0.0.0/0
+    protocol: TCP
+    destination:
+      ports:
+      - 53
+      - 80
+      - 443
+  
+  # Allow specific database communication
+  - action: Allow
+    destination:
+      selector: app == "labscientific-lims" && component == "postgres"
+    protocol: TCP
+    destination:
+      ports:
+      - 5432
+
+---
+# Global network policy for security
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: lims-global-security-policy
+  labels:
+    app: labscientific-lims
+    component: network-policy
+spec:
+  # Apply to all namespaces with LIMS label
+  namespaceSelector: name == "labscientific-lims"
+  
+  # Default deny with specific allows
+  types:
+  - Ingress
+  - Egress
+  
+  # Allow essential system traffic
+  egress:
+  - action: Allow
+    destination:
+      nets:
+      - 169.254.169.254/32  # AWS metadata service
+    protocol: TCP
+    destination:
+      ports:
+      - 80
+  
+  # Block suspicious outbound traffic
+  egress:
+  - action: Deny
+    destination:
+      nets:
+      - 0.0.0.0/0
+    protocol: TCP
+    destination:
+      ports:
+      - 22    # SSH
+      - 23    # Telnet
+      - 135   # RPC
+      - 139   # NetBIOS
+      - 445   # SMB
+      - 1433  # SQL Server
+      - 3389  # RDP

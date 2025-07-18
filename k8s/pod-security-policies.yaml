@@ -1,0 +1,334 @@
+---
+# Pod Security Policies for LIMS Application - CKA Skills Demonstration
+# These policies enforce security standards for container deployments
+
+# Restrictive Pod Security Policy for LIMS application
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: lims-restricted-psp
+  labels:
+    app: labscientific-lims
+    component: security
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: 'docker/default,runtime/default'
+    apparmor.security.beta.kubernetes.io/allowedProfileNames: 'runtime/default'
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: 'runtime/default'
+    apparmor.security.beta.kubernetes.io/defaultProfileName: 'runtime/default'
+spec:
+  # Security context constraints
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  allowedCapabilities: []
+  
+  # Volume restrictions
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+  
+  # Host restrictions
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  hostPorts:
+  - min: 0
+    max: 0
+  
+  # Run as non-root user
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  runAsGroup:
+    rule: 'MustRunAs'
+    ranges:
+    - min: 1
+      max: 65535
+  
+  # Filesystem restrictions
+  fsGroup:
+    rule: 'RunAsAny'
+  readOnlyRootFilesystem: false
+  
+  # SELinux
+  seLinux:
+    rule: 'RunAsAny'
+  
+  # Supplemental groups
+  supplementalGroups:
+    rule: 'MustRunAs'
+    ranges:
+    - min: 1
+      max: 65535
+
+---
+# Privileged Pod Security Policy for system components
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: lims-privileged-psp
+  labels:
+    app: labscientific-lims
+    component: security
+spec:
+  privileged: true
+  allowPrivilegeEscalation: true
+  allowedCapabilities:
+    - '*'
+  volumes:
+    - '*'
+  hostNetwork: true
+  hostPorts:
+  - min: 0
+    max: 65535
+  hostIPC: true
+  hostPID: true
+  runAsUser:
+    rule: 'RunAsAny'
+  seLinux:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+
+---
+# ClusterRole for restricted PSP
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: lims-restricted-psp-user
+  labels:
+    app: labscientific-lims
+    component: security
+rules:
+- apiGroups: ['policy']
+  resources: ['podsecuritypolicies']
+  verbs: ['use']
+  resourceNames:
+  - lims-restricted-psp
+
+---
+# ClusterRole for privileged PSP
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: lims-privileged-psp-user
+  labels:
+    app: labscientific-lims
+    component: security
+rules:
+- apiGroups: ['policy']
+  resources: ['podsecuritypolicies']
+  verbs: ['use']
+  resourceNames:
+  - lims-privileged-psp
+
+---
+# ClusterRoleBinding for restricted PSP (default for LIMS)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: lims-restricted-psp-binding
+  labels:
+    app: labscientific-lims
+    component: security
+roleRef:
+  kind: ClusterRole
+  name: lims-restricted-psp-user
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: lims-service-account
+  namespace: labscientific-lims
+- kind: Group
+  name: system:serviceaccounts:labscientific-lims
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ClusterRoleBinding for privileged PSP (admin only)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: lims-privileged-psp-binding
+  labels:
+    app: labscientific-lims
+    component: security
+roleRef:
+  kind: ClusterRole
+  name: lims-privileged-psp-user
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: lims-admin-service-account
+  namespace: labscientific-lims
+
+---
+# Pod Security Standards (PSS) - Kubernetes 1.23+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: labscientific-lims-secure
+  labels:
+    app: labscientific-lims
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/enforce-version: v1.23
+    pod-security.kubernetes.io/audit-version: v1.23
+    pod-security.kubernetes.io/warn-version: v1.23
+
+---
+# Security Context Constraints for OpenShift compatibility
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: lims-scc
+  labels:
+    app: labscientific-lims
+    component: security
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegeEscalation: false
+allowPrivilegedContainer: false
+allowedCapabilities: []
+defaultAddCapabilities: []
+fsGroup:
+  type: MustRunAs
+  ranges:
+  - min: 1
+    max: 65535
+readOnlyRootFilesystem: false
+requiredDropCapabilities:
+- ALL
+runAsUser:
+  type: MustRunAsNonRoot
+seLinuxContext:
+  type: MustRunAs
+supplementalGroups:
+  type: MustRunAs
+  ranges:
+  - min: 1
+    max: 65535
+users:
+- system:serviceaccount:labscientific-lims:lims-service-account
+volumes:
+- configMap
+- downwardAPI
+- emptyDir
+- persistentVolumeClaim
+- projected
+- secret
+
+---
+# Admission Controller Policy (ValidatingAdmissionWebhook)
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionWebhook
+metadata:
+  name: lims-security-webhook
+  labels:
+    app: labscientific-lims
+    component: security
+webhooks:
+- name: security.labscientific-lims.com
+  clientConfig:
+    service:
+      name: lims-admission-webhook
+      namespace: labscientific-lims
+      path: "/validate"
+  rules:
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: [""]
+    apiVersions: ["v1"]
+    resources: ["pods"]
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: ["apps"]
+    apiVersions: ["v1"]
+    resources: ["deployments", "replicasets"]
+  namespaceSelector:
+    matchLabels:
+      name: labscientific-lims
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
+
+---
+# OPA Gatekeeper Constraint Template
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: limssecurityrequirements
+  labels:
+    app: labscientific-lims
+    component: security
+spec:
+  crd:
+    spec:
+      names:
+        kind: LimsSecurityRequirements
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            allowedImages:
+              type: array
+              items:
+                type: string
+            requiredLabels:
+              type: array
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package limssecurityrequirements
+        
+        violation[{"msg": msg}] {
+          input.review.object.kind == "Pod"
+          image := input.review.object.spec.containers[_].image
+          not starts_with(image, "ghcr.io/labscientific/")
+          msg := sprintf("Image %v is not from approved registry", [image])
+        }
+        
+        violation[{"msg": msg}] {
+          input.review.object.kind == "Pod"
+          not input.review.object.spec.securityContext.runAsNonRoot
+          msg := "Pod must run as non-root user"
+        }
+        
+        violation[{"msg": msg}] {
+          input.review.object.kind == "Pod"
+          container := input.review.object.spec.containers[_]
+          container.securityContext.privileged
+          msg := "Privileged containers are not allowed"
+        }
+
+---
+# OPA Gatekeeper Constraint
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: LimsSecurityRequirements
+metadata:
+  name: lims-security-constraints
+  labels:
+    app: labscientific-lims
+    component: security
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaces: ["labscientific-lims"]
+  parameters:
+    allowedImages:
+      - "ghcr.io/labscientific/"
+      - "postgres:15-alpine"
+      - "redis:7-alpine"
+      - "nginx:alpine"
+    requiredLabels:
+      - "app"
+      - "component"
