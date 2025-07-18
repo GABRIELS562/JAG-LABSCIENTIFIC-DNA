@@ -53,7 +53,7 @@ import {
   Warning
 } from '@mui/icons-material';
 
-import { optimizedApi } from '../../services/optimizedApi';
+import { api as optimizedApi } from '../../services/api';
 
 export default function ClientRegister() {
   const navigate = useNavigate();

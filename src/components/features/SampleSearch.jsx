@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { optimizedApi } from '../../services/optimizedApi';
+import { api as optimizedApi } from '../../services/api';
 
 export default function SampleSearch() {
   const [query, setQuery] = useState('');

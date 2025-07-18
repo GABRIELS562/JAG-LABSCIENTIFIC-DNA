@@ -2,107 +2,291 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-class DatabaseService {
+// Import utilities with fallback handling
+let logger, databaseLogger, performanceMonitor, DatabaseError;
+
+try {
+  const { globalErrorHandler } = require('../middleware/errorHandler');
+  DatabaseError = globalErrorHandler.DatabaseError || Error;
+} catch (error) {
+  DatabaseError = Error;
+}
+
+try {
+  const loggerUtils = require('../utils/logger');
+  logger = loggerUtils.logger || console;
+  databaseLogger = loggerUtils.databaseLogger || console;
+} catch (error) {
+  logger = console;
+  databaseLogger = console;
+}
+
+try {
+  const performanceUtils = require('../middleware/performanceMonitoring');
+  performanceMonitor = performanceUtils.performanceMonitor || null;
+} catch (error) {
+  performanceMonitor = null;
+}
+
+class UnifiedDatabaseService {
   constructor() {
     this.dbPath = path.join(__dirname, '..', 'database', 'ashley_lims.db');
     this.schemaPath = path.join(__dirname, '..', 'database', 'schema.sql');
     this.db = null;
+    this.isConnected = false;
+    this.preparedStatements = new Map();
+    this.transactionDepth = 0;
+    
     this.initialize();
   }
 
   initialize() {
     try {
-      // Ensure database directory exists
-      const dbDir = path.dirname(this.dbPath);
-      if (!fs.existsSync(dbDir)) {
-        fs.mkdirSync(dbDir, { recursive: true });
-      }
-
-      // Initialize database
-      this.db = new Database(this.dbPath);
-      this.db.pragma('journal_mode = WAL');
-      this.db.pragma('foreign_keys = ON');
-
-      // Create tables if they don't exist
+      this.ensureDirectoryExists();
+      this.connect();
+      this.setupPragmas();
       this.createTables();
+      this.prepareCommonStatements();
       
-      console.log('SQLite database initialized successfully at:', this.dbPath);
+      if (logger.info) {
+        logger.info('Database initialized successfully', {
+          path: this.dbPath,
+          mode: 'WAL',
+          foreignKeys: true
+        });
+      } else {
+        console.log('✅ Database initialized successfully at:', this.dbPath);
+      }
+      
+      this.isConnected = true;
     } catch (error) {
-      console.error('Error initializing database:', error);
-      throw error;
+      if (databaseLogger.error) {
+        databaseLogger.error('Database initialization failed', { error: error.message });
+      } else {
+        console.error('❌ Database initialization failed:', error);
+      }
+      throw new DatabaseError('Failed to initialize database', error);
     }
+  }
+
+  ensureDirectoryExists() {
+    const dbDir = path.dirname(this.dbPath);
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
+    }
+  }
+
+  connect() {
+    try {
+      this.db = new Database(this.dbPath);
+      this.isConnected = true;
+    } catch (error) {
+      throw new DatabaseError('Failed to connect to database', error);
+    }
+  }
+
+  setupPragmas() {
+    const pragmas = [
+      'journal_mode = WAL',
+      'foreign_keys = ON',
+      'synchronous = NORMAL',
+      'cache_size = -64000',
+      'temp_store = MEMORY'
+    ];
+
+    pragmas.forEach(pragma => {
+      try {
+        this.db.pragma(pragma);
+      } catch (error) {
+        if (logger.warn) {
+          logger.warn('Failed to apply pragma', { pragma, error: error.message });
+        }
+      }
+    });
   }
 
   createTables() {
     try {
-      const schema = fs.readFileSync(this.schemaPath, 'utf8');
-      this.db.exec(schema);
+      if (fs.existsSync(this.schemaPath)) {
+        const schema = fs.readFileSync(this.schemaPath, 'utf8');
+        this.db.exec(schema);
+      }
       
-      // Add genetic analysis schema
       const geneticSchemaPath = path.join(__dirname, '..', 'database', 'genetic-schema-sqlite.sql');
       if (fs.existsSync(geneticSchemaPath)) {
         const geneticSchema = fs.readFileSync(geneticSchemaPath, 'utf8');
         this.db.exec(geneticSchema);
-        console.log('Genetic analysis schema loaded successfully');
+        if (logger.info) {
+          logger.info('Genetic analysis schema loaded successfully');
+        }
       }
       
-      console.log('Database schema created/updated successfully');
+      if (logger.info) {
+        logger.info('Database schema created/updated successfully');
+      }
     } catch (error) {
-      console.error('Error creating database schema:', error);
-      throw error;
+      throw new DatabaseError('Failed to create database schema', error);
     }
   }
 
-  // Test Cases Methods
-  createTestCase(testCaseData) {
-    const stmt = this.db.prepare(`
-      INSERT INTO test_cases (
-        case_number, ref_kit_number, submission_date, client_type,
-        mother_present, email_contact, phone_contact, address_area, comments,
-        test_purpose, sample_type, authorized_collector, consent_type,
-        has_signatures, has_witness, witness_name, legal_declarations
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+  prepareCommonStatements() {
+    const statements = {
+      // Sample operations
+      createSample: `
+        INSERT INTO samples (
+          case_id, lab_number, name, surname, id_dob, date_of_birth,
+          place_of_birth, nationality, occupation, address, phone_number,
+          email, id_number, id_type, marital_status, ethnicity,
+          collection_date, submission_date, relation, additional_notes,
+          case_number, gender, age, sample_type, notes, status, workflow_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      
+      getSample: 'SELECT * FROM samples WHERE lab_number = ?',
+      getAllSamples: 'SELECT * FROM samples ORDER BY id DESC',
+      updateSampleWorkflow: 'UPDATE samples SET workflow_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      updateSampleBatch: 'UPDATE samples SET batch_id = ?, workflow_status = ?, lab_batch_number = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      
+      // Test case operations
+      createTestCase: `
+        INSERT INTO test_cases (
+          case_number, ref_kit_number, submission_date, client_type,
+          mother_present, email_contact, phone_contact, address_area, comments,
+          test_purpose, sample_type, authorized_collector, consent_type,
+          has_signatures, has_witness, witness_name, legal_declarations
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      
+      getTestCase: 'SELECT * FROM test_cases WHERE case_number = ?',
+      getAllTestCases: 'SELECT * FROM test_cases ORDER BY created_at DESC',
+      
+      // Batch operations
+      createBatch: `
+        INSERT INTO batches (
+          batch_number, operator, pcr_date, electro_date, 
+          settings, total_samples, plate_layout, status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `,
+      
+      getBatch: 'SELECT * FROM batches WHERE batch_number = ?',
+      getBatchById: 'SELECT * FROM batches WHERE id = ?',
+      getAllBatches: 'SELECT * FROM batches ORDER BY created_at DESC',
+      
+      // Quality control operations
+      createQualityControl: `
+        INSERT INTO quality_control (batch_id, date, control_type, result, operator, comments)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `,
+      
+      getQualityControlRecords: 'SELECT * FROM quality_control ORDER BY date DESC',
+      
+      // Equipment operations
+      getAllEquipment: 'SELECT * FROM equipment ORDER BY equipment_id',
+      updateEquipmentCalibration: 'UPDATE equipment SET last_calibration = ?, next_calibration = ? WHERE equipment_id = ?',
+      
+      // Report operations
+      createReport: `
+        INSERT INTO reports (case_id, batch_id, report_number, report_type, date_generated, status, file_path)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+      
+      getAllReports: 'SELECT * FROM reports ORDER BY date_generated DESC'
+    };
 
-    return stmt.run(
-      testCaseData.case_number,
-      testCaseData.ref_kit_number,
-      testCaseData.submission_date,
-      testCaseData.client_type,
-      testCaseData.mother_present,
-      testCaseData.email_contact,
-      testCaseData.phone_contact,
-      testCaseData.address_area,
-      testCaseData.comments,
-      testCaseData.test_purpose,
-      testCaseData.sample_type,
-      testCaseData.authorized_collector,
-      testCaseData.consent_type,
-      testCaseData.has_signatures,
-      testCaseData.has_witness,
-      testCaseData.witness_name,
-      testCaseData.legal_declarations
-    );
+    for (const [name, sql] of Object.entries(statements)) {
+      try {
+        this.preparedStatements.set(name, this.db.prepare(sql));
+      } catch (error) {
+        if (logger.warn) {
+          logger.warn('Failed to prepare statement', { name, error: error.message });
+        }
+      }
+    }
   }
 
-  getTestCase(caseNumber) {
-    const stmt = this.db.prepare('SELECT * FROM test_cases WHERE case_number = ?');
-    return stmt.get(caseNumber);
+  // Core database operations
+  execute(statementName, params = []) {
+    this.ensureConnection();
+    
+    const stmt = this.preparedStatements.get(statementName);
+    if (!stmt) {
+      throw new DatabaseError(`Prepared statement '${statementName}' not found`);
+    }
+
+    try {
+      const result = stmt.run(...params);
+      return result;
+    } catch (error) {
+      throw new DatabaseError(`Failed to execute statement '${statementName}'`, error);
+    }
   }
 
-  // Samples Methods
+  query(statementName, params = []) {
+    this.ensureConnection();
+    
+    const stmt = this.preparedStatements.get(statementName);
+    if (!stmt) {
+      throw new DatabaseError(`Prepared statement '${statementName}' not found`);
+    }
+
+    try {
+      const result = stmt.get(...params);
+      return result;
+    } catch (error) {
+      throw new DatabaseError(`Failed to execute query '${statementName}'`, error);
+    }
+  }
+
+  queryAll(statementName, params = []) {
+    this.ensureConnection();
+    
+    const stmt = this.preparedStatements.get(statementName);
+    if (!stmt) {
+      throw new DatabaseError(`Prepared statement '${statementName}' not found`);
+    }
+
+    try {
+      const results = stmt.all(...params);
+      return results;
+    } catch (error) {
+      throw new DatabaseError(`Failed to execute query all '${statementName}'`, error);
+    }
+  }
+
+  raw(sql, params = []) {
+    this.ensureConnection();
+    
+    try {
+      const stmt = this.db.prepare(sql);
+      const result = stmt.all(...params);
+      return result;
+    } catch (error) {
+      throw new DatabaseError('Failed to execute raw query', error);
+    }
+  }
+
+  transaction(fn) {
+    this.ensureConnection();
+    
+    const transaction = this.db.transaction((fn) => {
+      this.transactionDepth++;
+      
+      try {
+        const result = fn();
+        this.transactionDepth--;
+        return result;
+      } catch (error) {
+        this.transactionDepth--;
+        throw error;
+      }
+    });
+
+    return transaction(fn);
+  }
+
+  // Sample methods
   createSample(sampleData) {
-    const stmt = this.db.prepare(`
-      INSERT INTO samples (
-        case_id, lab_number, name, surname, id_dob, date_of_birth,
-        place_of_birth, nationality, occupation, address, phone_number,
-        email, id_number, id_type, marital_status, ethnicity,
-        collection_date, submission_date, relation, additional_notes,
-        case_number, gender, age, sample_type, notes, status, workflow_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    return stmt.run(
+    return this.execute('createSample', [
       sampleData.case_id,
       sampleData.lab_number,
       sampleData.name,
@@ -130,25 +314,28 @@ class DatabaseService {
       sampleData.notes,
       sampleData.status || 'active',
       sampleData.workflow_status || 'sample_collected'
-    );
+    ]);
   }
 
   getSample(labNumber) {
-    const stmt = this.db.prepare('SELECT * FROM samples WHERE lab_number = ?');
-    return stmt.get(labNumber);
+    return this.query('getSample', [labNumber]);
   }
 
-  updateSampleBatch(sampleId, batchId, status = 'processing') {
-    const stmt = this.db.prepare(`
-      UPDATE samples 
-      SET batch_id = ?, status = ?, updated_at = CURRENT_TIMESTAMP 
-      WHERE id = ?
-    `);
-    return stmt.run(batchId, status, sampleId);
+  getAllSamples() {
+    return this.queryAll('getAllSamples');
+  }
+
+  updateSampleBatch(sampleId, batchId, workflowStatus, batchNumber) {
+    return this.execute('updateSampleBatch', [batchId, workflowStatus, batchNumber, sampleId]);
+  }
+
+  updateSampleWorkflowStatus(sampleId, workflowStatus) {
+    return this.execute('updateSampleWorkflow', [workflowStatus, sampleId]);
   }
 
   searchSamples(query) {
-    const stmt = this.db.prepare(`
+    const searchTerm = `%${query}%`;
+    return this.raw(`
       SELECT s.*, tc.case_number FROM samples s
       LEFT JOIN test_cases tc ON s.case_id = tc.id
       WHERE s.lab_number LIKE ? 
@@ -165,76 +352,145 @@ class DatabaseService {
           ELSE 4
         END ASC
       LIMIT 100
-    `);
-    const searchTerm = `%${query}%`;
-    return stmt.all(searchTerm, searchTerm, searchTerm, searchTerm);
+    `, [searchTerm, searchTerm, searchTerm, searchTerm]);
   }
 
-  getAllSamples() {
-    const stmt = this.db.prepare(`
-      SELECT s.*, b.batch_number
-      FROM samples s
-      LEFT JOIN batches b ON s.batch_id = b.id
-      ORDER BY 
-        s.case_number ASC,
-        CAST(SUBSTR(s.lab_number, INSTR(s.lab_number, '_') + 1) AS INTEGER) ASC,
-        CASE s.relation
-          WHEN 'child' THEN 1
-          WHEN 'alleged_father' THEN 2
-          WHEN 'mother' THEN 3
-          ELSE 4
-        END ASC
-    `);
-    return stmt.all();
+  getSamplesWithPagination(page = 1, limit = 50, filters = {}) {
+    const offset = (page - 1) * limit;
+    let whereClause = '';
+    let params = [];
+    
+    const conditions = [];
+    if (filters.status && filters.status !== 'all') {
+      switch (filters.status) {
+        case 'pending':
+          conditions.push("workflow_status IN ('sample_collected', 'pcr_ready') AND batch_id IS NULL");
+          break;
+        case 'pcr_batched':
+          conditions.push("(workflow_status = 'pcr_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'LDS_%'))");
+          break;
+        case 'electro_batched':
+          conditions.push("(workflow_status = 'electro_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'ELEC_%'))");
+          break;
+        case 'rerun_batched':
+          conditions.push("(workflow_status = 'rerun_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE '%_RR'))");
+          break;
+        case 'completed':
+          conditions.push("workflow_status IN ('analysis_completed')");
+          break;
+        default:
+          conditions.push('status = ?');
+          params.push(filters.status);
+      }
+    }
+    
+    if (filters.search) {
+      conditions.push('(lab_number LIKE ? OR name LIKE ? OR surname LIKE ?)');
+      const searchTerm = `%${filters.search}%`;
+      params.push(searchTerm, searchTerm, searchTerm);
+    }
+    
+    if (conditions.length > 0) {
+      whereClause = 'WHERE ' + conditions.join(' AND ');
+    }
+    
+    const countQuery = `SELECT COUNT(*) as total FROM samples ${whereClause}`;
+    const total = this.db.prepare(countQuery).get(...params).total;
+    
+    const dataQuery = `
+      SELECT 
+        id, lab_number, name, surname, relation, status, 
+        collection_date, workflow_status, case_number, batch_id, lab_batch_number
+      FROM samples 
+      ${whereClause}
+      ORDER BY lab_number ASC 
+      LIMIT ? OFFSET ?
+    `;
+    
+    params.push(limit, offset);
+    const samples = this.db.prepare(dataQuery).all(...params);
+    
+    return {
+      data: samples,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    };
   }
 
-  getSamplesWithBatchingStatus() {
-    const stmt = this.db.prepare(`
-      SELECT s.*, tc.case_number, b.batch_number,
-             CASE 
-               WHEN s.batch_id IS NOT NULL THEN 'batched'
-               WHEN s.status = 'pending' THEN 'to_be_batched'
-               ELSE 'not_applicable'
-             END as batch_status
-      FROM samples s
-      LEFT JOIN test_cases tc ON s.case_id = tc.id
-      LEFT JOIN batches b ON s.batch_id = b.id
-      ORDER BY 
-        tc.case_number ASC,
-        CAST(SUBSTR(s.lab_number, INSTR(s.lab_number, '_') + 1) AS INTEGER) ASC,
-        CASE s.relation
-          WHEN 'Child' THEN 1
-          WHEN 'Alleged Father' THEN 2
-          WHEN 'Mother' THEN 3
-          ELSE 4
-        END ASC
-    `);
-    return stmt.all();
+  getSampleCounts() {
+    return this.raw(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'active' THEN 1 END) as active,
+        COUNT(CASE WHEN workflow_status IN ('sample_collected', 'pcr_ready') AND batch_id IS NULL THEN 1 END) as pending,
+        COUNT(CASE WHEN workflow_status = 'pcr_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'LDS_%' AND lab_batch_number NOT LIKE '%_RR') THEN 1 END) as pcrBatched,
+        COUNT(CASE WHEN workflow_status = 'electro_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'ELEC_%') THEN 1 END) as electroBatched,
+        COUNT(CASE WHEN workflow_status = 'rerun_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE '%_RR') THEN 1 END) as rerunBatched,
+        COUNT(CASE WHEN workflow_status IN ('analysis_completed') THEN 1 END) as completed,
+        COUNT(CASE WHEN workflow_status IN ('pcr_batched', 'pcr_completed') THEN 1 END) as processing
+      FROM samples
+    `)[0];
   }
 
-  // Batches Methods
+  // Test case methods
+  createTestCase(testCaseData) {
+    return this.execute('createTestCase', [
+      testCaseData.case_number,
+      testCaseData.ref_kit_number,
+      testCaseData.submission_date,
+      testCaseData.client_type,
+      testCaseData.mother_present,
+      testCaseData.email_contact,
+      testCaseData.phone_contact,
+      testCaseData.address_area,
+      testCaseData.comments,
+      testCaseData.test_purpose,
+      testCaseData.sample_type,
+      testCaseData.authorized_collector,
+      testCaseData.consent_type,
+      testCaseData.has_signatures,
+      testCaseData.has_witness,
+      testCaseData.witness_name,
+      testCaseData.legal_declarations
+    ]);
+  }
+
+  getTestCase(caseNumber) {
+    return this.query('getTestCase', [caseNumber]);
+  }
+
+  getAllTestCases() {
+    return this.queryAll('getAllTestCases');
+  }
+
+  // Batch methods
   createBatch(batchData) {
-    const stmt = this.db.prepare(`
-      INSERT INTO batches (
-        batch_number, operator, pcr_date, electro_date, 
-        settings, total_samples, plate_layout
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    return stmt.run(
+    return this.execute('createBatch', [
       batchData.batch_number,
       batchData.operator,
       batchData.pcr_date,
       batchData.electro_date,
       batchData.settings,
       batchData.total_samples,
-      JSON.stringify(batchData.plate_layout)
-    );
+      JSON.stringify(batchData.plate_layout),
+      batchData.status || 'active'
+    ]);
   }
 
   getBatch(batchNumber) {
-    const stmt = this.db.prepare('SELECT * FROM batches WHERE batch_number = ?');
-    const batch = stmt.get(batchNumber);
+    const batch = this.query('getBatch', [batchNumber]);
+    if (batch && batch.plate_layout) {
+      batch.plate_layout = JSON.parse(batch.plate_layout);
+    }
+    return batch;
+  }
+
+  getBatchById(batchId) {
+    const batch = this.query('getBatchById', [batchId]);
     if (batch && batch.plate_layout) {
       batch.plate_layout = JSON.parse(batch.plate_layout);
     }
@@ -242,8 +498,7 @@ class DatabaseService {
   }
 
   getAllBatches() {
-    const stmt = this.db.prepare('SELECT * FROM batches ORDER BY created_at DESC');
-    const batches = stmt.all();
+    const batches = this.queryAll('getAllBatches');
     return batches.map(batch => {
       if (batch.plate_layout) {
         batch.plate_layout = JSON.parse(batch.plate_layout);
@@ -252,91 +507,38 @@ class DatabaseService {
     });
   }
 
-  // Well Assignments Methods
-  createWellAssignment(wellData) {
-    const stmt = this.db.prepare(`
-      INSERT INTO well_assignments (
-        batch_id, well_position, sample_id, well_type,
-        kit_number, sample_name, comment
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    return stmt.run(
-      wellData.batch_id,
-      wellData.well_position,
-      wellData.sample_id,
-      wellData.well_type,
-      wellData.kit_number,
-      wellData.sample_name,
-      wellData.comment
-    );
-  }
-
-  getWellAssignments(batchId) {
-    const stmt = this.db.prepare(`
-      SELECT wa.*, s.name as sample_name_full, s.surname 
-      FROM well_assignments wa
-      LEFT JOIN samples s ON wa.sample_id = s.id
-      WHERE wa.batch_id = ?
-      ORDER BY wa.well_position
-    `);
-    return stmt.all(batchId);
-  }
-
-  // Quality Control Methods
+  // Quality control methods
   createQualityControl(qcData) {
-    const stmt = this.db.prepare(`
-      INSERT INTO quality_control (
-        batch_id, date, control_type, result, operator, comments
-      ) VALUES (?, ?, ?, ?, ?, ?)
-    `);
-
-    return stmt.run(
+    return this.execute('createQualityControl', [
       qcData.batch_id,
       qcData.date,
       qcData.control_type,
       qcData.result,
       qcData.operator,
       qcData.comments
-    );
+    ]);
   }
 
   getQualityControlRecords(batchId = null) {
-    let stmt;
     if (batchId) {
-      stmt = this.db.prepare('SELECT * FROM quality_control WHERE batch_id = ? ORDER BY date DESC');
-      return stmt.all(batchId);
+      return this.raw('SELECT * FROM quality_control WHERE batch_id = ? ORDER BY date DESC', [batchId]);
     } else {
-      stmt = this.db.prepare('SELECT * FROM quality_control ORDER BY date DESC');
-      return stmt.all();
+      return this.queryAll('getQualityControlRecords');
     }
   }
 
-  // Equipment Methods
+  // Equipment methods
   getAllEquipment() {
-    const stmt = this.db.prepare('SELECT * FROM equipment ORDER BY equipment_id');
-    return stmt.all();
+    return this.queryAll('getAllEquipment');
   }
 
   updateEquipmentCalibration(equipmentId, lastCalibration, nextCalibration) {
-    const stmt = this.db.prepare(`
-      UPDATE equipment 
-      SET last_calibration = ?, next_calibration = ?
-      WHERE equipment_id = ?
-    `);
-    return stmt.run(lastCalibration, nextCalibration, equipmentId);
+    return this.execute('updateEquipmentCalibration', [lastCalibration, nextCalibration, equipmentId]);
   }
 
-  // Reports Methods
+  // Report methods
   createReport(reportData) {
-    const stmt = this.db.prepare(`
-      INSERT INTO reports (
-        case_id, batch_id, report_number, report_type,
-        date_generated, status, file_path
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    return stmt.run(
+    return this.execute('createReport', [
       reportData.case_id,
       reportData.batch_id,
       reportData.report_number,
@@ -344,62 +546,23 @@ class DatabaseService {
       reportData.date_generated,
       reportData.status,
       reportData.file_path
-    );
+    ]);
   }
 
   getAllReports() {
-    const stmt = this.db.prepare('SELECT * FROM reports ORDER BY date_generated DESC');
-    return stmt.all();
+    return this.queryAll('getAllReports');
   }
 
-  // Test Cases Methods
-  getAllTestCases() {
-    const stmt = this.db.prepare('SELECT * FROM test_cases ORDER BY created_at DESC');
-    return stmt.all();
-  }
-
-  // Statistics Methods
-  getStatistics(period = 'daily') {
-    const dateFilter = period === 'daily' 
-      ? "DATE(created_at) = DATE('now')"
-      : "DATE(created_at) >= DATE('now', 'start of month')";
-
-    const stmt = this.db.prepare(`
-      SELECT 
-        status,
-        COUNT(*) as count
-      FROM samples 
-      WHERE ${dateFilter}
-      GROUP BY status
-    `);
-
-    return stmt.all();
-  }
-
-  getSampleCounts() {
-    const stmt = this.db.prepare(`
-      SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-        SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing,
-        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
-      FROM samples
-    `);
-
-    return stmt.get();
-  }
-
-  // Utility Methods
+  // Utility methods
   generateLabNumber(clientType = 'paternity') {
     const year = new Date().getFullYear();
-    const yearSuffix = year.toString().slice(-2); // Get last 2 digits (25 for 2025)
+    const yearSuffix = year.toString().slice(-2);
     
     let prefix = '';
     if (clientType === 'legal' || clientType === 'lt') {
       prefix = 'LT';
     }
     
-    // Get the highest sequence number for this year and client type
     const searchPattern = prefix ? `${prefix}${yearSuffix}_%` : `${yearSuffix}_%`;
     const stmt = this.db.prepare(`
       SELECT lab_number FROM samples 
@@ -417,40 +580,6 @@ class DatabaseService {
     } else {
       return `${prefix}${yearSuffix}_1`;
     }
-  }
-
-  generateSequentialLabNumbers(clientType = 'paternity', count = 2) {
-    const year = new Date().getFullYear();
-    const yearSuffix = year.toString().slice(-2);
-    
-    let prefix = '';
-    if (clientType === 'legal' || clientType === 'lt') {
-      prefix = 'LT';
-    }
-    
-    // Get the highest sequence number for this year and client type
-    const searchPattern = prefix ? `${prefix}${yearSuffix}_%` : `${yearSuffix}_%`;
-    const stmt = this.db.prepare(`
-      SELECT lab_number FROM samples 
-      WHERE lab_number LIKE ? 
-      ORDER BY CAST(SUBSTR(lab_number, INSTR(lab_number, '_') + 1) AS INTEGER) DESC 
-      LIMIT 1
-    `);
-    
-    const lastNumber = stmt.get(searchPattern);
-    let startSeq = 1;
-    
-    if (lastNumber) {
-      const parts = lastNumber.lab_number.split('_');
-      startSeq = (parseInt(parts[1]) || 0) + 1;
-    }
-    
-    const numbers = [];
-    for (let i = 0; i < count; i++) {
-      numbers.push(`${prefix}${yearSuffix}_${startSeq + i}`);
-    }
-    
-    return numbers;
   }
 
   generateCaseNumber() {
@@ -472,361 +601,94 @@ class DatabaseService {
     }
   }
 
-  // Transaction wrapper
-  transaction(fn) {
-    return this.db.transaction(fn);
-  }
-
-  // Genetic Analysis Methods
-  createGeneticCase(caseData) {
-    const stmt = this.db.prepare(`
-      INSERT INTO genetic_cases (case_id, case_type, priority, notes) 
-      VALUES (?, ?, ?, ?)
-    `);
-    return stmt.run(caseData.caseId, caseData.caseType, caseData.priority, caseData.notes);
-  }
-
-  getGeneticCase(caseId) {
-    const stmt = this.db.prepare('SELECT * FROM genetic_cases WHERE case_id = ?');
-    return stmt.get(caseId);
-  }
-
-  getAllGeneticCases() {
-    const stmt = this.db.prepare('SELECT * FROM genetic_case_summary ORDER BY created_date DESC');
-    return stmt.all();
-  }
-
-  updateGeneticCaseStatus(caseId, status) {
-    const stmt = this.db.prepare(`
-      UPDATE genetic_cases 
-      SET status = ?, updated_date = CURRENT_TIMESTAMP 
-      WHERE case_id = ?
-    `);
-    return stmt.run(status, caseId);
-  }
-
-  createGeneticSample(sampleData) {
-    const stmt = this.db.prepare(`
-      INSERT INTO genetic_samples (
-        sample_id, case_id, sample_type, file_path, original_filename,
-        file_hash, quality_score, instrument, kit
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    return stmt.run(
-      sampleData.sampleId,
-      sampleData.caseId,
-      sampleData.sampleType,
-      sampleData.filePath,
-      sampleData.originalFilename,
-      sampleData.fileHash,
-      sampleData.qualityScore,
-      sampleData.instrument,
-      sampleData.kit
-    );
-  }
-
-  getGeneticSamplesByCase(caseId) {
-    const stmt = this.db.prepare('SELECT * FROM genetic_samples WHERE case_id = ?');
-    return stmt.all(caseId);
-  }
-
-  createSTRProfile(profileData) {
-    const stmt = this.db.prepare(`
-      INSERT INTO str_profiles (
-        sample_id, locus, allele_1, allele_2, peak_height_1, peak_height_2
-      ) VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    return stmt.run(
-      profileData.sampleId,
-      profileData.locus,
-      profileData.allele1,
-      profileData.allele2,
-      profileData.peakHeight1,
-      profileData.peakHeight2
-    );
-  }
-
-  getSTRProfile(sampleId) {
-    const stmt = this.db.prepare('SELECT * FROM str_profiles WHERE sample_id = ? ORDER BY locus');
-    return stmt.all(sampleId);
-  }
-
-  createGeneticAnalysisResult(resultData) {
-    const stmt = this.db.prepare(`
-      INSERT INTO genetic_analysis_results (
-        case_id, paternity_probability, exclusion_probability, 
-        matching_loci, total_loci, conclusion, osiris_output_path, quality_score
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    return stmt.run(
-      resultData.caseId,
-      resultData.paternityProbability,
-      resultData.exclusionProbability,
-      resultData.matchingLoci,
-      resultData.totalLoci,
-      resultData.conclusion,
-      resultData.osirisOutputPath,
-      resultData.qualityScore
-    );
-  }
-
-  getGeneticAnalysisResult(caseId) {
-    const stmt = this.db.prepare('SELECT * FROM genetic_analysis_results WHERE case_id = ?');
-    return stmt.get(caseId);
-  }
-
-  createLociComparison(comparisonData) {
-    const stmt = this.db.prepare(`
-      INSERT INTO loci_comparisons (
-        result_id, locus, child_allele_1, child_allele_2,
-        father_allele_1, father_allele_2, mother_allele_1, mother_allele_2, match_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    return stmt.run(
-      comparisonData.resultId,
-      comparisonData.locus,
-      comparisonData.childAllele1,
-      comparisonData.childAllele2,
-      comparisonData.fatherAllele1,
-      comparisonData.fatherAllele2,
-      comparisonData.motherAllele1,
-      comparisonData.motherAllele2,
-      comparisonData.matchStatus ? 1 : 0
-    );
-  }
-
-  getLociComparisons(resultId) {
-    const stmt = this.db.prepare('SELECT * FROM loci_comparisons WHERE result_id = ? ORDER BY locus');
-    return stmt.all(resultId);
-  }
-
-  addToOsirisQueue(caseId, priority = 5) {
-    const stmt = this.db.prepare(`
-      INSERT INTO osiris_analysis_queue (case_id, priority) 
-      VALUES (?, ?)
-    `);
-    return stmt.run(caseId, priority);
-  }
-
-  updateOsirisQueueStatus(caseId, status, errorMessage = null) {
-    const stmt = this.db.prepare(`
-      UPDATE osiris_analysis_queue 
-      SET status = ?, 
-          ${status === 'running' ? 'started_date = CURRENT_TIMESTAMP' : ''},
-          ${status === 'completed' || status === 'failed' ? 'completed_date = CURRENT_TIMESTAMP' : ''},
-          ${errorMessage ? 'error_message = ?' : ''}
-      WHERE case_id = ?
-    `);
-    
-    const params = errorMessage ? [status, errorMessage, caseId] : [status, caseId];
-    return stmt.run(...params);
-  }
-
-  getOsirisQueueStatus(caseId) {
-    const stmt = this.db.prepare(`
-      SELECT * FROM osiris_analysis_queue 
-      WHERE case_id = ? 
-      ORDER BY submitted_date DESC 
-      LIMIT 1
-    `);
-    return stmt.get(caseId);
-  }
-
-  addGeneticFileAudit(auditData) {
-    const stmt = this.db.prepare(`
-      INSERT INTO genetic_file_audit (sample_id, action, details) 
-      VALUES (?, ?, ?)
-    `);
-    return stmt.run(auditData.sampleId, auditData.action, auditData.details);
-  }
-
-  addGeneticQCMetric(metricData) {
-    const stmt = this.db.prepare(`
-      INSERT INTO genetic_qc_metrics (
-        sample_id, metric_name, metric_value, pass_status
-      ) VALUES (?, ?, ?, ?)
-    `);
-    return stmt.run(
-      metricData.sampleId,
-      metricData.metricName,
-      metricData.metricValue,
-      metricData.passStatus ? 1 : 0
-    );
-  }
-
-  generateGeneticCaseNumber() {
-    const year = new Date().getFullYear();
-    const stmt = this.db.prepare(`
-      SELECT case_id FROM genetic_cases 
-      WHERE case_id LIKE ? 
-      ORDER BY case_id DESC 
-      LIMIT 1
-    `);
-    
-    const lastCase = stmt.get(`PAT-${year}-%`);
-    
-    if (lastCase) {
-      const lastSeq = parseInt(lastCase.case_id.split('-')[2]) || 0;
-      return `PAT-${year}-${(lastSeq + 1).toString().padStart(3, '0')}`;
-    } else {
-      return `PAT-${year}-001`;
+  // Health check and statistics
+  getHealthCheck() {
+    try {
+      this.ensureConnection();
+      const result = this.db.prepare('SELECT 1 as health').get();
+      return {
+        status: 'healthy',
+        connected: this.isConnected,
+        result: result.health === 1
+      };
+    } catch (error) {
+      return {
+        status: 'unhealthy',
+        connected: false,
+        error: error.message
+      };
     }
   }
 
-  // Sample Queue Management Methods
-  
-  updateSampleWorkflowStatus(sampleId, workflowStatus) {
-    const stmt = this.db.prepare(`
-      UPDATE samples 
-      SET workflow_status = ?, updated_at = CURRENT_TIMESTAMP 
-      WHERE id = ?
-    `);
-    return stmt.run(workflowStatus, sampleId);
-  }
-
-  getSamplesByWorkflowStatus(workflowStatus) {
-    const stmt = this.db.prepare(`
-      SELECT s.*, tc.case_number, b.batch_number
-      FROM samples s
-      LEFT JOIN test_cases tc ON s.case_id = tc.id
-      LEFT JOIN batches b ON s.batch_id = b.id
-      WHERE s.workflow_status = ?
-      ORDER BY s.collection_date ASC, s.id ASC
-    `);
-    return stmt.all(workflowStatus);
-  }
-
-  getSampleQueueCounts() {
-    const stmt = this.db.prepare(`
-      SELECT 
-        COUNT(*) as total_samples,
-        COUNT(CASE WHEN workflow_status = 'sample_collected' THEN 1 END) as sample_collected,
-        COUNT(CASE WHEN workflow_status = 'pcr_ready' THEN 1 END) as pcr_ready,
-        COUNT(CASE WHEN workflow_status = 'pcr_batched' THEN 1 END) as pcr_batched,
-        COUNT(CASE WHEN workflow_status = 'pcr_completed' THEN 1 END) as pcr_completed,
-        COUNT(CASE WHEN workflow_status = 'electro_ready' THEN 1 END) as electro_ready,
-        COUNT(CASE WHEN workflow_status = 'electro_batched' THEN 1 END) as electro_batched,
-        COUNT(CASE WHEN workflow_status = 'electro_completed' THEN 1 END) as electro_completed,
-        COUNT(CASE WHEN workflow_status = 'analysis_ready' THEN 1 END) as analysis_ready,
-        COUNT(CASE WHEN workflow_status = 'analysis_completed' THEN 1 END) as analysis_completed,
-        COUNT(CASE WHEN workflow_status = 'report_ready' THEN 1 END) as report_ready,
-        COUNT(CASE WHEN workflow_status = 'report_sent' THEN 1 END) as report_sent
-      FROM samples
-      WHERE status != 'cancelled'
-    `);
-    return stmt.get();
-  }
-
-  getSamplesForQueue(queueType) {
-    let workflowStatuses = [];
-    
-    switch (queueType) {
-      case 'pcr_ready':
-        workflowStatuses = ['sample_collected', 'pcr_ready'];
-        break;
-      case 'pcr_batched':
-        workflowStatuses = ['pcr_batched'];
-        break;
-      case 'electro_ready':
-        workflowStatuses = ['pcr_completed', 'electro_ready'];
-        break;
-      case 'electro_batched':
-        workflowStatuses = ['electro_batched'];
-        break;
-      case 'analysis_ready':
-        workflowStatuses = ['electro_completed', 'analysis_ready'];
-        break;
-      case 'completed':
-        workflowStatuses = ['analysis_completed', 'report_ready', 'report_sent'];
-        break;
-      default:
-        workflowStatuses = ['sample_collected'];
+  getStatistics() {
+    try {
+      this.ensureConnection();
+      
+      const stats = {
+        samples: this.db.prepare('SELECT COUNT(*) as count FROM samples').get().count,
+        testCases: this.db.prepare('SELECT COUNT(*) as count FROM test_cases').get().count,
+        batches: this.db.prepare('SELECT COUNT(*) as count FROM batches').get().count,
+        preparedStatements: this.preparedStatements.size,
+        transactionDepth: this.transactionDepth,
+        dbSize: this.getDbSize()
+      };
+      
+      return stats;
+    } catch (error) {
+      return null;
     }
-
-    const placeholders = workflowStatuses.map(() => '?').join(',');
-    const stmt = this.db.prepare(`
-      SELECT s.*, tc.case_number, b.batch_number
-      FROM samples s
-      LEFT JOIN test_cases tc ON s.case_id = tc.id
-      LEFT JOIN batches b ON s.batch_id = b.id
-      WHERE s.workflow_status IN (${placeholders})
-      ORDER BY s.collection_date ASC, tc.case_number ASC, 
-               CASE s.relation 
-                 WHEN 'Child' THEN 1
-                 WHEN 'Father' THEN 2
-                 WHEN 'Mother' THEN 3
-                 ELSE 4
-               END ASC
-    `);
-    return stmt.all(...workflowStatuses);
   }
 
-  batchUpdateSampleWorkflowStatus(sampleIds, workflowStatus) {
-    const stmt = this.db.prepare(`
-      UPDATE samples 
-      SET workflow_status = ?, updated_at = CURRENT_TIMESTAMP 
-      WHERE id = ?
-    `);
-    
-    const updateBatch = this.db.transaction((ids, status) => {
-      for (const id of ids) {
-        stmt.run(status, id);
-      }
-    });
-    
-    return updateBatch(sampleIds, workflowStatus);
+  getDbSize() {
+    try {
+      const stats = fs.statSync(this.dbPath);
+      return Math.round(stats.size / 1024 / 1024 * 100) / 100; // MB
+    } catch (error) {
+      return 0;
+    }
   }
 
-  // Clear all samples from database
-  clearAllSamples() {
-    const stmt = this.db.prepare('DELETE FROM samples');
-    stmt.run();
+  ensureConnection() {
+    if (!this.isConnected || !this.db) {
+      this.connect();
+    }
   }
 
-  // Get total sample count
-  getSampleCount() {
-    const stmt = this.db.prepare('SELECT COUNT(*) as count FROM samples');
-    const result = stmt.get();
-    return result.count;
-  }
-
-  // Get samples for a specific batch
-  getSamplesByBatchId(batchId) {
-    const stmt = this.db.prepare(`
-      SELECT s.*, b.batch_number
-      FROM samples s
-      LEFT JOIN batches b ON s.batch_id = b.id
-      WHERE s.batch_id = ?
-      ORDER BY 
-        s.case_number ASC,
-        CAST(SUBSTR(s.lab_number, INSTR(s.lab_number, '_') + 1) AS INTEGER) ASC
-    `);
-    return stmt.all(batchId);
-  }
-
-  // Get samples for a specific batch by batch number
-  getSamplesByBatchNumber(batchNumber) {
-    const stmt = this.db.prepare(`
-      SELECT s.*, b.batch_number
-      FROM samples s
-      LEFT JOIN batches b ON s.batch_id = b.id
-      WHERE b.batch_number = ?
-      ORDER BY 
-        s.case_number ASC,
-        CAST(SUBSTR(s.lab_number, INSTR(s.lab_number, '_') + 1) AS INTEGER) ASC
-    `);
-    return stmt.all(batchNumber);
-  }
-
-  // Close database connection
   close() {
     if (this.db) {
-      this.db.close();
+      try {
+        this.db.close();
+        this.isConnected = false;
+        this.preparedStatements.clear();
+        if (logger.info) {
+          logger.info('Database connection closed');
+        }
+      } catch (error) {
+        if (logger.error) {
+          logger.error('Error closing database connection', { error: error.message });
+        }
+      }
     }
+  }
+
+  async shutdown() {
+    if (logger.info) {
+      logger.info('Initiating database shutdown');
+    }
+    
+    if (this.transactionDepth > 0) {
+      if (logger.warn) {
+        logger.warn('Shutting down with active transactions', { 
+          depth: this.transactionDepth 
+        });
+      }
+    }
+    
+    this.close();
   }
 }
 
 // Create and export singleton instance
-const databaseService = new DatabaseService();
+const databaseService = new UnifiedDatabaseService();
 
 module.exports = databaseService;

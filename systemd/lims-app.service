@@ -1,0 +1,58 @@
+[Unit]
+Description=LabScientific LIMS Application
+Documentation=https://github.com/your-org/labscientific-lims
+After=network.target docker.service
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=forking
+User=lims
+Group=lims
+WorkingDirectory=/opt/lims/app
+Environment=NODE_ENV=production
+Environment=LOG_LEVEL=info
+Environment=LIMS_DATA_DIR=/opt/lims/data
+Environment=LIMS_LOG_DIR=/var/log/lims
+
+# Pre-start script to ensure system is ready
+ExecStartPre=/bin/bash -c 'mkdir -p /var/log/lims /opt/lims/data'
+ExecStartPre=/bin/bash -c 'chown lims:lims /var/log/lims /opt/lims/data'
+
+# Start the application using Docker Compose
+ExecStart=/usr/bin/docker-compose -f /opt/lims/app/docker-compose.yml up -d
+ExecStop=/usr/bin/docker-compose -f /opt/lims/app/docker-compose.yml down
+ExecReload=/usr/bin/docker-compose -f /opt/lims/app/docker-compose.yml restart
+
+# Health check
+ExecStartPost=/bin/bash -c 'sleep 10 && curl -f http://localhost:3000/health'
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/lims /var/log/lims
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+MemoryLimit=2G
+CPUQuota=200%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lims
+
+[Install]
+WantedBy=multi-user.target

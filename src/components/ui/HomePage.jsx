@@ -24,7 +24,7 @@ import {
   Group,
   Refresh
 } from '@mui/icons-material';
-import { optimizedApi } from '../../services/optimizedApi';
+import { api as optimizedApi } from '../../services/api';
 
 const HomePage = ({ isDarkMode }) => {
   const navigate = useNavigate();

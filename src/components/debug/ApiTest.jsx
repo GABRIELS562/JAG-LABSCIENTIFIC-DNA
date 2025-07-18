@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { optimizedApi } from '../../services/optimizedApi';
+import { api as optimizedApi } from '../../services/api';
 
 const ApiTest = () => {
   const [result, setResult] = useState(null);

@@ -2,6 +2,8 @@
 
 A modern Laboratory Information Management System (LIMS) for DNA analysis and paternity testing.
 
+> **Note**: This is the client production branch. For DevOps showcase with advanced configurations, see the `devops-showcase` branch.
+
 ## Project Structure
 
 ```
@@ -9,15 +11,9 @@ A modern Laboratory Information Management System (LIMS) for DNA analysis and pa
 ├── src/                          # Frontend React application
 ├── backend/                      # Node.js backend server
 ├── docs/                         # Documentation files
-├── scripts/                      # Development and deployment scripts
-│   └── development/             # Development-only scripts
-├── data/                        # Data files (excluded from production)
-│   ├── samples/                 # Sample FSA files
-│   └── test_data/              # Test datasets
-├── external/                    # External software (excluded from production)
-├── workspace/                   # Runtime workspace (excluded from production)
 ├── public/                      # Static assets and Electron files
-└── config/                      # Configuration files
+├── Dockerfile                   # Container configuration
+└── docker-compose.yml          # Simple deployment setup
 ```
 
 ## Quick Start
@@ -43,7 +39,23 @@ A modern Laboratory Information Management System (LIMS) for DNA analysis and pa
    - Frontend: http://localhost:5173
    - Backend API: http://localhost:3001
 
-### Production Build
+### Production Deployment (Docker)
+
+1. **Build and start containers:**
+   ```bash
+   docker-compose up -d
+   ```
+
+2. **Access the application:**
+   - LIMS Application: http://localhost:3000
+   - API: http://localhost:3001
+
+3. **Stop the application:**
+   ```bash
+   docker-compose down
+   ```
+
+### Production Build (Electron)
 
 1. **Build for production:**
    ```bash
