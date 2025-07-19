@@ -205,11 +205,11 @@ function createSample(sampleData) {
 
 // Use routes with fallback handling
 try {
-  app.use("/api/auth", authRoutes);
-  app.use("/api", apiRoutes);
-  app.use("/api/db", dbViewerRoutes);
-  app.use("/api/genetic-analysis", geneticAnalysisRoutes);
-  app.use("/monitoring", monitoringRoutes);
+  // app.use("/api/auth", authRoutes);
+  // app.use("/api", apiRoutes); // Disabled - using server.js endpoints instead
+  // app.use("/api/db", dbViewerRoutes);
+  // app.use("/api/genetic-analysis", geneticAnalysisRoutes);
+  // app.use("/monitoring", monitoringRoutes);
 } catch (error) {
   logger.warn('Some routes not available, using fallback endpoints', { error: error.message });
 }

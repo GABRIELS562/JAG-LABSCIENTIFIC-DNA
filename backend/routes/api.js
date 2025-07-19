@@ -1,29 +1,18 @@
 const express = require("express");
 const router = express.Router();
-// Keep both database systems for backup/fallback
-const { sheets, appendRows, SHEETS } = require("../services/spreadsheets");
+// SQLite database only - Google Sheets disabled
+// const { sheets, appendRows, SHEETS } = require("../services/spreadsheets");
 const db = require("../services/database");
 const { authenticateToken, requireStaff } = require("../middleware/auth");
 
 // Configuration - Set to 'sqlite' for new database, 'sheets' for Google Sheets backup
 const DB_MODE = process.env.DB_MODE || 'sqlite';
 
-// Helper function to dual-write (SQLite primary, Google Sheets backup)
-async function dualWrite(sqliteOperation, sheetsOperation) {
+// Helper function to write to SQLite only
+async function dualWrite(sqliteOperation, sheetsOperation = null) {
   try {
-    // Primary: SQLite operation
+    // SQLite operation only
     const sqliteResult = sqliteOperation();
-    
-    // Backup: Google Sheets operation (optional)
-    if (process.env.ENABLE_SHEETS_BACKUP === 'true') {
-      try {
-        await sheetsOperation();
-      } catch (sheetsError) {
-        console.warn('Google Sheets backup failed:', sheetsError.message);
-        // Don't fail the request if backup fails
-      }
-    }
-    
     return sqliteResult;
   } catch (error) {
     console.error('Database operation failed:', error);

@@ -1,42 +1,17 @@
 const { google } = require("googleapis");
 const path = require("path");
 
-// Initialize Google Sheets
+// Google Sheets disabled - using SQLite database only
 const initializeSheets = () => {
-  try {
-    const credentialsPath = path.join(
-      __dirname,
-      "..",
-      "config",
-      "credentials.json",
-    );
-    console.log("Loading credentials from:", credentialsPath);
-
-    const credentials = require(credentialsPath);
-    console.log("Service account email:", credentials.client_email);
-
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-    });
-
-    console.log("Google Sheets API initialized successfully");
-    return google.sheets({ version: "v4", auth });
-  } catch (error) {
-    console.error("Error initializing sheets:", error);
-    throw error;
-  }
+  console.log("Google Sheets initialization disabled - using SQLite database only");
+  return null;
 };
 
-const sheets = initializeSheets();
+const sheets = null; // Disabled for SQLite-only mode
 
 const appendRows = async (spreadsheetType, sheetName, rows) => {
-  console.log("\n=== Spreadsheet Service Debug ===");
-  console.log("Function called with:", { spreadsheetType, sheetName });
-  console.log("Environment in service:", {
-    MAIN_ID: process.env.MAIN_SPREADSHEET_ID,
-    BATCH_ID: process.env.BATCH_SPREADSHEET_ID,
-  });
+  console.log("Google Sheets appendRows called but disabled - using SQLite only");
+  return { success: true, message: "Google Sheets disabled, using SQLite database" };
 
   try {
     if (!process.env.MAIN_SPREADSHEET_ID || !process.env.BATCH_SPREADSHEET_ID) {
@@ -160,6 +135,8 @@ const SHEETS = {
 };
 
 const setupSheetStructure = async () => {
+  console.log("Google Sheets setup disabled - using SQLite database only");
+  return { success: true, message: "Google Sheets disabled" };
   try {
     // Setup main data sheet
     await sheets.spreadsheets.batchUpdate({
