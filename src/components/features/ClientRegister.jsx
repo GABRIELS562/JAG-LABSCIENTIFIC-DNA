@@ -36,7 +36,9 @@ import {
   LinearProgress,
   Pagination,
   FormGroup,
-  useTheme
+  useTheme,
+  useMediaQuery,
+  CardActions
 } from '@mui/material';
 import {
   Search,
@@ -59,6 +61,8 @@ export default function ClientRegister() {
   const navigate = useNavigate();
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isTablet = useMediaQuery(theme.breakpoints.between('md', 'lg'));
   const [samples, setSamples] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -357,6 +361,98 @@ export default function ClientRegister() {
 
 
   // Render samples table without case grouping
+  // Mobile-friendly card layout for samples
+  const renderMobileSampleCards = () => (
+    <Stack spacing={2} sx={{ mt: 3 }}>
+      {samples.map(sample => {
+        const isSelected = sample.case_number 
+          ? selectedSamples.some(s => s.case_number === sample.case_number)
+          : selectedSamples.some(s => s.id === sample.id);
+        
+        return (
+          <Card 
+            key={sample.id}
+            sx={{
+              border: isSelected ? '2px solid #1976d2' : '1px solid #e0e0e0',
+              backgroundColor: isSelected ? '#e3f2fd' : 'inherit',
+              '&:hover': {
+                boxShadow: 2,
+                backgroundColor: isSelected ? '#bbdefb' : '#f5f5f5'
+              },
+              cursor: 'pointer'
+            }}
+            onClick={() => handleSampleSelect(sample)}
+          >
+            <CardContent sx={{ pb: 1 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="h6" component="div" sx={{ fontSize: '1.1rem', fontWeight: 600 }}>
+                    {formatLabNumber(sample.lab_number)}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {sample.name} {sample.surname}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Checkbox
+                    checked={isSelected}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      handleSampleSelect(sample);
+                    }}
+                    sx={{
+                      color: '#1976d2',
+                      '&.Mui-checked': { color: '#1976d2' },
+                      p: 0.5
+                    }}
+                  />
+                </Box>
+              </Box>
+
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    Relation
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    {sample.relation}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    Collection Date
+                  </Typography>
+                  <Typography variant="body2">
+                    {formatDate(sample.collection_date)}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    Status
+                  </Typography>
+                  <Chip 
+                    label={getBatchStatus(sample).label} 
+                    color={getBatchStatus(sample).color} 
+                    size="small"
+                    sx={{ mt: 0.5 }}
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    Batch Number
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>
+                    {sample.lab_batch_number || '-'}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </Stack>
+  );
+
   const renderSamplesTable = () => (
     <TableContainer component={Paper} sx={{ mt: 3 }}>
       <Table>
@@ -426,12 +522,33 @@ export default function ClientRegister() {
   );
 
   const renderPagination = () => (
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2, p: 2 }}>
-      <Typography variant="body2" color="text.secondary">
+    <Box sx={{ 
+      display: 'flex', 
+      flexDirection: isMobile ? 'column' : 'row',
+      justifyContent: 'space-between', 
+      alignItems: isMobile ? 'stretch' : 'center', 
+      mt: 2, 
+      p: 2,
+      gap: isMobile ? 2 : 0
+    }}>
+      <Typography 
+        variant="body2" 
+        color="text.secondary"
+        sx={{ 
+          textAlign: isMobile ? 'center' : 'left',
+          order: isMobile ? 1 : 0
+        }}
+      >
         Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalSamples)} of {totalSamples} samples
       </Typography>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <FormControl size="small">
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: isMobile ? 'column' : 'row',
+        alignItems: 'center', 
+        gap: 2,
+        order: isMobile ? 0 : 1
+      }}>
+        <FormControl size="small" fullWidth={isMobile}>
           <InputLabel>Per Page</InputLabel>
           <Select
             value={pageSize}
@@ -440,7 +557,7 @@ export default function ClientRegister() {
               setCurrentPage(1);
             }}
             label="Per Page"
-            sx={{ minWidth: 80 }}
+            sx={{ minWidth: isMobile ? 'auto' : 80 }}
           >
             <MenuItem value={10}>10</MenuItem>
             <MenuItem value={25}>25</MenuItem>
@@ -448,14 +565,19 @@ export default function ClientRegister() {
             <MenuItem value={100}>100</MenuItem>
           </Select>
         </FormControl>
-        <Pagination
-          count={totalPages}
-          page={currentPage}
-          onChange={(event, page) => setCurrentPage(page)}
-          color="primary"
-          showFirstButton
-          showLastButton
-        />
+        <Box sx={{ display: 'flex', justifyContent: 'center', width: isMobile ? '100%' : 'auto' }}>
+          <Pagination
+            count={totalPages}
+            page={currentPage}
+            onChange={(event, page) => setCurrentPage(page)}
+            color="primary"
+            showFirstButton={!isMobile}
+            showLastButton={!isMobile}
+            size={isMobile ? "small" : "medium"}
+            siblingCount={isMobile ? 0 : 1}
+            boundaryCount={isMobile ? 1 : 1}
+          />
+        </Box>
       </Box>
     </Box>
   );
@@ -689,39 +811,73 @@ export default function ClientRegister() {
       </Box>
 
       {selectedSamples.length > 0 && (
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap', mb: 3 }}>
-          <Chip 
-            label={`${selectedSamples.length} selected`} 
-            color="primary" 
-            variant="outlined"
-          />
-          <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: isMobile ? 'column' : 'row',
+          gap: isMobile ? 1.5 : 2, 
+          alignItems: isMobile ? 'stretch' : 'center', 
+          flexWrap: isMobile ? 'nowrap' : 'wrap', 
+          mb: 3,
+          p: isMobile ? 2 : 0,
+          backgroundColor: isMobile ? (isDarkMode ? '#1e1e1e' : '#f5f5f5') : 'transparent',
+          borderRadius: isMobile ? 2 : 0
+        }}>
+          {!isMobile && (
+            <Chip 
+              label={`${selectedSamples.length} selected`} 
+              color="primary" 
+              variant="outlined"
+            />
+          )}
+          <Typography 
+            variant="body2" 
+            color="text.secondary" 
+            sx={{ 
+              fontStyle: 'italic',
+              textAlign: isMobile ? 'center' : 'left',
+              order: isMobile ? -1 : 0
+            }}
+          >
             💡 Family groups selected together
           </Typography>
           <Button
             variant="contained"
-            startIcon={<PlaylistAdd />}
+            startIcon={!isMobile && <PlaylistAdd />}
             onClick={handleCreateBatch}
-            sx={{ bgcolor: '#0D488F' }}
+            sx={{ 
+              bgcolor: '#0D488F',
+              minHeight: isMobile ? 48 : 'auto',
+              fontSize: isMobile ? '0.875rem' : 'inherit'
+            }}
             disabled={selectedSamples.length === 0}
+            fullWidth={isMobile}
           >
-            Create PCR Batch ({selectedSamples.length} selected)
+            {isMobile ? 
+              `Create Batch (${selectedSamples.length})` : 
+              `Create PCR Batch (${selectedSamples.length} selected)`
+            }
           </Button>
           <Button
             variant="outlined"
             onClick={handleDeselectAll}
+            sx={{ 
+              minHeight: isMobile ? 48 : 'auto'
+            }}
+            fullWidth={isMobile}
           >
             Deselect All
           </Button>
-          <Button
-            variant="outlined"
-            onClick={() => {
-              navigate('/pcr-plate');
-            }}
-            sx={{ ml: 1 }}
-          >
-            Test Navigation
-          </Button>
+          {!isMobile && (
+            <Button
+              variant="outlined"
+              onClick={() => {
+                navigate('/pcr-plate');
+              }}
+              sx={{ ml: 1 }}
+            >
+              Test Navigation
+            </Button>
+          )}
         </Box>
       )}
 
@@ -733,8 +889,8 @@ export default function ClientRegister() {
 
 
       {/* Filters */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Grid container spacing={3} alignItems="center">
+      <Paper sx={{ p: isMobile ? 2 : 3, mb: 3 }}>
+        <Grid container spacing={isMobile ? 2 : 3} alignItems="center">
           <Grid item xs={12} md={4}>
             <TextField
               fullWidth
@@ -746,10 +902,11 @@ export default function ClientRegister() {
                 startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />
               }}
               placeholder="Search by lab number, name, or case number..."
+              size={isMobile ? "small" : "medium"}
             />
           </Grid>
           <Grid item xs={12} md={3}>
-            <FormControl fullWidth>
+            <FormControl fullWidth size={isMobile ? "small" : "medium"}>
               <InputLabel>Status</InputLabel>
               <Select
                 value={statusFilter}
@@ -765,16 +922,18 @@ export default function ClientRegister() {
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} md={2}>
-            <Stack spacing={1}>
-              {/* Removed duplicate Refresh and Select All buttons */}
-            </Stack>
-          </Grid>
+          {!isMobile && (
+            <Grid item xs={12} md={2}>
+              <Stack spacing={1}>
+                {/* Removed duplicate Refresh and Select All buttons */}
+              </Stack>
+            </Grid>
+          )}
         </Grid>
       </Paper>
 
-      {/* Samples Table */}
-      {renderSamplesTable()}
+      {/* Samples Display - Responsive */}
+      {isMobile ? renderMobileSampleCards() : renderSamplesTable()}
       {renderPagination()}
 
       {/* Summary */}

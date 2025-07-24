@@ -24,7 +24,8 @@ import {
   Snackbar,
   Menu,
   MenuItem,
-  useTheme
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   DragIndicator,
@@ -41,6 +42,19 @@ const PCRPlate = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
+  
+  // Responsive detection
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isTablet = useMediaQuery(theme.breakpoints.between('md', 'lg'));
+  
+  // Calculate responsive well size
+  const getWellSize = () => {
+    if (isMobile) return 24; // Smaller for mobile
+    if (isTablet) return 32; // Medium for tablet
+    return 40; // Original size for desktop
+  };
+  
+  const wellSize = getWellSize();
   const [selectedSamples, setSelectedSamples] = useState([]);
   const [plateData, setPlateData] = useState({});
   const [draggedItem, setDraggedItem] = useState(null);
@@ -1044,7 +1058,8 @@ const PCRPlate = () => {
                 <Button
                   variant={selectedControl === 'negative' ? 'contained' : 'outlined'}
                   color="success"
-                  size="small"
+                  size={isMobile ? 'medium' : 'small'}
+                  sx={{ minHeight: isMobile ? 48 : 'auto' }}
                   onClick={() => setSelectedControl(selectedControl === 'negative' ? null : 'negative')}
                 >
                   {selectedControl === 'negative' ? 'Cancel' : 'Place Negative'}
@@ -1052,7 +1067,8 @@ const PCRPlate = () => {
                 <Button
                   variant={selectedControl === 'positive' ? 'contained' : 'outlined'}
                   color="error"
-                  size="small"
+                  size={isMobile ? 'medium' : 'small'}
+                  sx={{ minHeight: isMobile ? 48 : 'auto' }}
                   onClick={() => setSelectedControl(selectedControl === 'positive' ? null : 'positive')}
                 >
                   {selectedControl === 'positive' ? 'Cancel' : 'Place Positive'}
@@ -1073,15 +1089,31 @@ const PCRPlate = () => {
                 color="success"
                 onClick={() => setFinalizeDialog(true)}
                 disabled={getPlacedSamplesCount() === 0}
-                size="large"
-                sx={{ px: 4, py: 1.5, fontSize: '1.1rem' }}
+                size={isMobile ? 'medium' : 'large'}
+                sx={{ 
+                  px: isMobile ? 2 : 4, 
+                  py: isMobile ? 1 : 1.5, 
+                  fontSize: isMobile ? '1rem' : '1.1rem',
+                  minHeight: isMobile ? 48 : 'auto'
+                }}
               >
                 Finalize Batch ({getPlacedSamplesCount()} samples)
               </Button>
             </Box>
             
-            {/* Column headers */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: '40px repeat(12, 1fr)', gap: 1, mb: 1 }}>
+            {/* Plate Container with horizontal scrolling on mobile */}
+            <Box sx={{ 
+              overflowX: isMobile ? 'auto' : 'visible',
+              minWidth: isMobile ? `${wellSize * 13 + 50}px` : 'auto', // Ensure minimum width for scrolling
+              pb: isMobile ? 1 : 0 // Add padding for scrollbar
+            }}>
+              {/* Column headers */}
+              <Box sx={{ 
+                display: 'grid', 
+                gridTemplateColumns: `${wellSize}px repeat(12, 1fr)`, 
+                gap: isMobile ? 0.5 : 1, 
+                mb: 1 
+              }}>
               <Box></Box>
               {Array.from({ length: 12 }, (_, i) => (
                 <Box key={i} sx={{ textAlign: 'center', fontSize: '0.75rem', fontWeight: 'bold' }}>
@@ -1092,7 +1124,12 @@ const PCRPlate = () => {
 
             {/* Plate rows */}
             {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(row => (
-              <Box key={row} sx={{ display: 'grid', gridTemplateColumns: '40px repeat(12, 1fr)', gap: 1, mb: 1 }}>
+              <Box key={row} sx={{ 
+                display: 'grid', 
+                gridTemplateColumns: `${wellSize}px repeat(12, 1fr)`, 
+                gap: isMobile ? 0.5 : 1, 
+                mb: isMobile ? 0.5 : 1 
+              }}>
                 {/* Row label */}
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.875rem' }}>
                   {row}
@@ -1110,8 +1147,8 @@ const PCRPlate = () => {
                       key={wellId}
                       sx={{
                         position: 'relative',
-                        width: 40,
-                        height: 40,
+                        width: wellSize,
+                        height: wellSize,
                         border: isHovered ? 
                           (isValidDrop ? '3px solid #4caf50' : '3px solid #f44336') : 
                           selectedControl && well.samples.length === 0 ? 
@@ -1141,7 +1178,10 @@ const PCRPlate = () => {
                     >
                       {well.samples.length > 0 && (
                         <Tooltip title={`${well.samples[0].lab_number} - Click to clear`}>
-                          <Typography variant="caption" sx={{ fontSize: '0.6rem', fontWeight: 'bold' }}>
+                          <Typography variant="caption" sx={{ 
+                            fontSize: isMobile ? '0.5rem' : '0.6rem', 
+                            fontWeight: 'bold' 
+                          }}>
                             {well.samples[0].lab_number?.slice(-3) || 'S'}
                           </Typography>
                         </Tooltip>
@@ -1152,10 +1192,10 @@ const PCRPlate = () => {
                           size="small"
                           sx={{
                             position: 'absolute',
-                            top: -8,
-                            right: -8,
-                            width: 16,
-                            height: 16,
+                            top: isMobile ? -6 : -8,
+                            right: isMobile ? -6 : -8,
+                            width: isMobile ? 12 : 16,
+                            height: isMobile ? 12 : 16,
                             bgcolor: 'error.main',
                             color: 'white',
                             '&:hover': { bgcolor: 'error.dark' }
@@ -1165,7 +1205,7 @@ const PCRPlate = () => {
                             clearWell(wellId);
                           }}
                         >
-                          <Clear sx={{ fontSize: 10 }} />
+                          <Clear sx={{ fontSize: isMobile ? 8 : 10 }} />
                         </IconButton>
                       )}
                     </Box>
@@ -1173,6 +1213,7 @@ const PCRPlate = () => {
                 })}
               </Box>
             ))}
+            </Box>
           </Paper>
         </Grid>
       </Grid>

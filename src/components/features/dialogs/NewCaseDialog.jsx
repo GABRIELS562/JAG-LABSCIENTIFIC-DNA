@@ -14,13 +14,17 @@ import {
   Typography,
   Alert,
   CircularProgress,
-  Box
+  Box,
+  useMediaQuery,
+  useTheme
 } from '@mui/material';
 import { Science as ScienceIcon } from '@mui/icons-material';
 import { useThemeContext } from '../../../contexts/ThemeContext';
 
 const NewCaseDialog = ({ open, onClose, onCaseCreated }) => {
   const { isDarkMode } = useThemeContext();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [formData, setFormData] = useState({
     caseType: 'paternity',
     priority: 'normal',
@@ -89,6 +93,7 @@ const NewCaseDialog = ({ open, onClose, onCaseCreated }) => {
       onClose={handleClose} 
       maxWidth="sm" 
       fullWidth
+      fullScreen={isMobile}
       PaperProps={{
         sx: {
           backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white',
@@ -114,6 +119,7 @@ const NewCaseDialog = ({ open, onClose, onCaseCreated }) => {
                 value={formData.caseType}
                 onChange={handleInputChange('caseType')}
                 label="Case Type"
+                sx={{ minHeight: isMobile ? 56 : 'auto' }}
               >
                 <MenuItem value="paternity">Paternity Testing</MenuItem>
                 <MenuItem value="maternity">Maternity Testing</MenuItem>
@@ -130,6 +136,7 @@ const NewCaseDialog = ({ open, onClose, onCaseCreated }) => {
                 value={formData.priority}
                 onChange={handleInputChange('priority')}
                 label="Priority"
+                sx={{ minHeight: isMobile ? 56 : 'auto' }}
               >
                 <MenuItem value="low">Low</MenuItem>
                 <MenuItem value="normal">Normal</MenuItem>
@@ -164,7 +171,12 @@ const NewCaseDialog = ({ open, onClose, onCaseCreated }) => {
         <Button 
           onClick={handleClose}
           disabled={loading}
-          sx={{ color: isDarkMode ? 'white' : 'inherit' }}
+          size={isMobile ? 'large' : 'medium'}
+          sx={{ 
+            color: isDarkMode ? 'white' : 'inherit',
+            minHeight: isMobile ? 48 : 'auto',
+            px: isMobile ? 3 : 'auto'
+          }}
         >
           Cancel
         </Button>
@@ -172,11 +184,14 @@ const NewCaseDialog = ({ open, onClose, onCaseCreated }) => {
           variant="contained"
           onClick={handleSubmit}
           disabled={loading}
+          size={isMobile ? 'large' : 'medium'}
           startIcon={loading ? <CircularProgress size={20} /> : <ScienceIcon />}
           sx={{
             backgroundColor: '#8EC74F',
             '&:hover': { backgroundColor: '#6BA23A' },
-            minWidth: 120
+            minWidth: isMobile ? 140 : 120,
+            minHeight: isMobile ? 48 : 'auto',
+            px: isMobile ? 3 : 'auto'
           }}
         >
           {loading ? 'Creating...' : 'Create Case'}

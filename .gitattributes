@@ -1,0 +1,25 @@
+# Exclude node_modules and documentation from language detection
+node_modules/** linguist-vendored
+backend/node_modules/** linguist-vendored
+*.1 linguist-documentation
+*.2 linguist-documentation  
+*.3 linguist-documentation
+*.man linguist-documentation
+*.roff linguist-documentation
+*.md linguist-documentation
+
+# Exclude generated files and logs
+backend/logs/** linguist-generated
+backend/osiris_workspace/** linguist-generated
+*.log linguist-generated
+*.log.* linguist-generated
+
+# Properly classify important files
+*.js linguist-language=JavaScript
+*.jsx linguist-language=JavaScript
+*.ts linguist-language=TypeScript
+*.tsx linguist-language=TypeScript
+*.css linguist-language=CSS
+*.scss linguist-language=SCSS
+*.sql linguist-language=SQL
+*.json linguist-data

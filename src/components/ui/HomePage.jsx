@@ -11,7 +11,9 @@ import {
   Alert,
   Snackbar,
   CircularProgress,
-  Chip
+  Chip,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Storage,
@@ -28,6 +30,8 @@ import { api as optimizedApi } from '../../services/api';
 
 const HomePage = ({ isDarkMode }) => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [dbStats, setDbStats] = useState(null);
   const [sampleCounts, setSampleCounts] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -167,9 +171,12 @@ const HomePage = ({ isDarkMode }) => {
             startIcon={refreshing ? <CircularProgress size={20} color="inherit" /> : <Refresh />}
             onClick={refreshDatabase}
             disabled={refreshing}
+            size={isMobile ? 'large' : 'medium'}
             sx={{ 
               bgcolor: '#1e4976',
-              '&:hover': { bgcolor: '#2c5a8e' }
+              '&:hover': { bgcolor: '#2c5a8e' },
+              minHeight: isMobile ? 48 : 'auto',
+              px: isMobile ? 3 : 'auto'
             }}
           >
             {refreshing ? 'Refreshing...' : 'Refresh Database'}
