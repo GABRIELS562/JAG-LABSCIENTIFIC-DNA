@@ -8,7 +8,7 @@ class OsirisIntegration {
   constructor() {
     // Path to the actual Osiris executable - use absolute path from project root
     const projectRoot = process.cwd().includes('backend') ? path.join(process.cwd(), '..') : process.cwd();
-    this.osirisAppPath = path.join(projectRoot, 'backend', 'osiris_software', 'Osiris-2.16.app');
+    this.osirisAppPath = path.join(projectRoot, 'external', 'osiris_software', 'Osiris-2.16.app');
     this.osirisExecutable = path.join(this.osirisAppPath, 'Contents', 'MacOS', 'osiris');
     this.osirisConfigDir = path.join(this.osirisAppPath, 'Contents', 'MacOS', 'Config');
     

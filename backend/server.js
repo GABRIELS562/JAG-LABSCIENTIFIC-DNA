@@ -10,16 +10,15 @@ const { globalErrorHandler } = require("./middleware/errorHandler");
 const { sanitizeInput } = require("./middleware/validation");
 const { requestLogger, logger } = require("./utils/logger");
 const { ResponseHandler } = require("./utils/responseHandler");
-const { createMonitoringMiddleware, errorMonitoringMiddleware } = require("./middleware/requestMonitoring");
-const { performanceMiddleware, performanceMonitor } = require("./middleware/performanceMonitoring");
-const { cacheMiddleware, cacheService } = require("./services/cacheService");
+// Removed unused middleware imports
 
 // Import routes
 const apiRoutes = require("./routes/api");
 const authRoutes = require("./routes/auth");
 const dbViewerRoutes = require("./routes/database-viewer");
 const geneticAnalysisRoutes = require("./routes/genetic-analysis");
-const monitoringRoutes = require("./routes/monitoring");
+const reportsRoutes = require("./routes/reports");
+// Removed monitoring routes import
 
 // Load environment variables from root
 const envPath = path.resolve(__dirname, "../.env");
@@ -62,20 +61,8 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Add comprehensive monitoring middleware (only in production)
-if (process.env.NODE_ENV === 'production') {
-  const monitoringMiddlewares = createMonitoringMiddleware({
-    enableRateLimit: true,
-    enableSlowDown: true,
-    enableCompression: true,
-    enableSecurity: true,
-    enableLogging: true
-  });
-  
-  monitoringMiddlewares.forEach(middleware => app.use(middleware));
-  app.use(performanceMiddleware(performanceMonitor));
-  app.use(sanitizeInput);
-}
+// Basic middleware (removed monitoring for portfolio simplicity)
+app.use(sanitizeInput);
 
 // Database helper functions
 function getSamplesWithPagination(page = 1, limit = 50, filters = {}) {
@@ -208,7 +195,8 @@ try {
   // app.use("/api/auth", authRoutes);
   // app.use("/api", apiRoutes); // Disabled - using server.js endpoints instead
   // app.use("/api/db", dbViewerRoutes);
-  // app.use("/api/genetic-analysis", geneticAnalysisRoutes);
+  app.use("/api/genetic-analysis", geneticAnalysisRoutes);
+  app.use("/api/reports", reportsRoutes);
   // app.use("/monitoring", monitoringRoutes);
 } catch (error) {
   logger.warn('Some routes not available, using fallback endpoints', { error: error.message });
@@ -234,7 +222,7 @@ app.get("/api/samples", (req, res) => {
     };
     
     const result = getSamplesWithPagination(page, limit, filters);
-    ResponseHandler.success(res, result);
+    ResponseHandler.paginated(res, result.data, result.pagination);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to fetch samples', error);
   }
@@ -250,7 +238,7 @@ app.get("/api/samples/all", (req, res) => {
       ORDER BY id DESC
     `);
     const samples = stmt.all();
-    ResponseHandler.success(res, { data: samples });
+    ResponseHandler.success(res, samples);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to fetch all samples', error);
   }
@@ -259,7 +247,7 @@ app.get("/api/samples/all", (req, res) => {
 app.post("/api/samples", (req, res) => {
   try {
     const newSample = createSample(req.body);
-    ResponseHandler.success(res, { data: newSample }, 'Sample created successfully', 201);
+    ResponseHandler.success(res, newSample, 'Sample created successfully', 201);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to create sample', error);
   }
@@ -268,7 +256,7 @@ app.post("/api/samples", (req, res) => {
 app.get("/api/samples/counts", (req, res) => {
   try {
     const counts = getSampleCounts();
-    ResponseHandler.success(res, { data: counts });
+    ResponseHandler.success(res, counts);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to get sample counts', error);
   }
@@ -277,7 +265,7 @@ app.get("/api/samples/counts", (req, res) => {
 app.get("/api/samples/queue-counts", (req, res) => {
   try {
     const counts = getSampleCounts();
-    ResponseHandler.success(res, { data: counts });
+    ResponseHandler.success(res, counts);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to get queue counts', error);
   }
@@ -287,7 +275,7 @@ app.get("/api/samples/search", (req, res) => {
   try {
     const query = req.query.q;
     if (!query) {
-      return ResponseHandler.success(res, { data: [] });
+      return ResponseHandler.success(res, []);
     }
     
     const stmt = db.prepare(`
@@ -303,7 +291,7 @@ app.get("/api/samples/search", (req, res) => {
     const searchTerm = `%${query}%`;
     const samples = stmt.all(searchTerm, searchTerm, searchTerm);
     
-    ResponseHandler.success(res, { data: samples });
+    ResponseHandler.success(res, samples);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to search samples', error);
   }
@@ -445,7 +433,7 @@ app.get("/api/batches", (req, res) => {
       plate_layout: batch.plate_layout ? JSON.parse(batch.plate_layout) : {}
     }));
     
-    ResponseHandler.success(res, { data: batches });
+    ResponseHandler.success(res, batches);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to fetch batches', error);
   }
@@ -472,7 +460,7 @@ app.get("/api/batches/:id", (req, res) => {
 
     batch.plate_layout = batch.plate_layout ? JSON.parse(batch.plate_layout) : {};
     
-    ResponseHandler.success(res, { data: batch });
+    ResponseHandler.success(res, batch);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to fetch batch', error);
   }
@@ -483,9 +471,9 @@ app.get("/api/get-last-lab-number", (req, res) => {
   try {
     const stmt = db.prepare('SELECT lab_number FROM samples ORDER BY id DESC LIMIT 1');
     const result = stmt.get();
-    ResponseHandler.success(res, { data: result ? result.lab_number : '25_001' });
+    ResponseHandler.success(res, result ? result.lab_number : '25_001');
   } catch (error) {
-    ResponseHandler.success(res, { data: '25_001' });
+    ResponseHandler.success(res, '25_001');
   }
 });
 
@@ -493,9 +481,9 @@ app.get("/api/test-cases", (req, res) => {
   try {
     const stmt = db.prepare('SELECT * FROM test_cases ORDER BY id DESC LIMIT 100');
     const testCases = stmt.all();
-    ResponseHandler.success(res, { data: testCases });
+    ResponseHandler.success(res, testCases);
   } catch (error) {
-    ResponseHandler.success(res, { data: [] });
+    ResponseHandler.success(res, []);
   }
 });
 
@@ -530,7 +518,7 @@ const placeholderEndpoints = [
 
 placeholderEndpoints.forEach(endpoint => {
   app.get(endpoint, (req, res) => {
-    ResponseHandler.success(res, { data: [] });
+    ResponseHandler.success(res, []);
   });
 });
 
@@ -576,10 +564,7 @@ app.use('*', (req, res) => {
   ResponseHandler.notFound(res, `Route ${req.originalUrl} not found`);
 });
 
-// Error monitoring middleware
-if (process.env.NODE_ENV === 'production') {
-  app.use(errorMonitoringMiddleware);
-}
+// Removed error monitoring middleware
 
 // Global error handler (must be last)
 app.use(globalErrorHandler);

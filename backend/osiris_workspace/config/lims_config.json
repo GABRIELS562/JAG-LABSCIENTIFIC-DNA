@@ -1,0 +1,16 @@
+{
+  "inputDirectory": "/Users/user/LABSCIENTIFIC-LIMS/backend/osiris_workspace/input",
+  "outputDirectory": "/Users/user/LABSCIENTIFIC-LIMS/backend/osiris_workspace/output",
+  "kit": "IdentifilerPlus",
+  "ils": "ABI-LIZ500",
+  "population": "South_African",
+  "dyeSet": "5-dye (FAM, VIC, NED, PET, LIZ)",
+  "thresholds": {
+    "minRFU": 150,
+    "stutterThreshold": 0.15,
+    "adenylationThreshold": 0.3
+  },
+  "caseId": "CASE_1753214541845",
+  "timestamp": "2025-07-22T20:02:21.845Z",
+  "fileNaming": "ID suffix required (e.g., sample_ID.fsa)"
+}

@@ -1,0 +1,18 @@
+{
+  "analysis": {
+    "type": "paternity",
+    "kit": "PowerPlex_ESX_17",
+    "population": "South_African",
+    "thresholds": {
+      "minPeakHeight": 50,
+      "minPeakArea": 100,
+      "stutterRatio": 0.15,
+      "adenylationRatio": 0.3
+    }
+  },
+  "reporting": {
+    "generateXML": true,
+    "generatePDF": true,
+    "includePlots": true
+  }
+}

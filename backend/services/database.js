@@ -121,6 +121,28 @@ class UnifiedDatabaseService {
         }
       }
       
+      const osirisCacheSchemaPath = path.join(__dirname, '..', 'database', 'osiris-cache-schema.sql');
+      if (fs.existsSync(osirisCacheSchemaPath)) {
+        const osirisCacheSchema = fs.readFileSync(osirisCacheSchemaPath, 'utf8');
+        this.db.exec(osirisCacheSchema);
+        if (logger.info) {
+          logger.info('Osiris cache schema loaded successfully');
+        } else {
+          console.log('✅ Osiris cache schema loaded successfully');
+        }
+      }
+      
+      const enhancedReportsSchemaPath = path.join(__dirname, '..', 'database', 'enhanced-reports-schema.sql');
+      if (fs.existsSync(enhancedReportsSchemaPath)) {
+        const enhancedReportsSchema = fs.readFileSync(enhancedReportsSchemaPath, 'utf8');
+        this.db.exec(enhancedReportsSchema);
+        if (logger.info) {
+          logger.info('Enhanced reports schema loaded successfully');
+        } else {
+          console.log('✅ Enhanced reports schema loaded successfully');
+        }
+      }
+      
       if (logger.info) {
         logger.info('Database schema created/updated successfully');
       }
@@ -467,6 +489,36 @@ class UnifiedDatabaseService {
     return this.queryAll('getAllTestCases');
   }
 
+  // Genetic analysis case methods
+  getAllGeneticCases() {
+    try {
+      this.ensureConnection();
+      // Return existing test cases as genetic cases for now
+      // In the future, this could be a separate genetic_cases table
+      const cases = this.queryAll('getAllTestCases');
+      
+      // Transform test cases to genetic case format
+      return cases.map(testCase => ({
+        id: testCase.id,
+        caseId: `GA-${testCase.case_number}`,
+        caseNumber: testCase.case_number,
+        refKitNumber: testCase.ref_kit_number,
+        status: testCase.status || 'pending',
+        submissionDate: testCase.submission_date,
+        clientType: testCase.client_type,
+        testPurpose: testCase.test_purpose,
+        sampleType: testCase.sample_type,
+        createdAt: testCase.created_at,
+        updatedAt: testCase.updated_at
+      }));
+    } catch (error) {
+      if (logger.error) {
+        logger.error('Error getting genetic cases', { error: error.message });
+      }
+      return [];
+    }
+  }
+
   // Batch methods
   createBatch(batchData) {
     return this.execute('createBatch', [
@@ -553,7 +605,7 @@ class UnifiedDatabaseService {
     return this.queryAll('getAllReports');
   }
 
-  // Utility methods
+  // Utility methods for standard database operations
   generateLabNumber(clientType = 'paternity') {
     const year = new Date().getFullYear();
     const yearSuffix = year.toString().slice(-2);
@@ -579,6 +631,37 @@ class UnifiedDatabaseService {
       return `${prefix}${yearSuffix}_${lastSeq + 1}`;
     } else {
       return `${prefix}${yearSuffix}_1`;
+    }
+  }
+
+  // Database wrapper methods for external services
+  run(sql, params = []) {
+    this.ensureConnection();
+    try {
+      const stmt = this.db.prepare(sql);
+      return stmt.run(...params);
+    } catch (error) {
+      throw new DatabaseError('Failed to execute statement', error);
+    }
+  }
+
+  get(sql, params = []) {
+    this.ensureConnection();
+    try {
+      const stmt = this.db.prepare(sql);
+      return stmt.get(...params);
+    } catch (error) {
+      throw new DatabaseError('Failed to execute query', error);
+    }
+  }
+
+  all(sql, params = []) {
+    this.ensureConnection();
+    try {
+      const stmt = this.db.prepare(sql);
+      return stmt.all(...params);
+    } catch (error) {
+      throw new DatabaseError('Failed to execute query', error);
     }
   }
 

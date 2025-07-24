@@ -1,0 +1,2709 @@
+Directory:
+    /Users/user/LABSCIENTIFIC-LIMS/backend/osiris_workspace/input
+
+***********************************************************************************
+*    OSIRIS PARAMETERS:
+*       Parametric Fit Tolerance:  					0.999995
+*       Number of Integration Steps:  					50
+*       Gaussian Sigma Tolerance:  					1.5e-04
+*       Gaussian Sigma Width:  					10
+*       Maximum Number of Search Iterations:  					5
+*       Double Gaussian Sigma Ratio:  					4
+*       Inter-sample Spacing:  					1
+*       Square Wave Convolution Window Width:  					9
+*       Convolution Noise Threshold:  					300
+***********************************************************************************
+
+
+
+File Name:
+    LADDER_ID.fsa
+ABI model number:  3100
+Instrument Name:  3100_1465_027
+Number of channels of data = 5
+Dye set name:  G5
+Dye name for channel 1:  6FAM
+Dye name for channel 2:  VIC
+Dye name for channel 3:  NED
+Dye name for channel 4:  PAT
+Dye name for channel 5:  Bn Joda
+Start date for data collection:  2005:1:3
+Start time for data collection:  14:49:53:0
+Lane number for sample:  16
+Number of samples for data channel 5:  13450
+Using minimum RFU = 150
+Start mean = 317 and end mean = 9619.427078
+Test interval width = 218.8806371
+Max Peak = 2411.667754 and Max Density = 1
+
+Number of high peak intervals = 14 out of 43
+First high peak interval = 0 and first non high peak interval to follow = 1
+Last high peak interval = 42
+
+Number of high density intervals = 14 out of 43
+First high density interval = 0 and first non high density interval to follow = 1
+Last high density interval = 42
+
+Did not find primer peaks
+
+Found 14 isolated peaks
+May have removed large characteristics.  Restoring...
+
+Removing 0 of 14
+
+Max Peak Allowed for ILS = 2411.667754
+
+
+		Maximum correlation with ideal ILS (Total candidates = 14) is:  0.9988653484
+	Curve Nos.	1	2	3	4	5	6	7	8	9	10	11	12	13	14	
+	Fits	0.9996741186	0.9999505135	0.9993629137	0.999790048	0.9991594218	0.9998401418	0.9996006874	0.9997667834	0.9998969699	0.9999403308	0.9999140942	0.9999103765	0.9999060903	0.9999348525	
+	2AryContent	8.713734688e-02	6.8276927e-02	5.707414449e-02	9.110969093e-02	5.816198325e-02	-1.134417622e-02	7.135922598e-02	7.809781456e-02	4.945007407e-02	5.974904983e-02	5.502791197e-02	2.930993983e-02	3.893903055e-02	4.082393759e-02	
+	Means	317	869.5942305	1747	1972.395407	2187	3092.459481	4143	5334	6184.160865	6446.777961	7562.800667	8610.380838	9431.328433	9619.427078	
+	Widths	10.43110525	10.48557271	10.64866174	10.66976755	10.86734144	11.47647883	12.4644007	13.73159461	14.94335535	15.42802398	17.11219715	18.9713524	20.18898339	20.66498481	
+	Peaks	1483.843122	1681.068521	1931.763174	1977.827114	2023.319285	2154.137229	2206.032755	2362.96963	2343.704955	2392.789952	2411.667754	2341.007106	2316.922718	2303.403557	
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						277.55	23.4982605	55.07373649	16.05490901	0.9964708604
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						847.25	11.02541163	49.29469503	16.90488515	0.9940146306
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1724.25	4.252191614	53.99387424	31.30345179	0.9981478658
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1952	7.421933982	58.26796591	20.07409747	0.9984248658
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2165.80939	2.828427125	54.40213279	49.34884711	0.9988995543
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3071.942869	5.591462744	49.31942482	22.70782867	0.9988687023
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3092.459481	4.913007661	2154.137229	-24.43691233	0.9998401418
+			Curve fit incorporates negative component (1, 2)					2178.574141	-24.43691233
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4124	2	57.04	57.04	0.795
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5312	4.216926779	48.72390789	22.19762022	0.9990618715
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6160.190431	3.689873225	52.4254948	23.11238845	0.996957507
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6422	2	50.04	50.04	0.795
+			Peak below minimum detection threshold
+
+Lane standard analyzed using density method:  Method 1
+Using minimum RFU = 150
+Using minimum RFU = 150
+Using minimum RFU = 150
+Using minimum RFU = 150
+
+Ladder data for Channel Number 1
+
+	Locus name D8S1179 with number of peaks 12
+
+		Maximum correlation with ideal Control Set (Total Candidates = 12) for curves 1 - 12 is:  0.9999804992
+	Curve Nos.	1	2	3	4	5	6	7	8	9	10	11	12	
+	Fits	0.9996769744	0.9998383129	0.999621189	0.9993158293	0.9994794746	0.9995187495	0.9995256679	0.9996472071	0.9993389601	0.999211817	0.9996970777	0.9996659056	
+	2AryContent	0.1671075941	0.1692103129	0.1565193118	0.1537326428	0.1605955115	0.1696362198	0.161986083	0.1495742618	0.1580242996	0.1622868995	0.138695937	0.1542643964	
+	Means	1416	1507	1598	1689	1780	1873	1964	2055	2146	2237	2328.35176	2419.61528	
+	Widths	11.94006551	12.27137907	11.78614208	11.48643904	12.13007285	12.02016268	12.08693634	11.86891042	12.16757399	12.07312832	12.09641596	12.08048883	
+	Peaks	3554.258512	3237.73927	3884.481442	4161.524186	2408.121582	2194.757444	2179.084466	3021.549991	2062.557164	1953.579585	2296.85598	1777.401054	
+
+	Locus name D21S11 with number of peaks 24
+
+		Maximum correlation with ideal Control Set (Total Candidates = 24) for curves 1 - 24 is:  0.9999205176
+	Curve Nos.	1	2	3	4	5	6	7	8	9	10	11	12	13	14	15	16	17	18	19	20	21	22	23	24	
+	Fits	0.9996687602	0.9991459487	0.9995171321	0.9988550369	0.9992941463	0.9991801997	0.9960062375	0.9992454703	0.999441127	0.9985382963	0.9985817688	0.9991424636	0.998740804	0.9920317245	0.9987131	0.9994227778	0.998597922	0.9990926987	0.9984955668	0.9996270853	0.9990234974	0.9996334363	0.999608284	0.9992680749	
+	2AryContent	0.115213713	0.2319916047	0.1466451807	0.1849232999	0.1935621679	0.1425121835	0	0.1578636565	0.1876581565	0.2353560577	0.2305728879	0.2322864652	0.2659126937	0	0.2661951409	0.2274572679	0.1906366031	0.2680889606	0.2092296473	0.1586604651	0.227431232	0.1674164304	0.1374510417	0.2081499083	
+	Means	2757.547771	2803	2848.501104	2939.653244	3030.918886	3121	3166.018128	3212	3257	3303.342192	3348.542358	3394.556038	3439.924053	3486.107467	3531.256022	3577.356325	3621.876757	3668	3712.464609	3759	3803	3848.899713	3939.688704	4028.805239	
+	Widths	11.84712211	13.03960207	12.35134154	12.86920518	12.90593746	12.69009376	14.05997752	13.02581868	13.40583816	13.75608732	13.60982275	13.82103784	13.93839283	15.49436583	13.97660107	14.09681032	13.62791701	14.64017718	13.57711535	13.78520574	14.05316464	13.8928494	13.41896258	14.7782905	
+	Peaks	3512.049831	1599.599632	2668.777831	1985.784413	2325.291803	3319.959325	2385.717038	2492.859736	1619.323446	1402.726546	1567.750027	1413.163965	1223.486392	1890.855768	1395.889408	1582.650088	1931.113972	1364.523913	1906.788388	2250.945356	1417.583497	2072.674718	2792.350656	974.6093765	
+
+	Locus name D7S820 with number of peaks 10
+
+		Maximum correlation with ideal Control Set (Total Candidates = 10) for curves 1 - 10 is:  0.9999869243
+	Curve Nos.	1	2	3	4	5	6	7	8	9	10	
+	Fits	0.9997907427	0.9998209865	0.9990498253	0.9992975575	0.9999105404	0.9998167035	0.9998099968	0.9997242124	0.9998540018	0.9997394625	
+	2AryContent	0.1125406249	0.1109264568	0.1197175928	0.1105194702	0.1413856132	0.137056569	0.1374307308	9.368369486e-02	0.1255358813	0.1031506295	
+	Means	4372.540433	4463	4553	4644	4733.912268	4824.282058	4914.409928	5004	5094.552281	5184	
+	Widths	13.54542761	13.81941318	14.18216033	14.34008301	14.77172696	14.78052769	14.47287929	14.62148794	14.65617645	14.95437296	
+	Peaks	3466.6788	2898.011447	3147.151519	3289.553688	2899.334542	2100.207381	2472.557201	2807.805036	2637.069221	2448.437458	
+
+	Locus name CSF1PO with number of peaks 10
+
+		Maximum correlation with ideal Control Set (Total Candidates = 10) for curves 1 - 10 is:  0.9999925948
+	Curve Nos.	1	2	3	4	5	6	7	8	9	10	
+	Fits	0.9997614685	0.999796671	0.9996443302	0.999745703	0.9997009128	0.9996807785	0.9997788749	0.9997579638	0.9997969168	0.9993199055	
+	2AryContent	0.107326838	0.1237743075	9.998974415e-02	9.862739517e-02	0.1217869978	0.1116090017	0.1118592541	0.1353422444	0.1150959639	9.611661326e-02	
+	Means	5406	5495.052931	5584	5673	5762	5850.476456	5939	6027.63564	6116.005983	6204	
+	Widths	15.12761184	15.12567461	15.32508426	15.55987223	15.79752311	15.52751835	15.95502734	16.04153286	16.01607574	16.10009999	
+	Peaks	2187.199437	3219.166895	2852.858624	3023.952683	1972.531077	3156.776981	1971.570167	1360.41278	2220.224067	2597.050429	
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						696.84136	3.822428414	413.0891295	160.8907264	0.9985150881
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						718	6.477793169	150.0336669	105.4876754	0.9991970396
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						788.2961612	3.923906492	427.4140698	162.6643492	0.9978792435
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						879.8302948	4.564193515	378.4851579	152.1142177	0.9892030479
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						923.2526571	6.32752816	150.2261433	91.42218855	0.9988373979
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						970.6241282	2.828427125	343.1626967	202.3749507	0.9972780373
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1061.857286	6.051038908	282.8308568	115.0081942	0.9913193162
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1152.733728	4.815586572	304.8529794	144.8912402	0.9980134241
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1196	4.416342423	156.623821	111.4478026	0.9994349802
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1242.85173	4.637446866	421.5559453	180.6270376	0.9986576434
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1288.25	14.59549775	152.9867679	43.74255	0.9970558358
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1293	12.9086736	180.1960233	69.3522615	0.9997305639
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1329.365003	7.228454931	768.1785029	181.9166058	0.9987294875
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1377.5	10.94823289	223.0440492	102.4024814	0.9954253015
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1393	15.26055871	290.4092891	0	0.9999261981
+			Signal represents non-template addition (-A) for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1464.25	9.73870925	258.1412665	132.5927214	0.99884985
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1482	8.175678561	319.8973968	222.1518732	0.9993440996
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1548	5.699387573	223.3240445	124.3020838	0.9992625137
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1573.5	9.262948787	328.4808169	174.1256088	0.9991342913
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1637	5.912153801	208.6262003	152.022585	0.99943716
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1665.75	11.58140955	310.5150565	140.2208702	0.9991239914
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1727.907032	7.180303905	207.0531979	135.2294277	0.9992369487
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1758	2.451151615	240.38	224.9455333	0.9996136459
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1818	8.221004117	183.8077621	145.7087601	0.9996768872
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1847	11.77994116	209.1571985	127.1766812	0.9994238298
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1902	12.66012456	184.3383121	137.3834455	0.9997150807
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1945	44.69080404	211.7233996	-368.4911576	0.9996157923
+			Signal represents non-template addition (-A) for following peak
+			Signal represents stutter for previous peak
+			Curve fit incorporates negative component (1, 2)					580.2145572	-368.4911576
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1997.5	2.828427125	179.5851747	183.5527889	0.9994814382
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2032	12.66933404	229.884586	127.8744043	0.999430656
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2086.048921	2.828427125	168.1627627	174.2984243	0.998764789
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2111	10.64970178	160.1718542	107.61929	0.9993800597
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2218	23.62496147	176.956678	79.721962	0.9981824912
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2306.25	4.859606557	203.9779732	156.9067297	0.999363864
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2399.5	15.24369816	162.2870114	49.58640875	0.9964530007
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2510.700011	4.574548778	178.3434211	111.2273464	0.997864362
+			Signal represents stutter for previous peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2625.612536	12.55253807	167.4807506	49.35206873	0.9954726725
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2667.415069	4.609568658	379.6238068	147.4654262	0.9991292582
+			Signal represents stutter for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2713.047516	4.742286292	583.86094	229.6615587	0.9942479859
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2780	2.627727069	254.38	237.6920617	0.999886981
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2820	2.431806948	281.3804023	220.4904639	0.9998531402
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2893	8.265797093	248.4343731	145.5619728	0.9990736099
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2911.16628	5.672082907	207.6815896	175.4531854	0.99840679
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2983	9.147880896	230.9284095	155.203771	0.99914477
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3008	7.827272853	232.6654946	162.2756139	0.9993999454
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3055	2.828427125	237.866933	213.1931977	0.9999934068
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3075.096885	4.430303933	565.2578901	270.8855845	0.9998292174
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3098	5.279210859	261.1152731	206.1252765	0.9997063557
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3142	4.00561643	306.2724871	258.9417011	0.9998079162
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3186	4.881327812	267.38	0	0.999222991
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3282	2.153026752	222.38	206.6885379	0.999976365
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3322	2.280578088	239.38	223.1656735	0.9998495988
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3367	2.643080328	249.38	232.0395072	0.9999944446
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3510.314011	8.818034253	235.0489101	0	0.9993132071
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3547	2.195057865	288.38	264.225272	0.9994616541
+			Signal represents non-template addition (-A) for following peak
+			Signal represents stutter for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3598	2.828427125	237.38	201.8531876	0.9999674479
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3644	3.016123502	268.38	245.9779417	0.9998554308
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3690	2.828427125	242.3605482	212.657505	0.9997170351
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3734	2.775512388	280.38	262.2246167	0.9999862377
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3823	1.474430646	237.38	223.1206026	0.9999950695
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3893.909497	9.096660845	243.5969117	111.9334478	0.9987556737
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3921	8.684648711	215.3135458	147.5283967	0.9995589063
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3983	8.709107499	167.91074	111.1697408	0.9994002157
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4275.188081	10.45787458	182.6260876	75.25978915	0.9981981266
+			Signal represents stutter for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4350	5.470907556	520.2997588	145.3809827	0.9990428397
+			Signal represents non-template addition (-A) for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4395	2.084005731	248.38	200.6467578	0.999957237
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4441.152289	5.57684041	439.5312173	159.0541516	0.9988850928
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4488	2.828427125	201.5183237	183.5915793	0.9990016517
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4531.610239	6.79521973	471.0379705	0	0.9991735339
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4622.014647	6.15350178	493.0084343	91.5109444	0.9994920281
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4669	2.828427125	223.0055918	168.7149005	0.9994419421
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4713	6.572371957	464.2168299	111.260803	0.9994043815
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4802	5.198994046	341.4343814	133.2519274	0.9993944672
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4851	1.113812764	164.38	138.3386195	0.9996346585
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4893	6.213376581	352.0622921	119.9354774	0.9995395243
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4982.552003	5.550670826	260.1886121	98.89230676	0.9989861013
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5072	4.842898464	363.9297912	129.0520383	0.9995813888
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5163	5.684394813	256.718679	110.3191026	0.9997264504
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5316.626199	9.267731297	170.0720681	74.22470919	0.9960065072
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5384.25	9.753373393	167.3242506	60.0471321	0.9985210137
+			Signal represents non-template addition (-A) for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5478	8.286532452	262.4867698	113.698443	0.998314354
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5565	5.357363623	244.5436497	132.5893437	0.9994692765
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5652.25	4.820132877	229.9952512	137.815418	0.9990669323
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5743	7.25833253	195.5729605	78.39634757	0.9983853804
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5831.25	5.497270907	236.8583289	103.3796184	0.9985761023
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5918	2.828427125	189.6330339	145.1107042	0.9990069064
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6185	8.261814485	167.6026402	67.56089871	0.997715455
+			Signal represents non-template addition (-A) for following peak
+
+
+Ladder data for Channel Number 2
+
+	Locus name D3S1358 with number of peaks 8
+
+		Maximum correlation with ideal Control Set (Total Candidates = 8) for curves 1 - 8 is:  0.9998360411
+	Curve Nos.	1	2	3	4	5	6	7	8	
+	Fits	0.9998735028	0.9997353315	0.9991467061	0.9996575519	0.9999152957	0.9997519772	0.9994735076	0.9998429054	
+	2AryContent	0.1189843088	0.1201646005	0.1154619269	0.106555992	0.1051600545	0.1687327507	0.1968390626	0.1592064736	
+	Means	1163.395939	1256	1346	1435	1528	1620.514327	1710.585897	1799.501216	
+	Widths	12.12266152	12.22964507	12.77131936	12.11297369	12.08918606	12.35252976	12.44060562	12.55911667	
+	Peaks	2480.66299	2184.813472	2266.582671	4800.069724	4401.484512	2315.365943	2069.080635	1856.288522	
+
+	Locus name TH01 with number of peaks 10
+
+		Maximum correlation with ideal Control Set (Total Candidates = 10) for curves 1 - 10 is:  0.9999825137
+	Curve Nos.	1	2	3	4	5	6	7	8	9	10	
+	Fits	0.9998885439	0.9999137846	0.9998775091	0.9998868014	0.9997010018	0.9999389136	0.9988682632	0.9997927067	0.9992732411	0.9996868117	
+	2AryContent	6.447747147e-02	5.609741709e-02	8.408127984e-02	6.228078824e-02	5.904254707e-02	7.507385908e-02	0.1133824836	9.75579884e-02	6.74775645e-02	9.566834505e-02	
+	Means	2277	2367.690955	2458.343772	2549	2640	2730.559711	2799.864355	2821.233871	2912	3163	
+	Widths	11.33160597	11.60572354	11.53859607	11.75794373	11.88167592	12.02037185	12.47683682	12.3825429	11.8436373	12.12436605	
+	Peaks	4162.230288	3905.327076	4585.852733	4639.72498	4252.548199	3693.572606	2930.628586	3263.319591	2782.095186	3198.149943	
+
+	Locus name D13S317 with number of peaks 8
+
+		Maximum correlation with ideal Control Set (Total Candidates = 8) for curves 1 - 8 is:  0.9999274151
+	Curve Nos.	1	2	3	4	5	6	7	8	
+	Fits	0.9994453908	0.9992620982	0.9990800227	0.9990047601	0.9988624391	0.999021114	0.999343688	0.9995107693	
+	2AryContent	0.1101298924	0.1597703135	0.1302426103	0.1346666289	0.1602256156	0.1281978551	0.139455145	0.1208636728	
+	Means	3479	3570.065406	3661.111333	3754.066353	3843.626544	3933	4023.621899	4114.395379	
+	Widths	13.01818042	13.09688714	13.46751171	13.50444487	13.49478948	13.57800334	13.61298039	13.69167996	
+	Peaks	4077.390896	3263.02438	2927.683728	3527.7073	2748.661804	3371.308968	2858.021781	3404.473938	
+
+	Locus name D16S539 with number of peaks 9
+
+		Maximum correlation with ideal Control Set (Total Candidates = 9) for curves 1 - 9 is:  0.9999890011
+	Curve Nos.	1	2	3	4	5	6	7	8	9	
+	Fits	0.999294171	0.9990378328	0.9987080996	0.9988501383	0.9987258967	0.9986050233	0.9984030463	0.9978973267	0.997453921	
+	2AryContent	0.1444978874	0.1663914867	0.1843677431	0.1526720837	0.1979598449	0.2034191634	0.207664844	0.2155694852	0.24598388	
+	Means	4279	4548	4638.193055	4727.870718	4818.202866	4906.703817	4996.3827	5086.928173	5176.45274	
+	Widths	14.15170685	14.51900302	14.51639664	14.69852425	14.95808171	14.83376619	15.29136011	15.46259686	15.81183696	
+	Peaks	3359.428701	3672.340544	3547.360094	5846.135609	2959.470501	2801.286846	2363.491932	2479.287264	2373.319817	
+
+	Locus name D2S1338 with number of peaks 14
+
+		Maximum correlation with ideal Control Set (Total Candidates = 14) for curves 1 - 14 is:  0.9999709089
+	Curve Nos.	1	2	3	4	5	6	7	8	9	10	11	12	13	14	
+	Fits	0.999093762	0.9994564668	0.9953970458	0.9990854515	0.9980227698	0.9987018114	0.9995963385	0.9984365707	0.9995356179	0.9996140954	0.9994508905	0.9991123284	0.9995123602	0.9994560132	
+	2AryContent	0.1705997911	0.1636539437	0	0.1752293862	0.189642907	0.1740885532	0.1626763152	0.1905934288	0.1541958942	0.1511534232	0.1387390805	0	0.1400461013	0.1465993901	
+	Means	5481.698354	5570.502398	5659.459028	5748.224203	5836.669761	5925.23427	6014	6103.032487	6191.224074	6279.498163	6367.534419	6454	6543	6630.730353	
+	Widths	15.83208617	15.64130048	18.34310058	16.08943338	16.35069643	16.32976807	16.86234615	16.6691889	16.68143388	17.20041737	17.03672293	15.99724594	17.25335847	17.20399851	
+	Peaks	3677.230385	4078.062026	2751.836396	4042.235231	3262.641583	3396.946204	2929.238463	3093.981089	2610.82207	2372.191682	2802.949934	2522.476372	2117.450533	2063.255021	
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						650.0554605	8.20709671	157.2060541	100.5691653	0.9988651623
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						700.8570131	9.752006048	151.2132553	0	0.9979892843
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						806.8686295	14.87093708	155.9061421	84.40918976	0.9935975255
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						983	10.97995943	160.5839016	139.5932312	0.9985344537
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1012.68	2.828427125	186.54	120.9048962	0.9981092532
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1026.818351	9.106289917	163.5818961	52.70723918	0.9978593413
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1073.778212	4.815715162	409.9250188	167.5781256	0.9977826145
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1113.651954	5.03705878	195.9774546	118.4039816	0.9967597019
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1141.960966	4.283009956	288.3011661	128.7078993	0.9991953126
+			Signal represents non-template addition (-A) for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1322	13.89446795	152.2064721	77.67106897	0.9989334918
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1383.460085	12.28720181	176.8006145	0	0.9984237937
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1467.75	17.51806126	180.2476332	87.19752597	0.9978666528
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1504.25	0.9232115102	162.54	136.4036713	0.983215675
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1604	3.034096696	320.54	301.3600338	0.9993728605
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1643.619538	7.356233125	208.2168285	69.20277452	0.9985625623
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1782	9.073146908	150.0112891	98.76550607	0.9964286565
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1882.848595	6.530239961	223.5114595	111.5533805	0.9957047869
+			Signal represents stutter for previous peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1970.307201	4.708003951	188.9931858	107.0143397	0.9981644299
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2065.5	9.074771343	163.1799784	89.27370889	0.9907584884
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2157.75	10.02325084	163.6873521	86.08459644	0.993977115
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2183	9.510223894	198.8448974	80.72937243	0.9974275131
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2217.033088	7.551468524	174.1287988	0	0.9988737075
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2252.781469	10.03288047	304.0181437	119.9603666	0.9967348544
+			Signal represents non-template addition (-A) for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2305.627614	35.90376954	175.4939995	-130.6441898	0.9977879855
+			Peak out of place in control set: uncategorized artifact
+			Curve fit incorporates negative component (1, 2)					306.1381893	-130.6441898
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2342	7.991647606	334.4152048	79.64325279	0.9993573368
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2393.75	8.947986698	186.605072	127.3485321	0.9988645472
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2411	2.990829906	166.7542149	155.5493191	0.9982690275
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2433.339013	6.175858653	350.9081786	164.5986057	0.9987529245
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2501.867236	3.770970895	296.7291272	234.9313189	0.9997064321
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2525	5.577738536	330.1712038	208.6240801	0.9994396999
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2575	6.287607703	217.9256305	149.1634517	0.9992642459
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2616.724069	11.75934679	290.476567	163.6440491	0.9974682098
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2710.003751	8.936434331	408.8745416	171.9729637	0.9914359976
+			Signal represents non-template addition (-A) for following peak
+			Signal represents stutter for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2762.25	4.889280003	185.9017936	0	0.9930992822
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2772	17.53539884	264.445988	-61.53727366	0.9990491837
+			Signal represents non-template addition (-A) for following peak
+			Curve fit incorporates negative component (1, 2)					325.9832617	-61.53727366
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2854.165452	2.218601939	169.6736477	99.08373517	0.9978361041
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2888.795641	4.20676875	212.7468432	131.9155111	0.9997440979
+			Signal represents non-template addition (-A) for following peak
+			Signal represents stutter for previous peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3043.5	9.201077204	151.9710807	75.63374167	0.9940224299
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3072.675431	4.31177848	211.6179336	138.5896131	0.9977604948
+			Signal represents stutter for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3085.5	6.701879995	150.1101881	78.50217496	0.997603423
+			Signal represents stutter for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3137.258515	2.828427125	265.2773188	268.2062334	0.9980322129
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3223.260491	3.85208883	150.4188386	150.4188386	0.9879531714
+			Peak out of place in final list:  interlocus peak
+			Curve is a level 3 blob
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3386.065884	4.86481974	193.380288	123.6313562	0.997924526
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3462.25	16.17845356	193.8548784	44.9625171	0.9956916796
+			Signal represents non-template addition (-A) for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3539.75	7.695942808	153.2109153	81.23864868	0.9960905587
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3631.532895	7.469616469	162.3821613	7.773401835	0.9969789581
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3643.25	2.024279599	163.54	118.0445574	0.9983243623
+			Signal represents non-template addition (-A) for following peak
+			Signal represents stutter for previous peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3732.25	5.83872602	152.1960547	120.7282179	0.9989808239
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3912	6.845868903	154.2913533	87.13187754	0.9981519732
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4006.25	10.04476142	160.6822275	67.96086144	0.9986934311
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4194.75	15.16713031	161.0590085	74.06956651	0.9983411847
+			Signal represents stutter for following peak
+			Signal represents stutter for previous peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4207.75	7.865184115	154.6854893	99.2202396	0.9982707149
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4259	4.378698365	202.3899458	133.2779419	0.9995275262
+			Signal represents non-template addition (-A) for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4299	2.828427125	356.1628984	299.1880042	0.9994457935
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4389.75	12.65939532	183.6471364	104.3965495	0.974441656
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4457.25	8.649520275	256.1498936	82.16349717	0.998974898
+			Signal represents stutter for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4470.25	12.85110903	228.8520258	135.6469477	0.998448329
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4527.604204	4.740951651	286.7591954	174.3460813	0.9987274784
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4572	2.828427125	356.9898081	232.6934997	0.9990838336
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4615.25	9.918034461	207.5623445	81.47696803	0.997469397
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4708.25	8.844692829	311.4716536	111.0938255	0.9960843341
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4801	11.92321535	217.4267921	60.68849866	0.9974708981
+			Signal represents non-template addition (-A) for following peak
+			Signal represents stutter for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4844	3.752831874	315.3638053	151.4850866	0.9992022919
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4886.25	11.61628708	181.8667016	60.37497097	0.996165351
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4974.25	7.861985836	178.9742945	117.0112003	0.9988468376
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5016	4.429323313	387.6612867	258.5067329	0.9998036029
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5067.25	11.35660559	199.7339099	80.15305469	0.9978083396
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5107	2.828427125	433.135239	357.4550358	0.9994626305
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5146.29	9.592628051	195.1037945	105.2107579	0.9989543639
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5193	2.828427125	501.6060067	438.5909163	0.999398336
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5266.169099	14.29855601	230.6525519	230.6525519	0
+			Signal represents stutter for previous peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5292	2.154611028	227.54	208.6632387	0.9996020087
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5304	8.185249215	217.8416881	151.9878623	0.9993657205
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5340.75	14.01645401	190.6763418	134.4303297	0.9989384707
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5364	8.350371918	225.1685078	208.6298496	0.9993688627
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5392.056765	5.076689011	658.7528405	289.6725625	0.9986511186
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5416	9.906698748	257.1416383	109.5047127	0.9994482274
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5431	4.793920993	258.6906392	230.9601715	0.9994763138
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5437	1.685950307	272.54	254.7239209	0.9995709605
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5441	2.828427125	273.54	250.3106178	0.9998871903
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5453.25	5.134340287	281.1023935	235.4536726	0.9989749041
+			Signal represents non-template addition (-A) for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5502	3.336797024	489.0130301	436.1148152	0.9999406402
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5517	21.58586169	413.276912	-111.1815981	0.9995326867
+			Peak out of place in control set: uncategorized artifact
+			Curve fit incorporates negative component (1, 2)					524.4585101	-111.1815981
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5589	2.828427125	537.54	420.6995395	0.999822762
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5607	15.3018078	399.7859737	118.14252	0.9998074735
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5627	2.115589363	285.54	260.4091093	0.999938118
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5693	27.6451991	411.7028084	-172.3015916	0.999410479
+			Peak out of place in control set: uncategorized artifact
+			Curve fit incorporates negative component (1, 2)					584.0044	-172.3015916
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5726.25	5.908957067	342.1602609	241.8900599	0.9990682914
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5809	2.485235677	305.54	283.5527584	0.9999334175
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5814	2.828427125	330.54	288.6499817	0.9999721504
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5903	10.21380754	268.3005246	222.5563405	0.999266438
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5992	7.088569785	285.3401446	236.3290815	0.9995084053
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6050	23.14430604	311.2807661	0	0.9995121939
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6127	1.452703265	410.54	360.0189311	0.9999386776
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6212	2.162229214	362.54	324.737175	0.9999118484
+			Signal represents stutter for previous peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6318.5	30.54798108	253.2308938	-176.0382236	0.9993660313
+			Peak out of place in control set: uncategorized artifact
+			Curve fit incorporates negative component (1, 2)					429.2691174	-176.0382236
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6405	12.0625346	262.4586559	106.9292784	0.9996190762
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6431.5	5.667083623	185.4906775	163.1208147	0.9988131313
+			Signal represents non-template addition (-A) for following peak
+			Signal represents stutter for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6490	14.77741152	226.4183264	61.48264823	0.9995202623
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6580	11.45328616	218.0373472	72.24217209	0.9995459516
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6657	2.537595755	203.54	188.7034211	0.9998900456
+			Peak out of place in final list:  interlocus peak
+
+
+Ladder data for Channel Number 3
+
+	Locus name D19S433 with number of peaks 15
+
+		Maximum correlation with ideal Control Set (Total Candidates = 15) for curves 1 - 15 is:  0.9999776339
+	Curve Nos.	1	2	3	4	5	6	7	8	9	10	11	12	13	14	15	
+	Fits	0.9999636231	0.999762023	0.9999459218	0.9999233817	0.999792207	0.9990334452	0.9997822749	0.9920106519	0.9989906154	0.9944849517	0.9986205324	0.9997261306	0.9998163243	0.9996571446	0.9995794154	
+	2AryContent	0.104445622	0.1280069453	0.1345422471	0.1290523161	0.1543393583	0.1788657463	0.1591805481	0	0.1913774893	0	0	0.1707131672	0.1598567189	0.1759415501	0.1060965717	
+	Means	936.5514962	1026	1115.722612	1205	1250	1294	1339	1383.371936	1428.12842	1472.252883	1517.09389	1561	1606	1650.32646	1695	
+	Widths	10.85830854	10.84400359	11.03138872	11.07607355	10.90005592	11.0839619	11.16230829	12.89236106	10.94773174	12.64300078	11.85912037	11.37923093	11.32674742	11.76707746	11.43094113	
+	Peaks	3020.251732	2853.928817	2856.025728	2327.235823	2507.886981	2165.089322	2205.785448	1751.523652	2107.872811	1724.230076	1793.216162	1534.529077	1553.418577	1374.947551	1256.444992	
+
+	Locus name vWA with number of peaks 14
+
+		Maximum correlation with ideal Control Set (Total Candidates = 14) for curves 1 - 14 is:  0.9997501374
+	Curve Nos.	1	2	3	4	5	6	7	8	9	10	11	12	13	14	
+	Fits	0.9988712362	0.99904856	0.9983080018	0.9996834587	0.9984476413	0.9988713656	0.9990877797	0.9990436664	0.9992214853	0.9985814975	0.9991383473	0.9978840274	0.9986077382	0.998865308	
+	2AryContent	0.183796931	0.1865558761	0.2011904821	0.1205985715	0.2169266979	0.1843305338	0.1669446556	0.1780624011	0.2023991845	0.1832196831	0.175908737	0	0.1862773232	0.1720945673	
+	Means	2095.03911	2184.599168	2275.60108	2368.651865	2457.543195	2547.564678	2638	2728.357737	2818.436298	2909.32462	3000.208664	3090.228216	3179.314587	3276.312644	
+	Widths	12.21700129	11.97782275	12.49596183	12.61763985	12.99013287	12.5118503	12.5968503	12.54738856	13.59635796	13.40568081	12.88303482	13.83800214	14.14663554	12.57936817	
+	Peaks	2018.209329	2292.776106	2269.075321	2917.166883	2203.777089	2858.076577	2938.807477	2405.333944	1442.772075	1557.536799	1731.002023	2425.606107	2023.977763	1937.411841	
+
+	Locus name TPOX with number of peaks 8
+
+		Maximum correlation with ideal Control Set (Total Candidates = 8) for curves 1 - 8 is:  0.9999977092
+	Curve Nos.	1	2	3	4	5	6	7	8	
+	Fits	0.9998433375	0.9996504441	0.9991619234	0.9998358805	0.9998144309	0.9997680283	0.9998091405	0.9998750459	
+	2AryContent	8.10043186e-02	8.712070274e-02	9.369295779e-02	8.670133996e-02	7.18599057e-02	7.549458223e-02	7.161298846e-02	8.612148583e-02	
+	Means	3609	3699	3789	3879.4716	3969.646328	4060	4150	4240.407187	
+	Widths	13.18433375	13.22290386	13.27242691	13.42767076	13.50467453	13.64939572	13.43464568	13.96056428	
+	Peaks	3099.607799	3097.96118	2716.824959	2773.813086	2570.531191	2623.864003	2880.419185	1980.863898	
+
+	Locus name D18S51 with number of peaks 23
+
+		Maximum correlation with ideal Control Set (Total Candidates = 23) for curves 1 - 23 is:  0.9999685776
+	Curve Nos.	1	2	3	4	5	6	7	8	9	10	11	12	13	14	15	16	17	18	19	20	21	22	23	
+	Fits	0.9995006482	0.9981132767	0.9967027644	0.9909300304	0.9993329746	0.9993588708	0.9983781775	0.9994917646	0.9992136504	0.9995134421	0.9996090797	0.9990944414	0.9993403527	0.9995471944	0.9994412227	0.9993240013	0.9993255521	0.9995533068	0.9996535337	0.9994014751	0.9995550457	0.9996065444	0.9996379075	
+	2AryContent	9.737415669e-02	0	0	0	0.1589394297	0.1400679338	0	0.2112760765	0.17477238	0.2335379866	0.1430529905	0.1297728339	0.1087294175	0.1509767075	0.1406624866	0.1503259745	0.1368292047	0.1083864934	0.1028802166	0.114076285	0.1260330243	9.46001936e-02	9.15336089e-02	
+	Means	4530.675217	4712.721467	4803.8567	4848.83803	4894.684961	4985.513596	5076.311031	5121.1461	5167	5212	5258	5348	5439	5529.007528	5619	5709	5799	5889	5978.619199	6068	6157.615542	6247	6336	
+	Widths	14.27574292	15.88362915	15.98138738	17.6534653	14.76327311	14.69981463	16.10463312	15.62603821	15.30495215	16.20783343	15.77776445	15.50047073	15.67190771	15.821738	16.11453302	16.35325279	16.15115192	16.25727569	16.5322747	16.45056499	16.34920748	16.48916805	16.30547689	
+	Peaks	4146.154918	2491.097761	3161.584356	1943.493262	2916.168508	4072.671298	2712.134628	1666.294087	1914.847347	1088.755994	1605.178769	1829.206767	1853.625173	1483.734986	1338.391139	1198.029536	1377.179227	1773.534875	1778.505957	1512.913561	1611.104217	1879.876662	2060.072215	
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						847	4.004439927	268.1454353	135.1489576	0.9949235802
+			Signal represents stutter for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						917.25	2.828427125	158.7388559	136.5009479	0.9985689116
+			Signal represents non-template addition (-A) for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						983.9383987	10.02000654	187.0268453	97.55310273	0.9961639477
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1044	1.037037317	248.12	270.7960977	0.9998980464
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1077.318263	13.89427257	243.6166133	134.9688135	0.998629391
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1098.25	2.828427125	201.12	166.628805	0.99903226
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1163.382419	11.22701338	409.2502659	155.2926802	0.9855078887
+			Signal represents stutter for one or more peaks
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1230	3.438835378	239.518949	218.6398763	0.9996221927
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1268	0.7987249713	257.12	278.9957827	0.9999936404
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1365	9.410714031	245.12	0	0.9998750566
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1412	2	202.12	202.12	0.795
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1454	6.239332436	210.12	0	0.9999321239
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1578	1.459711083	186.12	166.9480096	0.9999415275
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2004.088898	7.55747451	353.5394219	0	0.9961852048
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2072.751977	5.542876936	234.4301028	65.68557342	0.9989273598
+			Signal represents non-template addition (-A) for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2111	2.828427125	281.0101768	254.1197242	0.9996794832
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2162.175086	4.585508919	253.5087754	131.5916632	0.997283375
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2253	5.160169442	274.0626074	121.6863187	0.9988504433
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2296	1.464198103	290.12	262.4189152	0.9997271089
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2346.044674	5.707242651	327.427702	98.78182404	0.9992230709
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2386	1.481307805	297.12	284.9035586	0.9999972821
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2435.355592	4.696514903	255.0185647	135.1530395	0.998118511
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2479	3.217250554	275.9000831	191.2891761	0.9998743703
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2525.091719	5.072726434	325.4629107	125.2999517	0.9990432533
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2581	2.828427125	163.12	58.52322933	0.9999597273
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2615.809495	5.436891247	334.4472105	126.1912659	0.9996740178
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2706	4.610138037	277.6189127	155.9145141	0.9993935226
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2748	1.903012301	286.12	260.3341369	0.9998161482
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2796	9.712015193	161.6371234	90.03958269	0.9979978466
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2840	8.871417858	186.12	-256.922143	0.9996760843
+			Peak out of place in control set: uncategorized artifact
+			Curve fit incorporates negative component (1, 2)					443.042143	-256.922143
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2886.925331	7.629887696	188.1502167	88.11688429	0.9975902704
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2927	2.40883539	233.12	195.7001677	0.9996787507
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2977.319211	4.945262947	202.3367268	100.1433368	0.9993512634
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3067.450287	5.087992607	273.7144546	119.4343708	0.9992744994
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3109.715924	6.177375982	292.7252078	0	0.9991459031
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3154.587659	5.132119775	220.4149953	104.2637006	0.9986946028
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3203	2.828427125	228.12	177.643113	0.999990356
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3253	4.632769554	239.2884608	126.8395801	0.9990020138
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3518.046542	5.519849183	158.7969212	92.05182944	0.9985197495
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3592	16.34161047	247.8703334	-20.73910857	0.9981065039
+			Signal represents non-template addition (-A) for following peak
+			Peak out of place in final list:  interlocus peak
+			Curve fit incorporates negative component (1, 2)					268.609442	-20.73910857
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3675.920207	2.828427125	240.7281745	210.1855255	0.9966651466
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3679	2.828427125	252.12	202.7047599	0.9998415586
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3767.241577	7.111511127	242.3532666	24.32717635	0.9976347088
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3772.68	7.787545395	244.12	186.1169664	0.998807799
+			Signal represents non-template addition (-A) for following peak
+			Signal represents stutter for previous peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3859	9.01476778	221.0440192	33.32396614	0.9976780527
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3946.198048	6.528037885	199.3236529	40.24692621	0.997633792
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3949	2.828427125	217.12	202.3328896	0.9990174976
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4038.759108	7.392217654	206.782843	31.4892037	0.9972271308
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4122.5	4.844071187	206.8663864	165.0672822	0.9939223675
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4220.934229	5.183769867	162.7788376	70.39580782	0.9971157747
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4440.321009	12.30572731	221.9885588	75.09300686	0.9916094149
+			Signal represents stutter for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4511.25	13.25375596	231.1204373	85.28814116	0.9980720593
+			Signal represents non-template addition (-A) for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4550	2.159695723	323.12	185.1715987	0.9999408266
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4576	11.77549092	184.12	-463.3405301	0.9999298011
+			Peak out of place in control set: uncategorized artifact
+			Curve fit incorporates negative component (1, 2)					647.4605301	-463.3405301
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4595.668857	4.872031012	180.12	0	0.9989809011
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4621.522663	5.305879701	527.1525544	220.0201966	0.9992198412
+			Signal represents stutter for previous peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4646.75	10.63606483	246.5809557	0	0.9987474473
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4665	9.686898305	261.2662191	195.5324115	0.9994187128
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4757.481478	4.655345121	619.2044756	346.9154976	0.9995254999
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4825	4.661504134	400.12	0	0.9990217469
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4829	5.560710474	358.12	0	0.999836454
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4870	1.474108439	301.12	282.0865088	0.9999721431
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4915	1.735239915	333.12	312.3255732	0.9998455301
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4939	8.810232326	289.307318	152.4846893	0.999334135
+			Signal represents stutter for previous peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4963.25	6.229167277	250.9406295	183.6238674	0.9993088209
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5030	5.47291478	612.7905443	249.1110127	0.9996954823
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5057	1.765727717	232.12	213.948275	0.9998666908
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5094	6.225638631	347.430138	0	0.9990959095
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5491.25	7.574274461	174.2432545	0	0.9873747254
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5581.75	9.255819218	161.0971969	107.6947336	0.9942086924
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5670.156589	9.081218092	167.6251983	-7.615518545	0.9954802435
+			Peak out of place in control set: uncategorized artifact
+			Curve fit incorporates negative component (1, 2)					175.2407169	-7.615518545
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5761.25	8.794771824	170.563602	89.56234435	0.9901660421
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5847.811479	8.703144856	178.7068575	0	0.9957715473
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5935.21282	7.629677015	175.1918979	0	0.9945682549
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6028.831245	6.776823957	156.8147067	0	0.9972366854
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6114.965006	8.810456128	151.2998162	0	0.9918623441
+			Peak out of place in control set: uncategorized artifact
+
+
+Ladder data for Channel Number 4
+
+	Locus name AMEL with number of peaks 2
+
+		Maximum correlation with ideal Control Set (Total Candidates = 2) for curves 1 - 2 is:  1
+	Curve Nos.	1	2	
+	Fits	0.9992643306	0.9986341589	
+	2AryContent	0	0.1570349811	
+	Means	1041.669068	1171.143978	
+	Widths	16.39521744	15.28921871	
+	Peaks	1583.826592	1366.486489	
+
+	Locus name D5S818 with number of peaks 10
+
+		Maximum correlation with ideal Control Set (Total Candidates = 10) for curves 1 - 10 is:  0.9999036539
+	Curve Nos.	1	2	3	4	5	6	7	8	9	10	
+	Fits	0.999478505	0.9995437674	0.9994222465	0.9990849849	0.999259118	0.9990078367	0.9994520772	0.9994662718	0.9992714509	0.9994023612	
+	2AryContent	0.1422445623	0.1135862416	0.1436723686	0.1412683136	0.1830183616	0.1532005947	0.1096592453	0.1219744572	0.1511058231	0.1213742902	
+	Means	1659.420886	1749.601063	1839.652859	1930	2018.800583	2108.702794	2197.384896	2289.434205	2377.805663	2469.776237	
+	Widths	15.0997473	15.31450399	15.39125322	15.52761976	15.4172505	15.374192	15.10781083	15.49229023	15.238306	15.22376508	
+	Peaks	1594.562902	1737.506775	1547.377382	1554.954979	1491.61917	1275.567555	1448.080356	1134.88655	1188.459377	1206.396365	
+
+	Locus name FGA with number of peaks 28
+
+		Maximum correlation with ideal Control Set (Total Candidates = 28) for curves 1 - 28 is:  0.9999714697
+	Curve Nos.	1	2	3	4	5	6	7	8	9	10	11	12	13	14	15	16	17	18	19	20	21	22	23	24	25	26	27	28	
+	Fits	0.9997269298	0.9997937965	0.9996416181	0.9996742554	0.9992803939	0.9995912018	0.9997421662	0.9991025812	0.9995514936	0.9996297483	0.9993958211	0.9997898924	0.9991066092	0.9995526967	0.994700454	0.999640172	0.9994825519	0.9991592797	0.9995577398	0.9991953739	0.999586587	0.9994941991	0.999395953	0.9994261258	0.9992108183	0.9995643333	0.9996540418	0.9996278055	
+	2AryContent	0.1363450163	0.1136515198	0.1029064692	0.1826634982	0.2062636129	0.1817609814	0.1416433341	0.2040135686	0.1546061378	0.1979729855	0.2581399441	0.2158584662	0.2250416106	0.1735513609	0	0.1664505285	0.1639015835	0.1596975087	0.1780959095	0.1393185214	0.1426554558	0.1221857382	0.1346140894	0.166041152	0.1467726099	0.1496494486	0.1353369382	0.1473758274	
+	Means	3453.887014	3545.577553	3637	3728	3819	3910.451013	4001.610512	4093	4184	4275	4320.412639	4365.348164	4456.272785	4547	4638.839575	4680.504836	4771.400649	4862	4953	5768	5857.913417	5947.49191	6037	6125	6214	6304	6481.75037	6569.436873	
+	Widths	15.11562168	15.26512342	15.21503206	15.52087431	15.75399778	15.74992801	15.36118737	15.92246027	15.62485054	16.03013424	17.09908196	16.70925393	16.81939885	16.64185586	18.75716281	16.71473341	16.51958145	16.50641614	16.84532675	16.97820736	17.32060887	17.67780133	17.75829506	17.84110556	17.92711651	18.14162875	18.15058544	18.31858841	
+	Peaks	1858.854665	1768.682123	2300.979587	1402.765468	1306.045494	1515.885827	2305.456086	1680.481119	2252.568885	1332.862877	1087.76031	1078.033654	1162.520933	1199.075156	1181.889205	1548.101553	1541.914108	1651.675212	1403.133998	1412.565675	1296.796937	1392.48152	1437.340182	1227.978856	1145.229096	1000.047576	1286.737931	911.6491152	
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						761.0437482	31.90021444	253.0265938	47.92359031	0.997882238
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						928.25	27.29607995	259.9352978	34.77192005	0.9971318717
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						938.0646963	13.77910747	305.2592929	0	0.9985111199
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						961	2.828427125	178.022694	160.699035	0.9996419586
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1010.25	11.06211607	231.14	0	0.9809696448
+			Signal represents non-template addition (-A) for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1022.5	4.359791926	198.14	0	0.9990019504
+			Signal represents non-template addition (-A) for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1148	2.207974618	188.14	195.8817686	0.9995856118
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1524.289254	3.828600921	157.714716	98.71751883	0.9969876238
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1569.380649	4.44911458	160.3329371	107.0840462	0.9978017758
+			Signal represents stutter for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1704.680085	9.407868091	159.0706535	99.79257861	0.9975686102
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1732	50.35726296	157.4589583	-517.0303394	0.9993585972
+			Signal represents non-template addition (-A) for following peak
+			Curve fit incorporates negative component (1, 2)					674.4892977	-517.0303394
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1954	1.917784665	162.14	114.9390627	0.9995607119
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1997	3.003132792	218.14	204.8689482	0.9996745909
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3362.075517	10.36365191	178.9493885	56.98848238	0.9907133751
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3437	14.36760352	157.2603379	51.53750025	0.9989289768
+			Signal represents non-template addition (-A) for following peak
+			Peak out of place in final list:  interlocus peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3524	10.23324761	157.0178277	92.23250276	0.9991830766
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3591.352933	8.160771961	166.4260663	79.08535018	0.9992433232
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3617	3.030211476	225.2869635	129.1738713	0.9990053247
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3659	0.9721466712	193.14	173.1295214	0.9997501182
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3682	8.680513303	168.707491	35.9230277	0.9990270451
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3772.581035	7.509861847	172.7990156	89.68265765	0.9981673341
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3841	2.283833853	183.14	134.7845702	0.9999385952
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3863.105827	11.18848958	208.7749732	0	0.9989493536
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3954.334231	5.159901872	266.9019526	150.9807818	0.999246739
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3975	3.858560384	209.1090736	92.24207073	0.999514822
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4044.867899	5.410841685	284.4663763	170.3298219	0.999429373
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4070	5.643784033	275.14	236.4935282	0.999937757
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4135.775029	4.838291189	312.6773948	183.7608246	0.9989705405
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4161	2.145654942	280.14	254.8698324	0.999802194
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4228.46762	5.328738335	534.7029877	250.5010666	0.9997174737
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4249	4.455374598	242.3409564	223.8131851	0.999505096
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4341	3.219635133	221.7790031	202.8252461	0.999905832
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4408.81656	10.77451457	249.0137129	99.58993884	0.9990424823
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4433	1.469272701	198.14	180.4325706	0.9996257993
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4499.253776	10.96924631	221.8880102	111.2568512	0.9994001848
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4520	4.623573075	164.1342065	101.5861457	0.9995573116
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4590	7.091068361	392.7516473	170.2983115	0.999048228
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4616	3.978134045	184.14	0	0.9996750769
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4656	2.405071784	246.14	201.9837314	0.9996017296
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4723.590829	6.101152152	260.2404376	147.9411107	0.9985858365
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4814.243621	10.0520412	236.0781113	0	0.9987358975
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4836	5.772492806	162.5365529	121.7232213	0.9993442884
+			Signal represents non-template addition (-A) for following peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4903.120964	9.506768506	217.0250927	0	0.9972138972
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4994.228786	8.943277509	172.7846668	75.93698406	0.9962906695
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5678.870354	5.993516789	393.1817308	128.6111758	0.9988950171
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5967	2.828427125	165.5849609	112.1461083	0.9995819123
+			Peak out of place in control set: uncategorized artifact
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6321.75	2.828427125	158.7398836	105.5088637	0.997274125
+			Signal represents stutter for previous peak
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6393.444932	6.81428976	489.986296	123.1122102	0.9989291041
+			Peak out of place in control set: uncategorized artifact
+
+Identifiler ladder fit was successful
+Analyzing sample named /Users/user/LABSCIENTIFIC-LIMS/backend/osiris_workspace/input/Positive_Control_ID.fsa
+Using minimum RFU = 150
+Start mean = 300 and end mean = 9618.912029
+Test interval width = 219.2685183
+Max Peak = 1813.960946 and Max Density = 1
+
+Number of high peak intervals = 14 out of 43
+First high peak interval = 0 and first non high peak interval to follow = 1
+Last high peak interval = 42
+
+Number of high density intervals = 14 out of 43
+First high density interval = 0 and first non high density interval to follow = 1
+Last high density interval = 42
+
+Did not find primer peaks
+
+Found 14 isolated peaks
+May have removed large characteristics.  Restoring...
+
+Removing 0 of 14
+
+Max Peak Allowed for ILS = 1813.960946
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						285	17.34589336	51.15385916	18.33981429	0.9981400158
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						832	5.630668372	48.1074401	31.53192857	0.9993927731
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1707.25	6.903065612	40.4719496	20.68381288	0.997074833
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1933.25	4.448379635	46.7037387	25.22203272	0.9988158084
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2133.6	9.120889328	39.21106929	15.66613835	0.995805449
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3053	4.269364844	42.85835524	23.21950476	0.9997289701
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4110.25	11.22226335	40.72614391	10.08901231	0.9958515242
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5305	5.918051079	48.69688468	17.97661692	0.9975570657
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6417	4.55085923	48.93351293	24.79314659	0.997972684
+			Peak below minimum detection threshold
+
+Lane standard analyzed using density method:  Method 1
+Using minimum RFU = 150
+Using minimum RFU = 150
+Using minimum RFU = 150
+Using minimum RFU = 150
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+ANALYSIS WILL USE GRID NAMED /Users/user/LABSCIENTIFIC-LIMS/backend/osiris_workspace/input/LADDER_ID.fsa
+
+	Locus name D8S1179 with number of peaks 12
+
+	Locus name D21S11 with number of peaks 24
+
+	Locus name D7S820 with number of peaks 10
+
+	Locus name CSF1PO with number of peaks 10
+
+	Locus name D3S1358 with number of peaks 8
+
+	Locus name TH01 with number of peaks 10
+
+	Locus name D13S317 with number of peaks 8
+
+	Locus name D16S539 with number of peaks 9
+
+	Locus name D2S1338 with number of peaks 14
+
+	Locus name D19S433 with number of peaks 15
+
+	Locus name vWA with number of peaks 14
+
+	Locus name TPOX with number of peaks 8
+
+	Locus name D18S51 with number of peaks 23
+
+	Locus name AMEL with number of peaks 2
+
+	Locus name D5S818 with number of peaks 10
+
+	Locus name FGA with number of peaks 28
+
+     Sample data for Channel Number 1
+
+Samples for locus named:  D8S1179
+               Allele Name = 13   (bp = 146.896163, disp = -0.1038370362)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1853	4.710758334	6914.908198	0.9991088066
+
+
+
+Samples for locus named:  D21S11
+               Allele Name = 30   (bp = 209.9763636, disp = -2.363644723e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3287	4.925981653	5726.704096	0.9994815492
+
+
+
+Samples for locus named:  D7S820
+               Allele Name = 10   (bp = 272.9142169, disp = -8.578310627e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4720	5.567113976	1786.915681	0.999127196
+
+               Allele Name = 11   (bp = 276.9332673, disp = -6.673268217e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4811	5.726707929	1592.296008	0.9993060703
+
+
+
+Samples for locus named:  CSF1PO
+               Allele Name = 10   (bp = 320.9299213, disp = -7.007871944e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5751.659139	6.913799685	1907.125451	0.9992889964
+
+               Allele Name = 12   (bp = 328.9398508, disp = -6.014919768e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5929.451669	6.888205106	2064.750883	0.9995392589
+
+
+
+     Sample data for Channel Number 2
+
+Samples for locus named:  D3S1358
+               Allele Name = 14   (bp = 120.9143589, disp = -8.564113411e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1326	6.224757459	4544.242944	0.9993464639
+
+               Allele Name = 15   (bp = 124.9655416, disp = -3.445839672e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1416	5.898518713	4097.566203	0.99915677
+
+
+
+Samples for locus named:  TH01
+               Allele Name = 8   (bp = 179.9844749, disp = -1.55251081e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						2622	4.630978652	3833.183377	0.9998690185
+
+               Allele Name = 9.3   (bp = 186.9743049, disp = -2.56951066e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						2782	4.701131164	4812.321866	0.9996707912
+
+
+
+Samples for locus named:  D13S317
+               Allele Name = 11   (bp = 216.7971468, disp = -0.2028531782)
+                    CraterSignal with (Mean, Sigma, Peak, Fit)						3734.995773	5.485535593	7895.921194	0.9978490835
+
+
+
+Samples for locus named:  D16S539
+               Allele Name = 11   (bp = 275.8846956, disp = -0.1153043775)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4803.83523	6.090973037	3254.075334	0.9991482009
+
+               Allele Name = 12   (bp = 279.9342636, disp = -6.573640125e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4893.673392	5.948634713	3204.878747	0.999239555
+
+
+
+Samples for locus named:  D2S1338
+               Allele Name = 19   (bp = 322.9034245, disp = -9.657551518e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5826	6.620097483	1944.418947	0.9990002787
+
+               Allele Name = 23   (bp = 338.9242973, disp = -7.570269475e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						6181.879021	6.673621705	1439.134388	0.9997731915
+
+
+
+     Sample data for Channel Number 3
+
+Samples for locus named:  D19S433
+               Allele Name = 14   (bp = 125.9230751, disp = -7.692491153e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1363.503162	5.712156648	2263.784847	0.9996225844
+
+               Allele Name = 15   (bp = 129.9281881, disp = -7.181189843e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1452.40739	4.804644979	2054.411961	0.9991651147
+
+
+
+Samples for locus named:  vWA
+               Allele Name = 17   (bp = 179.9589711, disp = -4.102892115e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						2619.4175	4.966339678	2516.696827	0.99982766
+
+               Allele Name = 18   (bp = 183.9608427, disp = -3.915728204e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						2710	4.856739327	2447.982264	0.9995070799
+
+
+
+Samples for locus named:  TPOX
+               Allele Name = 8   (bp = 224.9108096, disp = -8.91904407e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3772.676769	5.477548716	5116.575424	0.9999130987
+
+
+
+Samples for locus named:  D18S51
+               Allele Name = 15   (bp = 295.9579254, disp = -4.207457444e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5246.4409	6.14224756	1162.081964	0.9997903556
+
+               Allele Name = 19   (bp = 311.9663623, disp = -3.363765631e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5608.938973	6.30829101	1161.579196	0.9998840211
+
+
+
+     Sample data for Channel Number 4
+
+Samples for locus named:  AMEL
+               Allele Name = 1   (bp = 102.7975073, disp = -0.2024927278)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1019.832318	8.470443373	2367.396443	0.9976784493
+
+
+
+Samples for locus named:  D5S818
+               Allele Name = 11   (bp = 149.8924529, disp = -0.1075470741)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1999	6.410160436	2557.394431	0.9998844274
+
+
+
+Samples for locus named:  FGA
+               Allele Name = 23   (bp = 237.9166118, disp = -8.338820559e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3986	6.050120866	1335.479959	0.9997359936
+
+               Allele Name = 24   (bp = 241.9226747, disp = -7.732532629e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4077.770812	6.167140045	1056.992216	0.999961643
+
+
+Analyzing sample named /Users/user/LABSCIENTIFIC-LIMS/backend/osiris_workspace/input/Negative_Control_ID.fsa
+Using minimum RFU = 150
+Start mean = 303.5853033 and end mean = 9609.191523
+Test interval width = 218.9554405
+Max Peak = 2278.326332 and Max Density = 1
+
+Number of high peak intervals = 14 out of 43
+First high peak interval = 0 and first non high peak interval to follow = 1
+Last high peak interval = 42
+
+Number of high density intervals = 14 out of 43
+First high density interval = 0 and first non high density interval to follow = 1
+Last high density interval = 42
+
+Did not find primer peaks
+
+Found 14 isolated peaks
+May have removed large characteristics.  Restoring...
+
+Removing 0 of 14
+
+Max Peak Allowed for ILS = 2278.326332
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						820.94	10.4889371	49.20979445	18.11266731	0.9960536545
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1709	4.281985416	54.71606969	34.95640236	0.9992622146
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1935	6.511029188	55.5188779	27.14849627	0.9989875165
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2149	6.039846602	55.01568136	28.00652632	0.9986807984
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3051	4.116184237	55.33507537	28.77650393	0.9993464081
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4103.5	5.530054749	52.15046903	23.65535342	0.998201456
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5292.95168	2.828427125	48.05117012	33.08111177	0.9926498736
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6142.25	3.128209493	40.39232905	20.51203889	0.9979989235
+			Peak below minimum detection threshold
+
+Lane standard analyzed using density method:  Method 1
+Using minimum RFU = 150
+Using minimum RFU = 150
+Using minimum RFU = 150
+Using minimum RFU = 150
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+ANALYSIS WILL USE GRID NAMED /Users/user/LABSCIENTIFIC-LIMS/backend/osiris_workspace/input/LADDER_ID.fsa
+
+	Locus name D8S1179 with number of peaks 12
+
+	Locus name D21S11 with number of peaks 24
+
+	Locus name D7S820 with number of peaks 10
+
+	Locus name CSF1PO with number of peaks 10
+
+	Locus name D3S1358 with number of peaks 8
+
+	Locus name TH01 with number of peaks 10
+
+	Locus name D13S317 with number of peaks 8
+
+	Locus name D16S539 with number of peaks 9
+
+	Locus name D2S1338 with number of peaks 14
+
+	Locus name D19S433 with number of peaks 15
+
+	Locus name vWA with number of peaks 14
+
+	Locus name TPOX with number of peaks 8
+
+	Locus name D18S51 with number of peaks 23
+
+	Locus name AMEL with number of peaks 2
+
+	Locus name D5S818 with number of peaks 10
+
+	Locus name FGA with number of peaks 28
+
+     Sample data for Channel Number 1
+
+Samples for locus named:  D8S1179
+
+
+Samples for locus named:  D21S11
+
+
+Samples for locus named:  D7S820
+
+
+Samples for locus named:  CSF1PO
+
+
+     Sample data for Channel Number 2
+
+Samples for locus named:  D3S1358
+               Allele Name = 8   (bp = 97.36430077, disp = 0.3643007719)
+               PEAK IS OFF-LADDER...
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						784.75	8.150066586	165.9943254	0.9987382841
+
+               Allele Name = 8.1   (bp = 98.45088825, disp = 0.4508882531)
+               PEAK IS OFF-LADDER...
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						810	11.85762136	156.292947	0.9994916548
+
+
+
+Samples for locus named:  TH01
+
+
+Samples for locus named:  D13S317
+
+
+Samples for locus named:  D16S539
+
+
+Samples for locus named:  D2S1338
+
+
+     Sample data for Channel Number 3
+
+Samples for locus named:  D19S433
+
+
+Samples for locus named:  vWA
+
+
+Samples for locus named:  TPOX
+
+
+Samples for locus named:  D18S51
+
+
+     Sample data for Channel Number 4
+
+Samples for locus named:  AMEL
+
+
+Samples for locus named:  D5S818
+
+
+Samples for locus named:  FGA
+
+Analyzing sample named /Users/user/LABSCIENTIFIC-LIMS/backend/osiris_workspace/input/25_003_Mother_ID.fsa
+Using minimum RFU = 150
+Start mean = 344.6255538 and end mean = 9914.271426
+Test interval width = 225.1681382
+Max Peak = 1995.473938 and Max Density = 1
+
+Number of high peak intervals = 14 out of 43
+First high peak interval = 0 and first non high peak interval to follow = 1
+Last high peak interval = 42
+
+Number of high density intervals = 14 out of 43
+First high density interval = 0 and first non high density interval to follow = 1
+Last high density interval = 42
+
+Did not find primer peaks
+
+Found 14 isolated peaks
+May have removed large characteristics.  Restoring...
+
+Removing 0 of 14
+
+Max Peak Allowed for ILS = 1995.473938
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						322	8.405142668	52.56027388	29.30478986	0.9993024001
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						885	4.203541704	48.28611781	36.15164367	0.9997167183
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1779.5	4.245978265	40.78083013	27.8062745	0.9983785915
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2012.25	4.702724795	45.67471781	27.09007878	0.9981356968
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2233.5	7.714908578	42.47822829	18.27402915	0.9976332048
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3164	5.19425573	44.57031342	21.96471423	0.9990462639
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4246.086623	5.749644239	43.62749675	18.37277368	0.9985966638
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5472.25	10.37922844	30.79491504	9.305161817	0.9779009363
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6350.25	10.54424601	39.63811763	9.596674773	0.9924685339
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6622	2	53.66	53.66	0.795
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						8023.702431	6.025760001	51.72449528	9.889758504	0.9975037305
+			Peak below minimum detection threshold
+
+Lane standard analyzed using density method:  Method 1
+Using minimum RFU = 150
+Using minimum RFU = 150
+Using minimum RFU = 150
+Using minimum RFU = 150
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+ANALYSIS WILL USE GRID NAMED /Users/user/LABSCIENTIFIC-LIMS/backend/osiris_workspace/input/LADDER_ID.fsa
+
+	Locus name D8S1179 with number of peaks 12
+
+	Locus name D21S11 with number of peaks 24
+
+	Locus name D7S820 with number of peaks 10
+
+	Locus name CSF1PO with number of peaks 10
+
+	Locus name D3S1358 with number of peaks 8
+
+	Locus name TH01 with number of peaks 10
+
+	Locus name D13S317 with number of peaks 8
+
+	Locus name D16S539 with number of peaks 9
+
+	Locus name D2S1338 with number of peaks 14
+
+	Locus name D19S433 with number of peaks 15
+
+	Locus name vWA with number of peaks 14
+
+	Locus name TPOX with number of peaks 8
+
+	Locus name D18S51 with number of peaks 23
+
+	Locus name AMEL with number of peaks 2
+
+	Locus name D5S818 with number of peaks 10
+
+	Locus name FGA with number of peaks 28
+
+     Sample data for Channel Number 1
+
+Samples for locus named:  D8S1179
+               Allele Name = 12   (bp = 142.9657664, disp = -3.423364187e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1837	4.723514854	4776.453131	0.9998686146
+
+               Allele Name = 13   (bp = 146.9950171, disp = -4.982894145e-03)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1933	4.719907384	4172.590963	0.9994582891
+
+
+
+Samples for locus named:  D21S11
+               Allele Name = 28   (bp = 201.9646087, disp = -3.539125938e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3214.565951	4.809873217	4237.296068	0.9998858202
+
+               Allele Name = 32   (bp = 217.9462712, disp = -5.372884544e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3590	4.96927364	3675.622191	0.9991092684
+
+
+
+Samples for locus named:  D7S820
+               Allele Name = 9   (bp = 269.0235865, disp = 2.358651986e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4785.391226	5.660506265	2510.974272	0.9999144404
+
+               Allele Name = 11   (bp = 276.9879736, disp = -1.202637405e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4970.635073	6.346691577	1785.184808	0.9989000919
+
+
+
+Samples for locus named:  CSF1PO
+               Allele Name = 10   (bp = 321.0051868, disp = 5.186810322e-03)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5938.666793	6.732607544	2227.42121	0.9992484078
+
+               Allele Name = 12   (bp = 329.0103007, disp = 1.030072236e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						6121.395491	6.7183604	2073.014557	0.9995168975
+
+
+
+     Sample data for Channel Number 2
+
+Samples for locus named:  D3S1358
+               Allele Name = 15   (bp = 124.8457561, disp = -0.1542438755)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1481.14742	5.695306009	5251.829943	0.9994839777
+
+               Allele Name = 16   (bp = 128.9590643, disp = -4.093574757e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1578.844802	5.738257852	4396.247754	0.9996484875
+
+
+
+Samples for locus named:  TH01
+               Allele Name = 9.3   (bp = 186.9712948, disp = -2.870515417e-02)
+                    CraterSignal with (Mean, Sigma, Peak, Fit)						2884.180238	4.937128551	9839.060951	0.977556213
+
+
+
+Samples for locus named:  D13S317
+               Allele Name = 13   (bp = 225.0583977, disp = 5.839768702e-02)
+                    NoisySignal with (Mean, Sigma, Peak, Fit)						4052.907896	5.841258585	8432.121643	0.9951289513
+
+
+
+Samples for locus named:  D16S539
+               Allele Name = 11   (bp = 275.940868, disp = -5.913198174e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4963.276649	5.805461071	7185.450205	0.9977107775
+
+
+
+Samples for locus named:  D2S1338
+               Allele Name = 17   (bp = 314.9856022, disp = -1.439781228e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5832.436626	6.282713458	4666.974541	0.9998093351
+
+               Allele Name = 18   (bp = 318.9650121, disp = -3.498791496e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5923.53758	6.217916883	3440.171311	0.9998749103
+
+
+
+     Sample data for Channel Number 3
+
+Samples for locus named:  D19S433
+               Allele Name = 14   (bp = 125.9064473, disp = -9.355270117e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1429.823194	5.545926985	5573.734216	0.9996626727
+
+
+
+Samples for locus named:  vWA
+               Allele Name = 16   (bp = 175.9872848, disp = -1.271516897e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						2625	4.924817806	3014.026565	0.999405261
+
+               Allele Name = 17   (bp = 179.9602282, disp = -3.977182207e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						2717.367578	4.896603673	2759.251814	0.9999692539
+
+
+
+Samples for locus named:  TPOX
+               Allele Name = 8   (bp = 224.9555926, disp = -4.44074473e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3902.162408	5.518413466	4208.611847	0.9999370668
+
+               Allele Name = 12   (bp = 240.9660355, disp = -3.396447343e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4274.428143	5.711824499	3022.053486	0.9999299782
+
+
+
+Samples for locus named:  D18S51
+               Allele Name = 10.1   (bp = 276.5976444, disp = -0.4023555596)
+               PEAK IS OFF-LADDER...
+                    Super Gaussian with (Mean, Sigma, Peak, Fit)						4963.683478	0.725929005	517.1908815	0.9912808073
+
+               Allele Name = 13   (bp = 288.0357467, disp = 3.574669212e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5231.884987	5.601233417	1512.945062	0.9997888255
+
+               Allele Name = 19   (bp = 312.0340747, disp = 3.407470582e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5791.82115	6.048448729	1391.963075	0.9999617792
+
+
+
+     Sample data for Channel Number 4
+
+Samples for locus named:  AMEL
+               Allele Name = 1   (bp = 102.7512131, disp = -0.2487868614)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1077.57359	10.14661736	2724.838134	0.9988079164
+
+
+
+Samples for locus named:  D5S818
+               Allele Name = 9   (bp = 141.9163337, disp = -8.366626237e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1897	6.682564688	1583.743233	0.9994805659
+
+               Allele Name = 11   (bp = 149.9599479, disp = -4.005211328e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						2081.64545	6.3954423	1791.697914	0.9998031432
+
+
+
+Samples for locus named:  FGA
+               Allele Name = 23   (bp = 237.9891162, disp = -1.088377133e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4122	6.081170708	1627.612677	0.9998867981
+
+               Allele Name = 24   (bp = 241.9807177, disp = -1.928232111e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4216	6.096788629	1106.478541	0.9997253242
+
+
+Analyzing sample named /Users/user/LABSCIENTIFIC-LIMS/backend/osiris_workspace/input/25_001_Child_ID.fsa
+Using minimum RFU = 150
+Start mean = 306 and end mean = 9419.640453
+Test interval width = 214.4385989
+Max Peak = 2085.052928 and Max Density = 1
+
+Number of high peak intervals = 14 out of 43
+First high peak interval = 0 and first non high peak interval to follow = 1
+Last high peak interval = 42
+
+Number of high density intervals = 14 out of 43
+First high density interval = 0 and first non high density interval to follow = 1
+Last high density interval = 42
+
+Did not find primer peaks
+
+Found 14 isolated peaks
+May have removed large characteristics.  Restoring...
+
+Removing 0 of 14
+
+Max Peak Allowed for ILS = 2085.052928
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						832	5.381593311	50.84458524	32.4664996	0.9993395391
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1696	5.269389321	45.00588369	24.48939298	0.9955612519
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1919.25	8.926906653	44.15814242	0	0.997534006
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2131	5.992347385	48.52	0	0.99905964
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3022.965027	5.58747448	45.05364635	21.93487647	0.9974545091
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4057	10.07187864	51.92812023	4.078439104	0.9989580849
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6054.201634	3.990459224	47.3998092	20.65859483	0.9973140025
+			Peak below minimum detection threshold
+
+Lane standard analyzed using density method:  Method 1
+Using minimum RFU = 150
+Using minimum RFU = 150
+Using minimum RFU = 150
+Using minimum RFU = 150
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+ANALYSIS WILL USE GRID NAMED /Users/user/LABSCIENTIFIC-LIMS/backend/osiris_workspace/input/LADDER_ID.fsa
+
+	Locus name D8S1179 with number of peaks 12
+
+	Locus name D21S11 with number of peaks 24
+
+	Locus name D7S820 with number of peaks 10
+
+	Locus name CSF1PO with number of peaks 10
+
+	Locus name D3S1358 with number of peaks 8
+
+	Locus name TH01 with number of peaks 10
+
+	Locus name D13S317 with number of peaks 8
+
+	Locus name D16S539 with number of peaks 9
+
+	Locus name D2S1338 with number of peaks 14
+
+	Locus name D19S433 with number of peaks 15
+
+	Locus name vWA with number of peaks 14
+
+	Locus name TPOX with number of peaks 8
+
+	Locus name D18S51 with number of peaks 23
+
+	Locus name AMEL with number of peaks 2
+
+	Locus name D5S818 with number of peaks 10
+
+	Locus name FGA with number of peaks 28
+
+     Sample data for Channel Number 1
+
+Samples for locus named:  D8S1179
+               Allele Name = 11   (bp = 138.978882, disp = -2.111799776e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1661	4.407399942	4536.904351	0.999958733
+
+               Allele Name = 14   (bp = 150.9837328, disp = -1.626723811e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1932.423813	4.391186815	4995.002363	0.9999698361
+
+
+
+Samples for locus named:  D21S11
+               Allele Name = 24.3   (bp = 188.7734744, disp = -0.2265256229)
+               PEAK IS OFF-LADDER...
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						2775.742633	1.364260545	1011	0.9929747939
+
+               Allele Name = 30   (bp = 209.9468773, disp = -5.312274288e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3249.467434	4.764294398	2861.848158	0.9998976781
+
+               Allele Name = 31   (bp = 213.989081, disp = -1.091898797e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3340	4.760281703	2718.892415	0.9999071994
+
+
+
+Samples for locus named:  D7S820
+               Allele Name = 9   (bp = 268.9659427, disp = -3.40572817e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4566	5.192863227	1862.69322	0.9997999962
+
+               Allele Name = 11   (bp = 276.9618485, disp = -3.815152611e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4743	5.356667536	1416.067677	0.999848487
+
+
+
+Samples for locus named:  CSF1PO
+               Allele Name = 12   (bp = 328.9515244, disp = -4.847558589e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5834.848636	6.171267916	1133.985238	0.9996597196
+
+               Allele Name = 13   (bp = 332.9515798, disp = -4.842019336e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5921.441041	6.346220589	1480.61038	0.9997862088
+
+
+
+     Sample data for Channel Number 2
+
+Samples for locus named:  D3S1358
+               Allele Name = 15   (bp = 124.9581311, disp = -4.186894841e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1410	5.700397041	3938.292265	0.9997865586
+
+               Allele Name = 16   (bp = 128.9718286, disp = -2.817140057e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1502	5.723357442	4000.438643	0.9992438178
+
+
+
+Samples for locus named:  TH01
+               Allele Name = 8   (bp = 179.9768691, disp = -2.313089666e-02)
+                    CraterSignal with (Mean, Sigma, Peak, Fit)						2597.329936	4.997453936	8738.308037	0.9965499731
+
+               Allele Name = 10   (bp = 187.971524, disp = -2.847599426e-02)
+                    NoisySignal with (Mean, Sigma, Peak, Fit)						2775.779337	5.328768942	8241.399939	0.9970391827
+
+
+
+Samples for locus named:  D13S317
+               Allele Name = 8   (bp = 204.9935228, disp = -6.477224128e-03)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3423	4.891459286	5538.718437	0.9990579897
+
+               Allele Name = 9   (bp = 208.9766709, disp = -2.332908578e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3512	4.845368231	5275.137897	0.999496624
+
+
+
+Samples for locus named:  D16S539
+               Allele Name = 9   (bp = 267.9206486, disp = -7.935138544e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4559.302538	5.520715724	3694.041702	0.9991748454
+
+               Allele Name = 12   (bp = 279.9177531, disp = -8.224690918e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4823	5.684193643	2614.072504	0.9991246087
+
+
+
+Samples for locus named:  D2S1338
+               Allele Name = 16   (bp = 310.9285153, disp = -7.148470965e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5474.039963	5.897370126	3062.77824	0.9998742829
+
+               Allele Name = 24   (bp = 342.9404152, disp = -5.958476783e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						6167.147668	6.20354283	2007.59649	0.9998878294
+
+
+
+     Sample data for Channel Number 3
+
+Samples for locus named:  D19S433
+               Allele Name = 12   (bp = 117.8959125, disp = -0.104087474)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1181.800997	4.903296375	3482.151449	0.9994167424
+
+               Allele Name = 14   (bp = 125.9080064, disp = -9.199359741e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1358.007244	4.729500087	3365.188502	0.9999133257
+
+
+
+Samples for locus named:  vWA
+               Allele Name = 16   (bp = 175.9644507, disp = -3.554934206e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						2506	4.669545007	2384.770579	0.9996490984
+
+               Allele Name = 19   (bp = 188.002587, disp = 2.587037215e-03)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						2773.677206	4.501554518	2340.541196	0.9986155285
+
+
+
+Samples for locus named:  TPOX
+               Allele Name = 8   (bp = 224.940359, disp = -5.964099622e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3726	5.267101419	2981.388513	0.9998464812
+
+               Allele Name = 11   (bp = 236.9453083, disp = -5.469171549e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3992	5.328361521	3304.507413	0.9997166302
+
+
+
+Samples for locus named:  D18S51
+               Allele Name = 12   (bp = 283.9931794, disp = -6.820640137e-03)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4902.014608	5.31593638	1327.883957	0.9997368322
+
+               Allele Name = 15   (bp = 295.9678399, disp = -3.216006011e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5168.782444	5.610071047	1054.807239	0.9998982908
+
+
+
+     Sample data for Channel Number 4
+
+Samples for locus named:  AMEL
+               Allele Name = 1   (bp = 102.7489574, disp = -0.2510426073)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1017.606185	9.190414876	2830.740176	0.9984721848
+
+
+
+Samples for locus named:  D5S818
+               Allele Name = 11   (bp = 149.8984756, disp = -0.1015244124)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1984.484591	6.647342741	1683.769604	0.9999233133
+
+               Allele Name = 12   (bp = 153.9049733, disp = -9.502670859e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						2073	6.133339988	1298.182163	0.9997111487
+
+
+
+Samples for locus named:  FGA
+               Allele Name = 23   (bp = 237.9931333, disp = -6.866660817e-03)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3935.758009	5.978053705	1418.011353	0.9999365655
+
+               Allele Name = 24   (bp = 241.9837885, disp = -1.621146264e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4025.234235	5.921618996	1128.747102	0.9999425306
+
+
+Analyzing sample named /Users/user/LABSCIENTIFIC-LIMS/backend/osiris_workspace/input/25_002_Father_ID.fsa
+Using minimum RFU = 150
+Start mean = 287.1982875 and end mean = 9436.21453
+Test interval width = 215.2709704
+Max Peak = 2338.963726 and Max Density = 1
+
+Number of high peak intervals = 14 out of 43
+First high peak interval = 0 and first non high peak interval to follow = 1
+Last high peak interval = 42
+
+Number of high density intervals = 14 out of 43
+First high density interval = 0 and first non high density interval to follow = 1
+Last high density interval = 42
+
+Did not find primer peaks
+
+Found 14 isolated peaks
+May have removed large characteristics.  Restoring...
+
+Removing 0 of 14
+
+Max Peak Allowed for ILS = 2338.963726
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						270	20.7736435	52.58832106	18.85675637	0.9970892427
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						817.5	5.656654453	53.53795054	50.19131788	0.9969921513
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1685.75	11.69474607	50.66736618	20.76027101	0.9940703118
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						1905	5.199218602	53.53193398	29.30130359	0.9990526457
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						2116	9.541277023	43.93574392	19.97554538	0.9878830014
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						3008.25	4.313922926	48.24720255	25.40548726	0.9986473466
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						4045.746754	7.367355862	54.15043063	15.89013575	0.9979230037
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						5214	5.117353214	49.30876903	18.73125738	0.999279014
+			Peak below minimum detection threshold
+
+
+		Notices for curve with (Mean, Sigma, Peak, 2Content, Fit) = 						6045	3.912841839	43.4493532	17.69487926	0.9986931059
+			Peak below minimum detection threshold
+
+Lane standard analyzed using density method:  Method 1
+Using minimum RFU = 150
+Using minimum RFU = 150
+Using minimum RFU = 150
+Using minimum RFU = 150
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+Using minimum RFU = 150 for negative peaks
+ANALYSIS WILL USE GRID NAMED /Users/user/LABSCIENTIFIC-LIMS/backend/osiris_workspace/input/LADDER_ID.fsa
+
+	Locus name D8S1179 with number of peaks 12
+
+	Locus name D21S11 with number of peaks 24
+
+	Locus name D7S820 with number of peaks 10
+
+	Locus name CSF1PO with number of peaks 10
+
+	Locus name D3S1358 with number of peaks 8
+
+	Locus name TH01 with number of peaks 10
+
+	Locus name D13S317 with number of peaks 8
+
+	Locus name D16S539 with number of peaks 9
+
+	Locus name D2S1338 with number of peaks 14
+
+	Locus name D19S433 with number of peaks 15
+
+	Locus name vWA with number of peaks 14
+
+	Locus name TPOX with number of peaks 8
+
+	Locus name D18S51 with number of peaks 23
+
+	Locus name AMEL with number of peaks 2
+
+	Locus name D5S818 with number of peaks 10
+
+	Locus name FGA with number of peaks 28
+
+     Sample data for Channel Number 1
+
+Samples for locus named:  D8S1179
+               Allele Name = 15   (bp = 154.9615869, disp = -3.841314021e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						2006.639163	4.479730004	6332.811254	0.9999383042
+
+
+
+Samples for locus named:  D21S11
+               Allele Name = 29   (bp = 205.9396076, disp = -6.039236691e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3147	4.676873382	3743.729629	0.9998740428
+
+               Allele Name = 30   (bp = 209.9606511, disp = -3.934893357e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3237.506026	4.667265136	2976.317688	0.9999094499
+
+
+
+Samples for locus named:  D7S820
+               Allele Name = 8   (bp = 264.9181841, disp = -8.181589579e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4466	5.184984862	2215.563516	0.9995004244
+
+               Allele Name = 13   (bp = 284.9453015, disp = -5.469845131e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4909.515451	5.388957971	2076.933796	0.9999400923
+
+
+
+Samples for locus named:  CSF1PO
+               Allele Name = 10   (bp = 320.9081413, disp = -9.185867639e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5653.829013	6.126664647	2312.99417	0.9993412618
+
+               Allele Name = 11   (bp = 324.9093623, disp = -9.06377314e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5740.770361	6.313984764	1751.311757	0.9994867274
+
+
+
+     Sample data for Channel Number 2
+
+Samples for locus named:  D3S1358
+               Allele Name = 17   (bp = 132.8729759, disp = -0.1270240721)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1575	5.379063104	6109.659046	0.9997616246
+
+               Allele Name = 18   (bp = 136.8949331, disp = -0.1050669015)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1664.642993	5.311154252	4494.184978	0.9997969564
+
+
+
+Samples for locus named:  TH01
+               Allele Name = 8   (bp = 179.9784112, disp = -2.158883753e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						2583.693048	4.409829167	7439.262352	0.9998607689
+
+               Allele Name = 9   (bp = 183.9780843, disp = -2.191572618e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						2673	4.500805817	7129.984057	0.9992900185
+
+
+
+Samples for locus named:  D13S317
+               Allele Name = 10   (bp = 212.8984268, disp = -0.1015731929)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3588.557762	4.857824522	5779.960167	0.9994109673
+
+               Allele Name = 12   (bp = 220.9105036, disp = -8.949638097e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3768.580621	4.919967245	5033.211583	0.9994609388
+
+
+
+Samples for locus named:  D16S539
+               Allele Name = 12   (bp = 279.9005038, disp = -9.949621377e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4813	5.772882287	5426.492743	0.9990121042
+
+
+
+Samples for locus named:  D2S1338
+               Allele Name = 17   (bp = 314.8986128, disp = -0.1013872441)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5552.83052	6.016893675	2918.675515	0.9996874153
+
+               Allele Name = 18   (bp = 318.8940159, disp = -0.1059840874)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5639.989074	6.039128766	3424.173928	0.9998842912
+
+
+
+     Sample data for Channel Number 3
+
+Samples for locus named:  D19S433
+               Allele Name = 11   (bp = 113.8846092, disp = -0.1153907827)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1076.420193	5.305428195	3486.708433	0.9992284106
+
+               Allele Name = 15   (bp = 129.9328588, disp = -6.71412025e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1429.824842	5.073498406	3031.501568	0.9998943338
+
+
+
+Samples for locus named:  vWA
+               Allele Name = 15   (bp = 171.9441366, disp = -5.586336988e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						2403	4.718881008	2430.270117	0.9996415182
+
+               Allele Name = 16   (bp = 175.9331687, disp = -6.683130329e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						2491.507977	4.711106644	2204.897478	0.9998613276
+
+
+
+Samples for locus named:  TPOX
+               Allele Name = 8   (bp = 224.8751831, disp = -0.1248168967)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3714	5.177585349	2901.8431	0.9995071984
+
+               Allele Name = 9   (bp = 228.8692313, disp = -0.1307686703)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3802.902791	5.21750027	3053.648639	0.9998748925
+
+
+
+Samples for locus named:  D18S51
+               Allele Name = 12   (bp = 283.9643726, disp = -3.562743597e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						4891.773121	5.593294584	1377.878666	0.9998253914
+
+               Allele Name = 17   (bp = 303.932079, disp = -6.792095087e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						5336.733751	5.628941819	1316.571943	0.9998664111
+
+
+
+     Sample data for Channel Number 4
+
+Samples for locus named:  AMEL
+               Allele Name = 1   (bp = 102.7519169, disp = -0.2480831102)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						1000.447684	9.014684378	2530.862651	0.9990172183
+
+
+
+Samples for locus named:  D5S818
+               Allele Name = 12   (bp = 153.9348623, disp = -6.51377123e-02)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						2059	6.325453708	3057.896396	0.9991951639
+
+
+
+Samples for locus named:  FGA
+               Allele Name = 21   (bp = 229.8975961, disp = -0.1024039328)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3744	5.746180721	1288.709943	0.9998555277
+
+               Allele Name = 22   (bp = 233.8979931, disp = -0.1020068556)
+                    Double Gaussian with (Mean, Sigma, Peak, Fit)						3834	5.829210216	1117.056517	0.9996134844
+
+
