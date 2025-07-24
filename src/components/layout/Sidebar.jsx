@@ -100,10 +100,17 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
     },
     { 
       icon: <Science />, 
-      label: 'Genetic Analysis',
+      label: 'Genetic Analysis Setup',
       hasSubMenu: false,
       path: '/genetic-analysis',
       onClick: () => navigate('/genetic-analysis')
+    },
+    { 
+      icon: <Assessment />, 
+      label: 'Analysis Summary',
+      hasSubMenu: false,
+      path: '/analysis-summary',
+      onClick: () => navigate('/analysis-summary')
     },
     { 
       icon: <Science />, 

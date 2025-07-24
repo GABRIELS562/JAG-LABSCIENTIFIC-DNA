@@ -125,9 +125,9 @@ export default function ClientRegister() {
         setSamples(samplesData);
         
         // Update pagination info
-        if (data.pagination) {
-          setTotalPages(data.pagination.pages);
-          setTotalSamples(data.pagination.total);
+        if (data.meta?.pagination) {
+          setTotalPages(data.meta.pagination.totalPages);
+          setTotalSamples(data.meta.pagination.total);
         }
         
         setConnectionStatus(true);
@@ -679,14 +679,6 @@ export default function ClientRegister() {
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
           <Button
             variant="outlined"
-            startIcon={<Refresh />}
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-          >
-            Refresh
-          </Button>
-          <Button
-            variant="outlined"
             startIcon={<Group />}
             onClick={handleSelectAll}
             disabled={samples.length === 0}
@@ -775,25 +767,7 @@ export default function ClientRegister() {
           </Grid>
           <Grid item xs={12} md={2}>
             <Stack spacing={1}>
-              <Button
-                fullWidth
-                variant="outlined"
-                onClick={fetchSamples}
-                startIcon={<FilterList />}
-              >
-                Refresh
-              </Button>
-              {getPendingSamples().length > 0 && (
-                <Button
-                  fullWidth
-                  variant="contained"
-                  onClick={handleSelectAll}
-                  startIcon={<Group />}
-                  sx={{ bgcolor: '#0D488F', fontSize: '0.75rem' }}
-                >
-                  Select All Pending
-                </Button>
-              )}
+              {/* Removed duplicate Refresh and Select All buttons */}
             </Stack>
           </Grid>
         </Grid>

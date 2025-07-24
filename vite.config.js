@@ -32,6 +32,19 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     open: true,
+    watch: {
+      // Ignore backend and Osiris workspace files to prevent infinite reloads
+      ignored: [
+        '**/backend/**',
+        '**/node_modules/**',
+        '**/logs/**',
+        '**/reports/**',
+        '**/uploads/**',
+        '**/*.log',
+        '**/*.db',
+        '**/*.db-*'
+      ]
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:3001',

@@ -258,6 +258,42 @@ export const api = {
     return apiClient.fetchJson(url);
   },
 
+  // Reports operations (enhanced)
+  async getReports(params = {}) {
+    const searchParams = new URLSearchParams(params);
+    return apiClient.fetchJson(`/api/reports?${searchParams}`);
+  },
+
+  async getReportStats() {
+    return apiClient.fetchJson('/api/reports/stats');
+  },
+
+  async getReport(id) {
+    return apiClient.fetchJson(`/api/reports/${id}`);
+  },
+
+  async downloadReport(id) {
+    window.open(`/api/reports/${id}/download`, '_blank');
+  },
+
+  async viewReport(id) {
+    window.open(`/api/reports/${id}/view`, '_blank');
+  },
+
+  async createReport(reportData) {
+    return apiClient.fetchJson('/api/reports', {
+      method: 'POST',
+      body: JSON.stringify(reportData)
+    }, false);
+  },
+
+  async updateReportStatus(id, status, notes = null) {
+    return apiClient.fetchJson(`/api/reports/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, notes })
+    }, false);
+  },
+
   // Database operations
   async getDbReports() {
     return apiClient.fetchJson('/api/db/reports');

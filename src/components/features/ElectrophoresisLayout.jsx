@@ -51,8 +51,7 @@ const ElectrophoresisLayout = () => {
   const [finalizeDialog, setFinalizeDialog] = useState(false);
   const [controlsToAdd, setControlsToAdd] = useState({
     negativeControl: false,
-    positiveControl: false,
-    allelicLadder: false
+    positiveControl: false
   });
   const [selectedControl, setSelectedControl] = useState(null);
   const [wellContextMenu, setWellContextMenu] = useState({ open: false, wellId: null, anchorEl: null });
@@ -374,7 +373,7 @@ const ElectrophoresisLayout = () => {
     }
 
     // Add controls in the next available column
-    if (controlsToAdd.negativeControl || controlsToAdd.positiveControl || controlsToAdd.allelicLadder) {
+    if (controlsToAdd.negativeControl || controlsToAdd.positiveControl) {
       const nextColIndex = Math.ceil(selectedSamples.length / 8); // Next available column
       const controlCol = cols[nextColIndex] || cols[11]; // Use last column if needed
       let controlRowIndex = 0;
@@ -415,29 +414,13 @@ const ElectrophoresisLayout = () => {
         controlRowIndex++;
       }
 
-      if (controlsToAdd.allelicLadder) {
-        const ladderWell = `${rows[controlRowIndex]}${controlCol}`;
-        if (newPlateData[ladderWell] && newPlateData[ladderWell].type === 'empty') {
-          newPlateData[ladderWell] = {
-            id: ladderWell,
-            type: 'control',
-            samples: [{
-              id: 'allelic_ladder',
-              lab_number: 'ALLELIC_LADDER',
-              name: 'Allelic',
-              surname: 'Ladder',
-              relation: 'Control'
-            }]
-          };
-        }
-      }
     }
 
     setPlateData(newPlateData);
     
     setSnackbar({
       open: true,
-      message: `Auto-filled ${selectedSamples.length} samples vertically (A1→H1, then A2→H2...)${controlsToAdd.negativeControl || controlsToAdd.positiveControl || controlsToAdd.allelicLadder ? ' with controls' : ''}`,
+      message: `Auto-filled ${selectedSamples.length} samples vertically (A1→H1, then A2→H2...)${controlsToAdd.negativeControl || controlsToAdd.positiveControl ? ' with controls' : ''}`,
       severity: 'success'
     });
   };
@@ -449,7 +432,7 @@ const ElectrophoresisLayout = () => {
     
     switch (well.type) {
       case 'sample':
-        return isDarkMode ? '#7b1fa2' : '#f3e5f5'; // Light purple for electrophoresis samples (darker in dark mode)
+        return isDarkMode ? '#00796b' : '#e0f2f1'; // Light teal for electrophoresis samples (darker in dark mode)
       case 'control':
         // Different colors for different control types
         if (well.samples && well.samples.length > 0) {
@@ -458,8 +441,6 @@ const ElectrophoresisLayout = () => {
             return isDarkMode ? '#c62828' : '#ffcdd2'; // Light red for negative control (darker in dark mode)
           } else if (sample.lab_number === 'POS_CTRL') {
             return isDarkMode ? '#2e7d32' : '#c8e6c9'; // Light green for positive control (darker in dark mode)
-          } else if (sample.lab_number === 'ALLELIC_LADDER') {
-            return isDarkMode ? '#1565c0' : '#bbdefb'; // Light blue for allelic ladder (darker in dark mode)
           }
         }
         return isDarkMode ? '#66bb6a' : '#81c784'; // Default green for controls (darker in dark mode)
@@ -629,21 +610,17 @@ const ElectrophoresisLayout = () => {
               // Check if it's a control sample
               const hasControlInLabNumber = sample.lab_number && (
                 sample.lab_number.includes('CTRL') || 
-                sample.lab_number.includes('LADDER') ||
                 sample.lab_number.includes('NEG_') ||
                 sample.lab_number.includes('POS_') ||
                 sample.lab_number === 'NEG_CTRL' ||
-                sample.lab_number === 'POS_CTRL' ||
-                sample.lab_number === 'ALLELIC_LADDER'
+                sample.lab_number === 'POS_CTRL'
               );
               
               const hasControlInId = sample.id && (
                 sample.id === 'neg_control' ||
                 sample.id === 'pos_control' ||
-                sample.id === 'ladder' ||
                 (typeof sample.id === 'string' && (
-                  sample.id.includes('control') ||
-                  sample.id.includes('ladder')
+                  sample.id.includes('control')
                 ))
               );
               
@@ -766,15 +743,6 @@ const ElectrophoresisLayout = () => {
           relation: 'Control'
         };
         break;
-      case 'ladder':
-        controlSample = {
-          id: `ladder_${foundWell}`,
-          lab_number: 'ALLELIC_LADDER',
-          name: 'Allelic',
-          surname: 'Ladder',
-          relation: 'Control'
-        };
-        break;
       default:
         return;
     }
@@ -845,10 +813,10 @@ const ElectrophoresisLayout = () => {
     <Box sx={{ maxWidth: 1400, mx: 'auto', p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
-          <Typography variant="h4" sx={{ color: '#7b1fa2', fontWeight: 'bold' }}>
+          <Typography variant="h4" sx={{ color: '#00796b', fontWeight: 'bold' }}>
             ⚡ Electrophoresis Plate Layout
           </Typography>
-          <Typography variant="h6" sx={{ color: '#7b1fa2', mt: 1 }}>
+          <Typography variant="h6" sx={{ color: '#00796b', mt: 1 }}>
             Batch: {batchNumber}
           </Typography>
         </Box>
@@ -857,8 +825,8 @@ const ElectrophoresisLayout = () => {
             variant="contained"
             sx={{ 
               mr: 1,
-              bgcolor: '#7b1fa2',
-              '&:hover': { bgcolor: '#6a1b9a' }
+              bgcolor: '#00796b',
+              '&:hover': { bgcolor: '#00695c' }
             }}
             onClick={loadPCRBatches}
           >
@@ -869,8 +837,8 @@ const ElectrophoresisLayout = () => {
           <Button
             variant="contained"
             sx={{ 
-              bgcolor: '#7b1fa2',
-              '&:hover': { bgcolor: '#6a1b9a' },
+              bgcolor: '#00796b',
+              '&:hover': { bgcolor: '#00695c' },
               '&:disabled': { bgcolor: '#e0e0e0' }
             }}
             onClick={autoFillSamples}
@@ -902,7 +870,7 @@ const ElectrophoresisLayout = () => {
           <Paper sx={{ p: 3, height: 'fit-content' }}>
             <Typography variant="h6" sx={{ 
               mb: 2, 
-              color: isDarkMode ? 'white' : '#7b1fa2',
+              color: isDarkMode ? 'white' : '#00796b',
               fontWeight: 'bold'
             }}>
               Selected Samples ({selectedSamples.length})
@@ -919,9 +887,9 @@ const ElectrophoresisLayout = () => {
                 sx={{ 
                   mb: 1.5, 
                   cursor: 'grab',
-                  bgcolor: '#e3f2fd',
-                  '&:hover': { bgcolor: '#bbdefb' },
-                  border: '1px solid #2196f3'
+                  bgcolor: '#e0f2f1',
+                  '&:hover': { bgcolor: '#b2dfdb' },
+                  border: '1px solid #00796b'
                 }}
                 draggable
                 onDragStart={(e) => handleDragStart(e, group)}
@@ -988,7 +956,7 @@ const ElectrophoresisLayout = () => {
             <Divider sx={{ my: 2 }} />
 
             {/* Draggable Controls */}
-            <Typography variant="subtitle2" sx={{ mb: 1, color: '#7b1fa2', fontWeight: 'bold' }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, color: '#00796b', fontWeight: 'bold' }}>
               ⚡ Electrophoresis Controls
             </Typography>
             
@@ -1064,47 +1032,12 @@ const ElectrophoresisLayout = () => {
               </CardContent>
             </Card>
 
-            {/* Allelic Ladder */}
-            <Card
-              sx={{ 
-                mb: 0.75, 
-                cursor: 'grab',
-                bgcolor: '#e3f2fd',
-                '&:hover': { bgcolor: '#bbdefb' },
-                border: '1px solid #2196f3'
-              }}
-              draggable
-              onDragStart={(e) => handleDragStart(e, {
-                id: 'ladder_control_drag',
-                lab_number: 'ALLELIC_LADDER',
-                name: 'Allelic',
-                surname: 'Ladder',
-                relation: 'Control',
-                controlType: 'ladder'
-              })}
-              onDragEnd={handleDragEnd}
-            >
-              <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', minHeight: 24 }}>
-                  <DragIndicator sx={{ mr: 0.5, color: 'info.main', fontSize: 16 }} />
-                  <Chip 
-                    label="LADDER" 
-                    size="small" 
-                    variant="outlined" 
-                    sx={{ height: 18, fontSize: '0.65rem', borderColor: '#2196f3' }}
-                  />
-                  <Typography variant="caption" sx={{ ml: 0.5, fontSize: '0.7rem' }}>
-                    Allelic Ladder
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
 
             <Divider sx={{ my: 2 }} />
             
             {/* Controls Section */}
             <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, color: isDarkMode ? 'white' : '#7b1fa2', fontWeight: 'bold' }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, color: isDarkMode ? 'white' : '#00796b', fontWeight: 'bold' }}>
                 Control Options
               </Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -1132,18 +1065,6 @@ const ElectrophoresisLayout = () => {
                   }
                   label="Include Positive Control"
                 />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={controlsToAdd.allelicLadder}
-                      onChange={(e) => setControlsToAdd(prev => ({
-                        ...prev,
-                        allelicLadder: e.target.checked
-                      }))}
-                    />
-                  }
-                  label="Include Allelic Ladder"
-                />
               </Box>
             </Box>
             
@@ -1157,12 +1078,12 @@ const ElectrophoresisLayout = () => {
         <Grid item xs={12} md={8}>
           <Paper sx={{ 
             p: 3,
-            border: '2px solid #ab47bc',
+            border: '2px solid #00796b',
             borderRadius: 2,
             bgcolor: '#fafafa',
-            boxShadow: '0 4px 12px rgba(123, 31, 162, 0.2)'
+            boxShadow: '0 4px 12px rgba(0, 121, 107, 0.2)'
           }}>
-            <Typography variant="h6" sx={{ mb: 2, color: '#7b1fa2', fontWeight: 'bold' }}>
+            <Typography variant="h6" sx={{ mb: 2, color: '#00796b', fontWeight: 'bold' }}>
               ⚡ 96-Well Electrophoresis Plate: {batchNumber}
             </Typography>
             
@@ -1178,8 +1099,8 @@ const ElectrophoresisLayout = () => {
                   px: 4, 
                   py: 1.5, 
                   fontSize: '1.1rem',
-                  bgcolor: '#7b1fa2',
-                  '&:hover': { bgcolor: '#6a1b9a' },
+                  bgcolor: '#00796b',
+                  '&:hover': { bgcolor: '#00695c' },
                   '&:disabled': { bgcolor: '#e0e0e0' }
                 }}
               >

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 
 /**
  * Custom hook for managing notifications/toast messages
@@ -82,7 +82,7 @@ export function useNotifications(options = {}) {
     });
   }, [addNotification]);
 
-  return {
+  return useMemo(() => ({
     notifications,
     addNotification,
     removeNotification,
@@ -92,7 +92,17 @@ export function useNotifications(options = {}) {
     warning,
     info,
     position
-  };
+  }), [
+    notifications,
+    addNotification,
+    removeNotification,
+    clearAllNotifications,
+    success,
+    error,
+    warning,
+    info,
+    position
+  ]);
 }
 
 /**

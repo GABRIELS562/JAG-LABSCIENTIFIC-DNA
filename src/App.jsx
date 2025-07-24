@@ -18,7 +18,8 @@ import QualityControl from './components/features/QualityControl';
 import ClientRegister from './components/features/ClientRegister';
 import PCRPlate from './components/features/PCRPlate';
 import PCRBatches from './components/features/PCRBatches';
-import GeneticAnalysis from './components/features/GeneticAnalysis';
+import GeneticAnalysis from './components/features/genetic-analysis/GeneticAnalysisRefactored';
+import AnalysisSummary from './components/features/AnalysisSummary';
 import ElectrophoresisLayout from './components/features/ElectrophoresisLayout';
 import Reruns from './components/features/Reruns';
 import ApiTest from './components/debug/ApiTest';
@@ -125,7 +126,7 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <ReportsPage />
+                    <Reports />
                   </div>
                 </ErrorBoundary>
               } 
@@ -135,7 +136,7 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <Reports />
+                    <ReportsPage />
                   </div>
                 </ErrorBoundary>
               } 
@@ -206,6 +207,16 @@ function AppContent() {
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
                     <GeneticAnalysis />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/analysis-summary" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <AnalysisSummary />
                   </div>
                 </ErrorBoundary>
               } 

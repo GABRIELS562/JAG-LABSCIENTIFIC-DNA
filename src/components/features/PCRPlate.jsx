@@ -50,10 +50,9 @@ const PCRPlate = () => {
   const [finalizeDialog, setFinalizeDialog] = useState(false);
   const [controlsToAdd, setControlsToAdd] = useState({
     negativeControl: false,
-    positiveControl: false,
-    allelicLadder: false
+    positiveControl: false
   });
-  const [selectedControl, setSelectedControl] = useState(null); // 'negative', 'positive', 'ladder', or null
+  const [selectedControl, setSelectedControl] = useState(null); // 'negative', 'positive', or null
   const [wellContextMenu, setWellContextMenu] = useState({ open: false, wellId: null, anchorEl: null });
   const [dragHoverWell, setDragHoverWell] = useState(null);
   const [dragHoverWells, setDragHoverWells] = useState([]);
@@ -417,15 +416,6 @@ const PCRPlate = () => {
           relation: 'Control'
         };
         break;
-      case 'ladder':
-        controlData = {
-          id: `ladder_${wellId}`,
-          lab_number: 'ALLELIC_LADDER',
-          name: 'Allelic',
-          surname: 'Ladder',
-          relation: 'Control'
-        };
-        break;
       default:
         return;
     }
@@ -441,7 +431,7 @@ const PCRPlate = () => {
     
     setSnackbar({
       open: true,
-      message: `${controlType === 'ladder' ? 'Allelic ladder' : controlType === 'negative' ? 'Negative' : 'Positive'} control added to well ${wellId}`,
+      message: `${controlType === 'negative' ? 'Negative' : 'Positive'} control added to well ${wellId}`,
       severity: 'success'
     });
   };
@@ -553,7 +543,7 @@ const PCRPlate = () => {
     }
 
     // Add controls in the next available column
-    if (controlsToAdd.negativeControl || controlsToAdd.positiveControl || controlsToAdd.allelicLadder) {
+    if (controlsToAdd.negativeControl || controlsToAdd.positiveControl) {
       const nextColIndex = Math.ceil(selectedSamples.length / 8); // Next available column
       const controlCol = cols[nextColIndex] || cols[11]; // Use last column if needed
       let controlRowIndex = 0;
@@ -594,29 +584,13 @@ const PCRPlate = () => {
         controlRowIndex++;
       }
 
-      if (controlsToAdd.allelicLadder) {
-        const ladderWell = `${rows[controlRowIndex]}${controlCol}`;
-        if (newPlateData[ladderWell] && newPlateData[ladderWell].type === 'empty') {
-          newPlateData[ladderWell] = {
-            id: ladderWell,
-            type: 'control',
-            samples: [{
-              id: 'allelic_ladder',
-              lab_number: 'ALLELIC_LADDER',
-              name: 'Allelic',
-              surname: 'Ladder',
-              relation: 'Control'
-            }]
-          };
-        }
-      }
     }
 
     setPlateData(newPlateData);
     
     setSnackbar({
       open: true,
-      message: `Auto-filled ${selectedSamples.length} samples vertically (A1→H1, then A2→H2...)${controlsToAdd.negativeControl || controlsToAdd.positiveControl || controlsToAdd.allelicLadder ? ' with controls' : ''}`,
+      message: `Auto-filled ${selectedSamples.length} samples vertically (A1→H1, then A2→H2...)${controlsToAdd.negativeControl || controlsToAdd.positiveControl ? ' with controls' : ''}`,
       severity: 'success'
     });
   };
@@ -1060,18 +1034,6 @@ const PCRPlate = () => {
                   }
                   label="Include Positive Control"
                 />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={controlsToAdd.allelicLadder}
-                      onChange={(e) => setControlsToAdd(prev => ({
-                        ...prev,
-                        allelicLadder: e.target.checked
-                      }))}
-                    />
-                  }
-                  label="Include Allelic Ladder"
-                />
               </Box>
               
               {/* Manual control placement */}
@@ -1094,14 +1056,6 @@ const PCRPlate = () => {
                   onClick={() => setSelectedControl(selectedControl === 'positive' ? null : 'positive')}
                 >
                   {selectedControl === 'positive' ? 'Cancel' : 'Place Positive'}
-                </Button>
-                <Button
-                  variant={selectedControl === 'ladder' ? 'contained' : 'outlined'}
-                  color="warning"
-                  size="small"
-                  onClick={() => setSelectedControl(selectedControl === 'ladder' ? null : 'ladder')}
-                >
-                  {selectedControl === 'ladder' ? 'Cancel' : 'Place Ladder'}
                 </Button>
               </Box>
               
@@ -1306,15 +1260,6 @@ const PCRPlate = () => {
           disabled={plateData[wellContextMenu.wellId]?.samples.length > 0}
         >
           Add Positive Control
-        </MenuItem>
-        <MenuItem 
-          onClick={() => {
-            addControlToWell(wellContextMenu.wellId, 'ladder');
-            setWellContextMenu({ open: false, wellId: null, anchorEl: null });
-          }}
-          disabled={plateData[wellContextMenu.wellId]?.samples.length > 0}
-        >
-          Add Allelic Ladder
         </MenuItem>
         <MenuItem 
           onClick={() => {

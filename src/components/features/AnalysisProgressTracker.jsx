@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -36,15 +36,30 @@ const AnalysisProgressTracker = () => {
   const [queueStatus, setQueueStatus] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(true);
+  const [hasRunningJobs, setHasRunningJobs] = useState(false);
 
   useEffect(() => {
     fetchQueueStatus();
-    const interval = setInterval(fetchQueueStatus, 5000); // Refresh every 5 seconds
-    return () => clearInterval(interval);
   }, []);
 
-  const fetchQueueStatus = async () => {
+  // Track if there are running jobs
+  useEffect(() => {
+    const runningCount = queueStatus.filter(item => item.status === 'running').length;
+    setHasRunningJobs(runningCount > 0);
+  }, [queueStatus]);
+
+  // Disabled automatic polling to prevent flickering
+  // TODO: Re-enable controlled polling later if needed
+  // useEffect(() => {
+  //   if (hasRunningJobs) {
+  //     const interval = setInterval(fetchQueueStatus, 15000);
+  //     return () => clearInterval(interval);
+  //   }
+  // }, [hasRunningJobs, fetchQueueStatus]);
+
+  const fetchQueueStatus = useCallback(async () => {
     try {
+      setLoading(true);
       const response = await fetch('/api/genetic-analysis/queue-status');
       const data = await response.json();
       
@@ -52,10 +67,11 @@ const AnalysisProgressTracker = () => {
         setQueueStatus(data.queue);
       }
     } catch (error) {
+      console.error('Error fetching queue status:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -104,7 +120,7 @@ const AnalysisProgressTracker = () => {
     return `${Math.floor(duration / 3600)}h ${Math.floor((duration % 3600) / 60)}m`;
   };
 
-  const retryAnalysis = async (caseId) => {
+  const retryAnalysis = useCallback(async (caseId) => {
     try {
       const response = await fetch(`/api/genetic-analysis/cases/${caseId}/analyze`, {
         method: 'POST'
@@ -115,7 +131,7 @@ const AnalysisProgressTracker = () => {
       }
     } catch (error) {
     }
-  };
+  }, [fetchQueueStatus]);
 
   const queuedCount = queueStatus.filter(item => item.status === 'queued').length;
   const runningCount = queueStatus.filter(item => item.status === 'running').length;
@@ -247,7 +263,7 @@ const AnalysisProgressTracker = () => {
                 <ListItemText
                   primary={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                      <Typography component="span" variant="subtitle2" sx={{ fontWeight: 'bold' }}>
                         {item.case_id}
                       </Typography>
                       <Chip
@@ -261,8 +277,8 @@ const AnalysisProgressTracker = () => {
                     </Box>
                   }
                   secondary={
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
+                    <>
+                      <Typography component="span" variant="body2" color="text.secondary">
                         Priority: {item.priority} | 
                         Duration: {formatDuration(item.started_date, item.completed_date)}
                       </Typography>
@@ -278,7 +294,7 @@ const AnalysisProgressTracker = () => {
                           sx={{ mt: 1, borderRadius: 1 }}
                         />
                       )}
-                    </Box>
+                    </>
                   }
                 />
                 

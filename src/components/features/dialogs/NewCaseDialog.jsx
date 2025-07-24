@@ -61,7 +61,10 @@ const NewCaseDialog = ({ open, onClose, onCaseCreated }) => {
         onCaseCreated(data.case);
         handleClose();
       } else {
-        setError(data.error || 'Failed to create case');
+        const errorMessage = typeof data.error === 'object' 
+          ? data.error.message || 'Failed to create case'
+          : data.error || 'Failed to create case';
+        setError(errorMessage);
       }
     } catch (error) {
       setError('Network error: ' + error.message);
