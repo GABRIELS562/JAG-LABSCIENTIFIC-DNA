@@ -173,9 +173,21 @@ const OsirisStatusCard = ({
               color="primary"
               disabled={checking}
             >
-              Launch Osiris
+              Try Launch Osiris
             </Button>
           )}
+          
+          <Button
+            variant="outlined"
+            onClick={() => {
+              // Manual launch instructions
+              window.open('/genetic-analysis', '_self');
+            }}
+            size="small"
+            color="info"
+          >
+            Manual Launch Guide
+          </Button>
           
           {error && error.includes('Maximum check attempts') && onResetLimits && (
             <Button

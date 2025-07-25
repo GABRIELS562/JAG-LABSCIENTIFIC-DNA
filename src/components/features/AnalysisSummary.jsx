@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
   Container,
   Grid,
   Card,
@@ -23,7 +32,12 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TableRow
+  TableRow,
+  Menu,
+  MenuItem,
+  Badge,
+  ListItemAvatar,
+  Avatar
 } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
@@ -36,7 +50,17 @@ import {
   Analytics as AnalyticsIcon,
   Close as CloseIcon,
   Check as CheckIcon,
-  Help as HelpIcon
+  Help as HelpIcon,
+  Upload as UploadIcon,
+  People,
+  Speed,
+  TrendingUp,
+  ExpandMore as ExpandMoreIcon,
+  Biotech as BiotechIcon,
+  Storage as StorageIcon,
+  Delete as DeleteIcon,
+  History as HistoryIcon,
+  KeyboardArrowDown as ArrowDownIcon
 } from '@mui/icons-material';
 import { useThemeContext } from '../../contexts/ThemeContext';
 
@@ -44,64 +68,385 @@ const AnalysisSummary = () => {
   const { isDarkMode } = useThemeContext();
   const [summaryData, setSummaryData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [geneMapperData, setGeneMapperData] = useState(null);
+  const [uploadDialog, setUploadDialog] = useState(false);
+  const [csvText, setCsvText] = useState('');
+  const [availableBatches, setAvailableBatches] = useState([]);
+  const [selectedBatchId, setSelectedBatchId] = useState(null);
+  const [batchSelectorOpen, setBatchSelectorOpen] = useState(false);
+
+  // Get all saved batches from localStorage
+  const getAllSavedBatches = () => {
+    const batches = [];
+    
+    // Get Osiris batches
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key.startsWith('osiris_batch_') || key === 'osiris_latest_results') {
+        try {
+          const data = JSON.parse(localStorage.getItem(key));
+          batches.push({
+            id: key,
+            type: 'Osiris',
+            name: data.caseId || `Osiris Analysis ${key.split('_').pop()}`,
+            timestamp: data.timestamp || new Date().toISOString(),
+            sampleCount: data.samples?.length || 0,
+            status: data.conclusion || 'Completed',
+            data: data
+          });
+        } catch (error) {
+          console.warn(`Failed to parse batch ${key}:`, error);
+        }
+      }
+    }
+    
+    // Get GeneMapper batches
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key.startsWith('genemapper_batch_') || key === 'genemapper_results') {
+        try {
+          const data = JSON.parse(localStorage.getItem(key));
+          batches.push({
+            id: key,
+            type: 'GeneMapper',
+            name: data.analysisId || `GeneMapper Analysis ${key.split('_').pop()}`,
+            timestamp: data.timestamp || new Date().toISOString(),
+            sampleCount: data.samples?.length || 0,
+            status: data.overallStatus || 'Completed',
+            data: data
+          });
+        } catch (error) {
+          console.warn(`Failed to parse batch ${key}:`, error);
+        }
+      }
+    }
+    
+    // Sort by timestamp (newest first)
+    return batches.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  };
+  
+  // Save a new batch with auto-generated ID
+  const saveBatch = (analysisData, batchType) => {
+    const timestamp = new Date().toISOString();
+    const batchId = `${batchType.toLowerCase()}_batch_${Date.now()}`;
+    
+    const batchData = {
+      ...analysisData,
+      batchId,
+      savedAt: timestamp,
+      batchType
+    };
+    
+    localStorage.setItem(batchId, JSON.stringify(batchData));
+    
+    // Also update the "latest" entry for backward compatibility
+    if (batchType === 'GeneMapper') {
+      localStorage.setItem('genemapper_results', JSON.stringify(batchData));
+    } else if (batchType === 'Osiris') {
+      localStorage.setItem('osiris_latest_results', JSON.stringify(batchData));
+    }
+    
+    return batchId;
+  };
+  
+  // Load a specific batch
+  const loadBatch = (batchId) => {
+    try {
+      const batchData = localStorage.getItem(batchId);
+      if (batchData) {
+        const parsedData = JSON.parse(batchData);
+        setSummaryData({
+          ...parsedData,
+          softwareType: parsedData.batchType || (batchId.includes('osiris') ? 'Osiris' : 'GeneMapper')
+        });
+        setSelectedBatchId(batchId);
+        return true;
+      }
+    } catch (error) {
+      console.error(`Failed to load batch ${batchId}:`, error);
+    }
+    return false;
+  };
+  
+  // Delete a batch
+  const deleteBatch = (batchId) => {
+    localStorage.removeItem(batchId);
+    const updatedBatches = availableBatches.filter(batch => batch.id !== batchId);
+    setAvailableBatches(updatedBatches);
+    
+    // If the deleted batch was selected, load the most recent one
+    if (selectedBatchId === batchId) {
+      if (updatedBatches.length > 0) {
+        loadBatch(updatedBatches[0].id);
+      } else {
+        setSummaryData(null);
+        setSelectedBatchId(null);
+      }
+    }
+  };
+
+  // Parse GeneMapper HID CSV data
+  const parseGeneMapperData = (csvText) => {
+    const lines = csvText.trim().split('\n');
+    if (lines.length < 2) return null;
+    
+    const headers = lines[0].split(',').map(h => h.trim());
+    const samples = {};
+    const cases = {};
+    
+    // Parse each line
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim());
+      if (values.length < 4) continue;
+      
+      const sampleName = values[0];
+      const marker = values[1];
+      const allele1 = values[2];
+      const allele2 = values[3];
+      
+      // Extract case info from sample name (e.g., "25_002_M" -> case "25_002", relation "M")
+      const caseMatch = sampleName.match(/^(\d+_\d+)_([A-Z]+)$/);
+      if (caseMatch) {
+        const caseNum = caseMatch[1];
+        const relation = caseMatch[2];
+        
+        if (!cases[caseNum]) {
+          cases[caseNum] = { samples: {}, markers: new Set() };
+        }
+        
+        if (!cases[caseNum].samples[relation]) {
+          cases[caseNum].samples[relation] = { name: sampleName, profile: {} };
+        }
+        
+        cases[caseNum].samples[relation].profile[marker] = {
+          allele1: allele1 === 'X' ? null : allele1,
+          allele2: allele2 === 'X' ? null : allele2
+        };
+        cases[caseNum].markers.add(marker);
+      }
+      
+      if (!samples[sampleName]) {
+        samples[sampleName] = { profile: {} };
+      }
+      
+      samples[sampleName].profile[marker] = {
+        allele1: allele1 === 'X' ? null : allele1,
+        allele2: allele2 === 'X' ? null : allele2
+      };
+    }
+    
+    return { samples, cases, totalSamples: Object.keys(samples).length };
+  };
+
+  const handleGeneMapperUpload = () => {
+    if (!csvText.trim()) return;
+    
+    const parsed = parseGeneMapperData(csvText);
+    if (parsed) {
+      const batchData = {
+        ...parsed,
+        uploadTime: new Date().toISOString(),
+        source: 'GeneMapper HID Upload',
+        batchType: 'GeneMapper'
+      };
+      
+      setGeneMapperData(batchData);
+      
+      // Save as a new batch
+      const batchId = saveBatch(batchData, 'GeneMapper');
+      localStorage.setItem('genemapper_hid_data', JSON.stringify(batchData));
+      
+      // Refresh available batches
+      const batches = getAllSavedBatches();
+      setAvailableBatches(batches);
+      setSelectedBatchId(batchId);
+    }
+    setUploadDialog(false);
+    setCsvText('');
+  };
+
+  // Parse Osiris XML/CSV results into laboratory report format
+  const parseOsirisResults = (xmlContent) => {
+    try {
+      // Mock Osiris result parsing (replace with actual XML parsing when available)
+      const mockOsirisData = {
+        caseId: '25_361_362',
+        analysisDate: new Date().toISOString(),
+        samples: [
+          {
+            labNo: '25_361',
+            relationship: 'Child',
+            name: 'Almaaz',
+            refId: 'REF # Kit BN_493LDSK',
+            identityVerified: false,
+            sampleType: 'Buccal Swab'
+          },
+          {
+            labNo: '25_362', 
+            relationship: 'Alleged Father',
+            name: 'Nathan',
+            refId: 'REF # Kit BN_493LDSK',
+            identityVerified: false,
+            sampleType: 'Buccal Swab'
+          }
+        ],
+        strResults: [
+          { marker: 'AMEL', mother: 'X', child: 'X', allegedFather: 'X Y', result: '✔' },
+          { marker: 'CSF1PO', mother: '9', child: '10', allegedFather: '11 12', result: '✖' },
+          { marker: 'D13S317', mother: '12', child: '14', allegedFather: '12 13', result: '✔' },
+          { marker: 'D16S538', mother: '9', child: '12', allegedFather: '11 11', result: '✖' },
+          { marker: 'D18S51', mother: '14', child: '19', allegedFather: '13 14', result: '✔' },
+          { marker: 'D19S433', mother: '14', child: '15.2', allegedFather: '14 15.2', result: '✔' },
+          { marker: 'D21S11', mother: '30', child: '30', allegedFather: '31 33', result: '✖' },
+          { marker: 'D2S13388', mother: '21', child: '24', allegedFather: '16 17', result: '✖' },
+          { marker: 'D3S1358', mother: '16', child: '17', allegedFather: '17 18', result: '✔' },
+          { marker: 'D5S818', mother: '11', child: '13', allegedFather: '12 13', result: '✔' },
+          { marker: 'D7S820', mother: '10', child: '11', allegedFather: '9 12', result: '✖' },
+          { marker: 'D8S1179', mother: '13', child: '14', allegedFather: '10 15', result: '✖' },
+          { marker: 'FGA', mother: '22', child: '26', allegedFather: '22 23', result: '✔' },
+          { marker: 'TH01', mother: '7', child: '10', allegedFather: '8 9', result: '✖' },
+          { marker: 'TPOX', mother: '9', child: '10', allegedFather: '6 11', result: '✖' },
+          { marker: 'vWA', mother: '15', child: '16', allegedFather: '15 17', result: '✔' }
+        ],
+        exclusions: 8,
+        inclusions: 8,
+        conclusion: 'EXCLUDED'
+      };
+      
+      return mockOsirisData;
+    } catch (error) {
+      console.error('Error parsing Osiris results:', error);
+      return null;
+    }
+  };
 
   const fetchAnalysisResults = useCallback(async () => {
     try {
       setLoading(true);
       console.log('🔍 Fetching analysis results...');
       
-      // Try to fetch both Osiris and GeneMapper results
-      const [osirisResponse, geneMapperResponse] = await Promise.allSettled([
-        fetch('/api/genetic-analysis/results'),
-        fetch('/api/genetic-analysis/genemapper-results')
+      // Load all available batches first
+      const batches = getAllSavedBatches();
+      setAvailableBatches(batches);
+      
+      // If a specific batch is selected, load it
+      if (selectedBatchId && batches.find(b => b.id === selectedBatchId)) {
+        const loaded = loadBatch(selectedBatchId);
+        if (loaded) {
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // Check localStorage for GeneMapper HID data first
+      const storedGeneMapperHID = localStorage.getItem('genemapper_hid_data');
+      if (storedGeneMapperHID) {
+        const parsed = JSON.parse(storedGeneMapperHID);
+        setGeneMapperData({
+          ...parsed,
+          source: 'GeneMapper HID Storage'
+        });
+      }
+      
+      // Check for GeneMapper results first (priority)
+      const storedGeneMapperResults = localStorage.getItem('genemapper_results');
+      if (storedGeneMapperResults) {
+        const geneMapperData = JSON.parse(storedGeneMapperResults);
+        if (geneMapperData.timestamp && new Date(geneMapperData.timestamp) > new Date(Date.now() - 24*60*60*1000)) {
+          console.log('🧬 Loading fresh GeneMapper results');
+          setSummaryData({
+            ...geneMapperData,
+            softwareType: 'GeneMapper',
+            source: geneMapperData.source || 'GeneMapper HID v3.0.0 Analysis',
+            totalSamples: geneMapperData.samples ? geneMapperData.samples.length : 0,
+            analysisTime: geneMapperData.analysisTime || 'Completed'
+          });
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // Check for Osiris results as fallback
+      const storedOsirisResults = localStorage.getItem('osiris_latest_results');
+      if (storedOsirisResults) {
+        const osirisData = JSON.parse(storedOsirisResults);
+        if (osirisData.timestamp && new Date(osirisData.timestamp) > new Date(Date.now() - 24*60*60*1000)) {
+          console.log('🧬 Loading fresh Osiris results');
+          
+          try {
+            const parsedOsiris = parseOsirisResults(osirisData.results);
+            if (parsedOsiris) {
+              setSummaryData({
+                ...parsedOsiris,
+                softwareType: 'Osiris',
+                source: 'Osiris Analysis Results',
+                totalSamples: parsedOsiris.samples ? parsedOsiris.samples.length : 0,
+                analysisTime: 'Completed'
+              });
+              setLoading(false);
+              return;
+            }
+          } catch (error) {
+            console.error('Error parsing Osiris data:', error);
+          }
+        }
+      }
+      
+      // Try to fetch both GeneMapper and Osiris results (GeneMapper priority)
+      const [geneMapperResponse, osirisResponse] = await Promise.allSettled([
+        fetch('/api/genetic-analysis/genemapper-results'),
+        fetch('/api/genetic-analysis/results')
       ]);
       
       let analysisData = null;
       
-      // Check Osiris results first
-      if (osirisResponse.status === 'fulfilled' && osirisResponse.value.ok) {
-        const osirisData = await osirisResponse.value.json();
-        if (osirisData.success) {
-          analysisData = { ...osirisData, softwareType: 'Osiris' };
-          console.log(`📊 Osiris data loaded: ${osirisData.source} (Real data: ${osirisData.isRealData})`);
-        }
-      }
-      
-      // Check GeneMapper results if no Osiris data
-      if (!analysisData && geneMapperResponse.status === 'fulfilled' && geneMapperResponse.value.ok) {
+      // Check GeneMapper results first (priority)
+      if (geneMapperResponse.status === 'fulfilled' && geneMapperResponse.value.ok) {
         const geneMapperData = await geneMapperResponse.value.json();
         if (geneMapperData.success) {
           analysisData = { ...geneMapperData, softwareType: 'GeneMapper' };
-          console.log(`📊 GeneMapper data loaded: ${geneMapperData.source}`);
+          console.log(`📊 GeneMapper data loaded: ${geneMapperData.source} (Real data: ${geneMapperData.isRealData})`);
         }
       }
       
-      // Check localStorage for GeneMapper results as fallback
-      if (!analysisData) {
-        const storedGeneMapperResults = localStorage.getItem('genemapper_results');
-        if (storedGeneMapperResults) {
-          const geneMapperData = JSON.parse(storedGeneMapperResults);
-          analysisData = {
-            ...geneMapperData,
-            softwareType: 'GeneMapper',
-            success: true,
-            source: 'GeneMapper Local Storage'
-          };
-          console.log('📊 Using stored GeneMapper results');
+      // Check Osiris results if no GeneMapper data
+      if (!analysisData && osirisResponse.status === 'fulfilled' && osirisResponse.value.ok) {
+        const osirisData = await osirisResponse.value.json();
+        if (osirisData.success) {
+          analysisData = { ...osirisData, softwareType: 'Osiris' };
+          console.log(`📊 Osiris data loaded: ${osirisData.source}`);
         }
       }
       
       if (analysisData) {
         setSummaryData(analysisData);
+        
+        // Auto-save new analysis as a batch if it doesn't already exist
+        const existingBatch = batches.find(b => 
+          b.data.analysisId === analysisData.analysisId || 
+          b.data.caseId === analysisData.caseId
+        );
+        
+        if (!existingBatch) {
+          const batchId = saveBatch(analysisData, analysisData.softwareType);
+          setSelectedBatchId(batchId);
+          // Refresh batches list
+          const updatedBatches = getAllSavedBatches();
+          setAvailableBatches(updatedBatches);
+        }
       } else {
         console.log('❌ No analysis results found from any source');
+        // If no current data but we have saved batches, load the most recent one
+        if (batches.length > 0) {
+          loadBatch(batches[0].id);
+        }
       }
     } catch (error) {
       console.error('❌ Error fetching analysis results:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedBatchId]);
 
   useEffect(() => {
     fetchAnalysisResults();
@@ -151,7 +496,7 @@ const AnalysisSummary = () => {
 
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
-      {/* Header */}
+      {/* Header with Batch Selector */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Box>
           <Typography variant="h4" component="h1" gutterBottom>
@@ -169,85 +514,862 @@ const AnalysisSummary = () => {
                 variant="outlined"
               />
             )}
+            {availableBatches.length > 0 && (
+              <Badge badgeContent={availableBatches.length} color="primary">
+                <Chip
+                  label="Saved Batches"
+                  icon={<StorageIcon />}
+                  variant="outlined"
+                  color="info"
+                />
+              </Badge>
+            )}
           </Box>
         </Box>
-        <Tooltip title="Refresh Data">
-          <IconButton onClick={fetchAnalysisResults}>
-            <RefreshIcon />
-          </IconButton>
-        </Tooltip>
+        
+        <Box display="flex" alignItems="center" gap={1}>
+          {/* Batch Selector */}
+          {availableBatches.length > 0 && (
+            <>
+              <Button
+                variant="outlined"
+                startIcon={<HistoryIcon />}
+                endIcon={<ArrowDownIcon />}
+                onClick={(e) => setBatchSelectorOpen(e.currentTarget)}
+                sx={{ mr: 1 }}
+              >
+                Switch Batch ({availableBatches.length})
+              </Button>
+              
+              <Menu
+                anchorEl={batchSelectorOpen}
+                open={Boolean(batchSelectorOpen)}
+                onClose={() => setBatchSelectorOpen(false)}
+                PaperProps={{
+                  style: {
+                    maxHeight: 400,
+                    width: '400px',
+                  },
+                }}
+              >
+                <MenuItem disabled>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                    Select Analysis Batch
+                  </Typography>
+                </MenuItem>
+                <Divider />
+                {availableBatches.map((batch) => (
+                  <MenuItem
+                    key={batch.id}
+                    onClick={() => {
+                      loadBatch(batch.id);
+                      setBatchSelectorOpen(false);
+                    }}
+                    selected={selectedBatchId === batch.id}
+                    sx={{ py: 2 }}
+                  >
+                    <ListItemAvatar>
+                      <Avatar
+                        sx={{
+                          bgcolor: batch.type === 'Osiris' ? 'primary.main' : 'secondary.main',
+                          width: 32,
+                          height: 32
+                        }}
+                      >
+                        {batch.type === 'Osiris' ? '🧬' : '🔬'}
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Typography variant="subtitle2">{batch.name}</Typography>
+                          <Chip
+                            label={batch.type}
+                            size="small"
+                            color={batch.type === 'Osiris' ? 'primary' : 'secondary'}
+                            variant="outlined"
+                          />
+                        </Box>
+                      }
+                      secondary={
+                        <Box>
+                          <Typography variant="caption" display="block">
+                            {new Date(batch.timestamp).toLocaleString()}
+                          </Typography>
+                          <Typography variant="caption" color="textSecondary">
+                            {batch.sampleCount} samples • Status: {batch.status}
+                          </Typography>
+                        </Box>
+                      }
+                    />
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (window.confirm(`Delete batch "${batch.name}"?`)) {
+                          deleteBatch(batch.id);
+                        }
+                      }}
+                      sx={{ ml: 1 }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </MenuItem>
+                ))}
+                <Divider />
+                <MenuItem disabled>
+                  <Typography variant="caption" color="textSecondary">
+                    💡 Tip: New analyses are automatically saved as batches
+                  </Typography>
+                </MenuItem>
+              </Menu>
+            </>
+          )}
+          
+          <Tooltip title="Refresh Data">
+            <IconButton onClick={fetchAnalysisResults}>
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Box>
 
-      {/* Overview Cards */}
+      {/* Colorful Metric Blocks */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={1}>
-                <AssessmentIcon color="primary" />
-                <Typography variant="h6">{summaryData.totalSamples}</Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                Total Samples
-              </Typography>
-            </CardContent>
-          </Card>
+          <Box sx={{ 
+            textAlign: 'center', 
+            p: 3, 
+            background: 'linear-gradient(135deg, #0D488F 0%, #1e4976 100%)',
+            color: 'white',
+            borderRadius: 2, 
+            cursor: 'pointer',
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: '0 8px 20px rgba(13, 72, 143, 0.3)'
+            },
+            transition: 'all 0.3s ease'
+          }}>
+            <People sx={{ fontSize: 40, mb: 1 }} />
+            <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+              {summaryData?.totalSamples || geneMapperData?.totalSamples || availableBatches.length || 0}
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.9 }}>
+              Total Samples
+            </Typography>
+          </Box>
         </Grid>
         
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={1}>
-                <CheckCircleIcon color="success" />
-                <Typography variant="h6">{summaryData.successfulAnalyses}</Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                Successful
-              </Typography>
-            </CardContent>
-          </Card>
+          <Box sx={{ 
+            textAlign: 'center', 
+            p: 3, 
+            background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+            color: 'white',
+            borderRadius: 2, 
+            cursor: 'pointer',
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: '0 8px 20px rgba(255, 152, 0, 0.3)'
+            },
+            transition: 'all 0.3s ease'
+          }}>
+            <Speed sx={{ fontSize: 40, mb: 1 }} />
+            <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+              {geneMapperData ? Object.keys(geneMapperData.cases || {}).length : (summaryData?.successfulAnalyses || availableBatches.filter(b => b.type === 'GeneMapper').length || 0)}
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.9 }}>
+              {geneMapperData ? 'Cases' : 'Successful'}
+            </Typography>
+          </Box>
         </Grid>
         
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={1}>
-                <WarningIcon color="warning" />
-                <Typography variant="h6">{summaryData.requiresReview}</Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                Needs Review
-              </Typography>
-            </CardContent>
-          </Card>
+          <Box sx={{ 
+            textAlign: 'center', 
+            p: 3, 
+            background: 'linear-gradient(135deg, #42a5f5 0%, #1976d2 100%)',
+            color: 'white',
+            borderRadius: 2, 
+            cursor: 'pointer',
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: '0 8px 20px rgba(66, 165, 245, 0.3)'
+            },
+            transition: 'all 0.3s ease'
+          }}>
+            <BiotechIcon sx={{ fontSize: 40, mb: 1 }} />
+            <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+              {geneMapperData ? Array.from(new Set(Object.values(geneMapperData.cases || {}).flatMap(c => Array.from(c.markers)))).length : (summaryData?.requiresReview || availableBatches.filter(b => b.type === 'Osiris').length || 0)}
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.9 }}>
+              {geneMapperData ? 'STR Markers' : 'Needs Review'}
+            </Typography>
+          </Box>
         </Grid>
         
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={1}>
-                <AnalyticsIcon color="info" />
-                <Typography variant="h6">{summaryData.analysisTime}</Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                Analysis Time
-              </Typography>
-            </CardContent>
-          </Card>
+          <Box sx={{ 
+            textAlign: 'center', 
+            p: 3, 
+            background: 'linear-gradient(135deg, #8EC74F 0%, #6BA23A 100%)',
+            color: 'white',
+            borderRadius: 2, 
+            cursor: 'pointer',
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: '0 8px 20px rgba(142, 199, 79, 0.3)'
+            },
+            transition: 'all 0.3s ease'
+          }}>
+            <TrendingUp sx={{ fontSize: 40, mb: 1 }} />
+            <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+              {summaryData?.analysisTime || (availableBatches.length > 0 ? `${availableBatches.length} Saved` : 'Ready')}
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.9 }}>
+              Analysis Status
+            </Typography>
+          </Box>
         </Grid>
       </Grid>
 
-      <Grid container spacing={3}>
-        {/* Sample Results */}
-        <Grid item xs={12} lg={8}>
-          <Card>
-            <CardHeader 
-              title="Sample Analysis Results"
-              subheader={`${summaryData.kit} • ${summaryData.runDate}`}
-            />
-            <CardContent>
-              <List>
-                {summaryData.samples.map((sample, index) => (
+      {/* Data Import Options */}
+      {!geneMapperData && !summaryData && (
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardHeader
+                title="🧬 Osiris STR Analysis"
+                subheader="View results from Osiris genetic analysis software"
+                action={
+                  <Button
+                    variant="contained"
+                    onClick={() => window.location.href = '/genetic-analysis'}
+                    sx={{ bgcolor: '#0D488F' }}
+                  >
+                    Go to Osiris
+                  </Button>
+                }
+              />
+              <CardContent>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Typography variant="body2">
+                    <strong>Professional Workflow:</strong> Upload .fsa files → Run Osiris analysis → View results here automatically
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    Supports: Applied Biosystems 3130xl, 3500xL genetic analyzer files
+                  </Typography>
+                </Alert>
+                
+                {/* Test Button for Osiris Results */}
+                <Button
+                  variant="outlined"
+                  onClick={() => {
+                    // Simulate Osiris results for testing
+                    localStorage.setItem('osiris_latest_results', JSON.stringify({
+                      caseId: 'test_case_001',
+                      results: 'mock_xml_content',
+                      timestamp: new Date().toISOString(),
+                      software: 'Osiris'
+                    }));
+                    window.location.reload();
+                  }}
+                  sx={{ mt: 1 }}
+                >
+                  🧪 Test Osiris Results Display
+                </Button>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardHeader
+                title="🧬 GeneMapper HID Data Import"
+                subheader="Upload GeneMapper HID CSV data for STR analysis"
+                action={
+                  <Button
+                    variant="contained"
+                    startIcon={<UploadIcon />}
+                    onClick={() => setUploadDialog(true)}
+                    sx={{ bgcolor: '#8EC74F' }}
+                  >
+                    Upload CSV Data
+                  </Button>
+                }
+              />
+              <CardContent>
+                <Alert severity="info">
+                  <Typography variant="body2">
+                    <strong>Expected CSV Format:</strong> Sample Name, Marker, Allele #1, Allele #2
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    Example: 25_002_M, D8S1179, 12, 15
+                  </Typography>
+                </Alert>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* GeneMapper HID Data Display */}
+      {geneMapperData && (
+        <Card sx={{ mb: 3 }}>
+          <CardHeader
+            title="🧬 GeneMapper HID Analysis Results"
+            subheader={`${geneMapperData.source} • ${Object.keys(geneMapperData.cases || {}).length} cases • ${geneMapperData.totalSamples} samples`}
+            action={
+              <Button
+                variant="outlined"
+                startIcon={<UploadIcon />}
+                onClick={() => setUploadDialog(true)}
+                size="small"
+              >
+                Upload New Data
+              </Button>
+            }
+          />
+          <CardContent>
+            <Alert severity="success" sx={{ mb: 2 }}>
+              <Typography variant="body2">
+                <strong>Data loaded successfully!</strong> Found {Object.keys(geneMapperData.cases || {}).length} paternity cases with STR profiles.
+              </Typography>
+            </Alert>
+
+            {/* Case by Case Analysis */}
+            {Object.entries(geneMapperData.cases || {}).map(([caseNum, caseData]) => {
+              const markers = Array.from(caseData.markers).sort();
+              const mother = caseData.samples.M;
+              const child = caseData.samples.C;
+              const allegedFather = caseData.samples.AF;
+
+              return (
+                <Accordion key={caseNum} sx={{ mb: 2 }}>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Typography variant="h6">Case {caseNum}</Typography>
+                      <Chip 
+                        label={`${markers.length} markers`} 
+                        size="small" 
+                        color="primary" 
+                      />
+                      <Chip 
+                        label={`${Object.keys(caseData.samples).length} samples`} 
+                        size="small" 
+                        variant="outlined" 
+                      />
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <TableContainer component={Paper}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell><strong>STR MARKER</strong></TableCell>
+                            {mother && <TableCell align="center"><strong>MOTHER</strong><br/><small>{mother.name}</small></TableCell>}
+                            {child && <TableCell align="center"><strong>CHILD</strong><br/><small>{child.name}</small></TableCell>}
+                            {allegedFather && <TableCell align="center"><strong>ALLEGED FATHER</strong><br/><small>{allegedFather.name}</small></TableCell>}
+                            <TableCell align="center"><strong>PATERNITY</strong></TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {markers.map((marker) => {
+                            const motherProfile = mother?.profile[marker];
+                            const childProfile = child?.profile[marker];
+                            const fatherProfile = allegedFather?.profile[marker];
+                            
+                            // Simple paternity check logic
+                            let paternityResult = '?';
+                            if (childProfile && fatherProfile) {
+                              const childAlleles = [childProfile.allele1, childProfile.allele2].filter(a => a);
+                              const fatherAlleles = [fatherProfile.allele1, fatherProfile.allele2].filter(a => a);
+                              const motherAlleles = motherProfile ? [motherProfile.allele1, motherProfile.allele2].filter(a => a) : [];
+                              
+                              // Check if child has at least one allele that could come from alleged father
+                              const childNonMaternalAlleles = childAlleles.filter(allele => !motherAlleles.includes(allele));
+                              const fatherCanContribute = childNonMaternalAlleles.some(allele => fatherAlleles.includes(allele)) || childNonMaternalAlleles.length === 0;
+                              
+                              paternityResult = fatherCanContribute ? '✓' : '✗';
+                            }
+
+                            return (
+                              <TableRow key={marker} sx={{ '&:nth-of-type(odd)': { backgroundColor: isDarkMode ? '#2A2A2A' : '#f5f5f5' } }}>
+                                <TableCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
+                                  {marker}
+                                </TableCell>
+                                {mother && (
+                                  <TableCell align="center">
+                                    {motherProfile ? `${motherProfile.allele1 || 'X'}, ${motherProfile.allele2 || 'X'}` : 'No data'}
+                                  </TableCell>
+                                )}
+                                {child && (
+                                  <TableCell align="center" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                                    {childProfile ? `${childProfile.allele1 || 'X'}, ${childProfile.allele2 || 'X'}` : 'No data'}
+                                  </TableCell>
+                                )}
+                                {allegedFather && (
+                                  <TableCell align="center">
+                                    {fatherProfile ? `${fatherProfile.allele1 || 'X'}, ${fatherProfile.allele2 || 'X'}` : 'No data'}
+                                  </TableCell>
+                                )}
+                                <TableCell align="center">
+                                  {paternityResult === '✓' ? (
+                                    <CheckIcon color="success" />
+                                  ) : paternityResult === '✗' ? (
+                                    <CloseIcon color="error" />
+                                  ) : (
+                                    <HelpIcon color="warning" />
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </AccordionDetails>
+                </Accordion>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* GeneMapper HID Laboratory Report Format */}
+      {summaryData && summaryData.softwareType === 'GeneMapper' && (
+        <Card sx={{ mb: 3 }}>
+          <CardHeader
+            title="🧬 GeneMapper HID STR Analysis Report"
+            subheader={`Analysis ID: ${summaryData.analysisId} • ${summaryData.source} • ${summaryData.runDate} ${summaryData.runTime}`}
+            action={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip
+                  label={summaryData.strComparison?.overallConclusion?.interpretation || 'Analysis Complete'}
+                  color={
+                    summaryData.strComparison?.overallConclusion?.interpretation === 'INCLUSION' ? 'success' :
+                    summaryData.strComparison?.overallConclusion?.interpretation === 'EXCLUSION' ? 'error' : 'warning'
+                  }
+                  variant="filled"
+                  sx={{ fontSize: '0.9rem', fontWeight: 'bold' }}
+                />
+                <Chip
+                  label={`v${summaryData.chemistryVersion || '3.0.0'}`}
+                  size="small"
+                  variant="outlined"
+                />
+              </Box>
+            }
+          />
+          <CardContent>
+            {/* Case and Analysis Information */}
+            <Grid container spacing={3} sx={{ mb: 3 }}>
+              <Grid item xs={12} md={6}>
+                <Paper sx={{ p: 2, bgcolor: isDarkMode ? 'grey.800' : 'grey.50' }}>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>📋 Case Information</Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Typography variant="body2">
+                      <strong>Case ID:</strong> {summaryData.caseId || 'GM-2024-001'}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Analysis Date:</strong> {summaryData.runDate} at {summaryData.runTime}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Analyst:</strong> {summaryData.analyst || 'Laboratory Technician'}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Analysis Time:</strong> {summaryData.analysisTime}
+                    </Typography>
+                  </Box>
+                </Paper>
+              </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <Paper sx={{ p: 2, bgcolor: isDarkMode ? 'grey.800' : 'grey.50' }}>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>🧪 Technical Details</Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Typography variant="body2">
+                      <strong>Instrument:</strong> {summaryData.instrument}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Chemistry Kit:</strong> {summaryData.kit} {summaryData.chemistryVersion && `v${summaryData.chemistryVersion}`}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Kit Lot:</strong> {summaryData.kitLot || 'AB-IP-2024-001'}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Data Type:</strong> {summaryData.isRealData ? 'Real FSA Analysis' : 'Demonstration Data'}
+                    </Typography>
+                  </Box>
+                </Paper>
+              </Grid>
+            </Grid>
+
+            {/* Sample Information */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>👥 Sample Information</Typography>
+              <Grid container spacing={2}>
+                {(summaryData.samples || []).map((sample, index) => (
+                  <Grid item xs={12} md={4} key={index}>
+                    <Paper sx={{ p: 2, bgcolor: isDarkMode ? 'grey.800' : 'grey.50' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        {getStatusIcon(sample.status)}
+                        <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                          {sample.name}
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" sx={{ mb: 0.5 }}>
+                        <strong>Status:</strong> {sample.status} ({sample.confidence || sample.rfu}% confidence)
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 0.5 }}>
+                        <strong>RFU:</strong> {sample.rfu || 'N/A'} • <strong>Balance:</strong> {sample.peakBalance || 'N/A'}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Loci Detected:</strong> {sample.lociDetected}/16 • <strong>Stutter:</strong> {sample.stutterRatio || 'N/A'}
+                      </Typography>
+                      {sample.issues && sample.issues.length > 0 && (
+                        <Alert severity="warning" sx={{ mt: 1, py: 0 }}>
+                          <Typography variant="caption">
+                            {sample.issues.join(', ')}
+                          </Typography>
+                        </Alert>
+                      )}
+                    </Paper>
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+
+            {/* Quality Control Metrics */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>📊 Quality Control Summary</Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'success.light', color: 'success.contrastText' }}>
+                    <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                      {summaryData.qualityMetrics?.passRate || '100%'}
+                    </Typography>
+                    <Typography variant="body2">Pass Rate</Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'info.light', color: 'info.contrastText' }}>
+                    <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                      {summaryData.qualityMetrics?.averageRFU || 'N/A'}
+                    </Typography>
+                    <Typography variant="body2">Average RFU</Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'warning.light', color: 'warning.contrastText' }}>
+                    <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                      {summaryData.qualityMetrics?.peakBalance || 'Good'}
+                    </Typography>
+                    <Typography variant="body2">Peak Balance</Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'secondary.light', color: 'secondary.contrastText' }}>
+                    <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                      {summaryData.qualityMetrics?.stutterRatio || 'N/A'}
+                    </Typography>
+                    <Typography variant="body2">Stutter Ratio</Typography>
+                  </Paper>
+                </Grid>
+              </Grid>
+            </Box>
+
+            {/* Analysis Parameters */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>⚙️ Analysis Parameters</Typography>
+              <Paper sx={{ p: 2, bgcolor: isDarkMode ? 'grey.800' : 'grey.50' }}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Typography variant="body2">
+                      <strong>Min Peak Height:</strong> {summaryData.analysisParameters?.minPeakHeight || 50} RFU
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Typography variant="body2">
+                      <strong>Max Stutter:</strong> {summaryData.analysisParameters?.maxStutter || 15}%
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Typography variant="body2">
+                      <strong>Het Balance:</strong> ≥{summaryData.analysisParameters?.minHeterozygoteBalance || 0.6}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Typography variant="body2">
+                      <strong>Stochastic Threshold:</strong> {summaryData.analysisParameters?.stochasticThreshold || 200} RFU
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Paper>
+            </Box>
+
+            {/* STR Results Table */}
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>🧬 STR Typing Results</Typography>
+            {summaryData.strComparison && (
+              <TableContainer component={Paper} sx={{ mb: 3 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell><strong>STR MARKER</strong></TableCell>
+                      <TableCell align="center">
+                        <strong>MOTHER</strong><br/>
+                        <small>{summaryData.strComparison.motherName}</small>
+                      </TableCell>
+                      <TableCell align="center">
+                        <strong>CHILD</strong><br/>
+                        <small>{summaryData.strComparison.childName}</small>
+                      </TableCell>
+                      <TableCell align="center">
+                        <strong>ALLEGED FATHER</strong><br/>
+                        <small>{summaryData.strComparison.allegedFatherName}</small>
+                      </TableCell>
+                      <TableCell align="center"><strong>PATERNITY</strong></TableCell>
+                      <TableCell align="center"><strong>INCLUDED</strong></TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {summaryData.strComparison.loci.map((locus, index) => (
+                      <TableRow key={locus.locus} sx={{ 
+                        '&:nth-of-type(odd)': { backgroundColor: isDarkMode ? '#2A2A2A' : '#f5f5f5' },
+                        backgroundColor: !locus.included ? (isDarkMode ? '#3a2a2a' : '#fff3e0') : undefined
+                      }}>
+                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
+                          {locus.locus}
+                        </TableCell>
+                        <TableCell align="center">{locus.mother || 'N/A'}</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                          {locus.child}
+                        </TableCell>
+                        <TableCell align="center">{locus.allegedFather}</TableCell>
+                        <TableCell align="center">
+                          {locus.result === 'Inclusion' ? (
+                            <CheckIcon color="success" />
+                          ) : locus.result === 'Exclusion' ? (
+                            <CloseIcon color="error" />
+                          ) : (
+                            <HelpIcon color="warning" />
+                          )}
+                        </TableCell>
+                        <TableCell align="center">
+                          {locus.included !== undefined ? (
+                            locus.included ? (
+                              <CheckIcon color="success" />
+                            ) : (
+                              <CloseIcon color="action" />
+                            )
+                          ) : (
+                            <CheckIcon color="success" />
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+
+            {/* Statistical Analysis */}
+            {summaryData.strComparison?.overallConclusion && (
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>📈 Statistical Analysis</Typography>
+                <Alert 
+                  severity={
+                    summaryData.strComparison.overallConclusion.interpretation === 'INCLUSION' ? 'success' :
+                    summaryData.strComparison.overallConclusion.interpretation === 'EXCLUSION' ? 'error' : 'warning'
+                  }
+                  sx={{ mb: 2 }}
+                >
+                  <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                    Conclusion: {summaryData.strComparison.overallConclusion.interpretation}
+                  </Typography>
+                  <Typography variant="body2">
+                    {summaryData.strComparison.overallConclusion.conclusion?.interpretation || 'Analysis complete'}
+                  </Typography>
+                  {summaryData.strComparison.probabilityOfPaternity && 
+                   typeof summaryData.strComparison.probabilityOfPaternity === 'number' && (
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      <strong>Probability of Paternity:</strong> {summaryData.strComparison.probabilityOfPaternity.toFixed(4)}%
+                    </Typography>
+                  )}
+                  {summaryData.strComparison.paternityIndex && (
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      <strong>Combined Paternity Index:</strong> {Math.round(summaryData.strComparison.paternityIndex)}
+                    </Typography>
+                  )}
+                </Alert>
+
+                <Paper sx={{ p: 2, bgcolor: isDarkMode ? 'grey.800' : 'grey.50' }}>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>Statistical Summary:</strong>
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    • {summaryData.strComparison.inclusionCount || 0} loci show inclusion
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    • {summaryData.strComparison.exclusionCount || 0} loci show exclusion
+                  </Typography>
+                  <Typography variant="body2">
+                    • {summaryData.strComparison.includedLoci || 16} total loci analyzed
+                  </Typography>
+                  {summaryData.strComparison.statisticalNote && (
+                    <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
+                      {summaryData.strComparison.statisticalNote}
+                    </Typography>
+                  )}
+                </Paper>
+              </Box>
+            )}
+
+            {/* Technical Notes */}
+            <Box sx={{ mt: 3, p: 2, bgcolor: isDarkMode ? 'grey.800' : 'grey.50', borderRadius: 1 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                📋 Technical Notes:
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                This analysis was performed using GeneMapper HID software with the {summaryData.kit} chemistry kit.
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                STR analysis follows ISFG (International Society for Forensic Genetics) guidelines for paternity testing.
+              </Typography>
+              <Typography variant="body2">
+                Interpretation based on {summaryData.strComparison?.includedLoci || 16} STR markers with established population frequencies.
+              </Typography>
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Osiris Laboratory Report Format */}
+      {summaryData && summaryData.softwareType === 'Osiris' && (
+        <Card sx={{ mb: 3 }}>
+          <CardHeader
+            title="🧬 DNA STR Paternity Analysis Report"
+            subheader={`Case ID: ${summaryData.caseId} • Analysis Date: ${new Date(summaryData.analysisDate).toLocaleDateString()}`}
+            action={
+              <Chip
+                label={summaryData.conclusion}
+                color={summaryData.conclusion === 'EXCLUDED' ? 'error' : 'success'}
+                variant="filled"
+                sx={{ fontSize: '1rem', fontWeight: 'bold' }}
+              />
+            }
+          />
+          <CardContent>
+            {/* Sample Information */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+                Sample Information:
+              </Typography>
+              {(summaryData.samples || []).map((sample, index) => (
+                <Box key={index} sx={{ mb: 2, p: 2, bgcolor: isDarkMode ? 'grey.800' : 'grey.50', borderRadius: 1 }}>
+                  <Typography variant="body1">
+                    <strong>Lab No. {sample.labNo || 'N/A'}</strong> • <strong>{sample.relationship || 'Unknown'}:</strong> {sample.name || 'N/A'} • 
+                    {sample.refId || 'N/A'} • {sample.identityVerified ? '' : '*Identity not verified'} • {sample.sampleType || 'N/A'}
+                  </Typography>
+                </Box>
+              ))}
+              <Box sx={{ p: 2, bgcolor: isDarkMode ? 'grey.800' : 'grey.50', borderRadius: 1 }}>
+                <Typography variant="body1">
+                  <strong>Not tested Mother:</strong>
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* STR Results Table */}
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+              DNA STR Analysis Results:
+            </Typography>
+            <TableContainer component={Paper} sx={{ mb: 3 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell><strong>DNA STR MARKERS</strong></TableCell>
+                    <TableCell align="center"><strong>MOTHER</strong><br/><small>Lab No. Not tested</small></TableCell>
+                    <TableCell align="center"><strong>CHILD</strong><br/><small>Lab No. {(summaryData.samples || []).find(s => s.relationship === 'Child')?.labNo || 'N/A'}</small></TableCell>
+                    <TableCell align="center"><strong>ALLEGED FATHER</strong><br/><small>Lab No. {(summaryData.samples || []).find(s => s.relationship === 'Alleged Father')?.labNo || 'N/A'}</small></TableCell>
+                    <TableCell align="center"><strong>RESULT</strong><br/><small>✔ / ✖</small></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {(summaryData.strResults || []).map((result, index) => (
+                    <TableRow key={result.marker} sx={{ '&:nth-of-type(odd)': { backgroundColor: isDarkMode ? '#2A2A2A' : '#f5f5f5' } }}>
+                      <TableCell component="th" scope="row" sx={{ fontWeight: 'bold' }}>
+                        {result.marker}
+                      </TableCell>
+                      <TableCell align="center">{result.mother || 'Not tested'}</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                        {result.child}
+                      </TableCell>
+                      <TableCell align="center">{result.allegedFather}</TableCell>
+                      <TableCell align="center">
+                        <Typography 
+                          variant="h6" 
+                          sx={{ 
+                            color: result.result === '✔' ? 'success.main' : 'error.main',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {result.result}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            {/* Analysis Summary */}
+            <Alert 
+              severity={summaryData.conclusion === 'EXCLUDED' ? 'error' : 'success'}
+              sx={{ mb: 2 }}
+            >
+              <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                Conclusion: {summaryData.conclusion}
+              </Typography>
+              <Typography variant="body2">
+                {summaryData.exclusions || 0} markers excluded • {summaryData.inclusions || 0} markers not excluded
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                <strong>Analysis Software:</strong> Osiris STR Analysis • <strong>Date:</strong> {new Date(summaryData.analysisDate).toLocaleDateString()}
+              </Typography>
+            </Alert>
+
+            {/* Technical Information */}
+            <Box sx={{ mt: 3, p: 2, bgcolor: isDarkMode ? 'grey.800' : 'grey.50', borderRadius: 1 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                Information about this test method:
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                This DNA paternity/maternity test makes use of 15 DNA STR markers. The sex is confirmed using the Sixteenth STR-marker Amelogenin X,Y.
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                Typically, if two or more markers are excluded, it is considered as evidence to exclude DNA paternity.
+              </Typography>
+              <Typography variant="body2">
+                Inclusion by all markers confirms DNA paternity with a high level of certainty with a minimum accuracy of 99.99%.
+              </Typography>
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
+      {summaryData && summaryData.softwareType !== 'Osiris' && (
+        <Grid container spacing={3}>
+          {/* Sample Results */}
+          <Grid item xs={12} lg={8}>
+            <Card>
+              <CardHeader 
+                title="Sample Analysis Results"
+                subheader={`${summaryData.kit} • ${summaryData.runDate}`}
+              />
+              <CardContent>
+                <List>
+                  {summaryData.samples.map((sample, index) => (
                   <React.Fragment key={sample.name}>
                     <ListItem>
                       <ListItemIcon>
@@ -372,8 +1494,9 @@ const AnalysisSummary = () => {
               </Box>
             </CardContent>
           </Card>
+          </Grid>
         </Grid>
-      </Grid>
+      )}
 
       {/* STR Comparison Table */}
       {summaryData?.strComparison && (
@@ -478,6 +1601,59 @@ const AnalysisSummary = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* GeneMapper Data Upload Dialog */}
+      <Dialog 
+        open={uploadDialog} 
+        onClose={() => setUploadDialog(false)} 
+        maxWidth="md" 
+        fullWidth
+      >
+        <DialogTitle>
+          🧬 Upload GeneMapper HID CSV Data
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <Typography variant="body2">
+              <strong>CSV Format:</strong> Sample Name, Marker, Allele #1, Allele #2
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              <strong>Sample naming:</strong> Use format like "25_002_M" (Case_Sample_Relation)
+              <br />
+              Relations: M=Mother, C=Child, AF=Alleged Father
+            </Typography>
+          </Alert>
+          
+          <TextField
+            fullWidth
+            multiline
+            rows={12}
+            label="Paste GeneMapper CSV Data"
+            placeholder="Sample Name,Marker,Allele #1,Allele #2
+25_002_M,D8S1179,12,15
+25_002_M,D21S11,30,32.2
+25_002_C,D8S1179,12,14
+..."
+            value={csvText}
+            onChange={(e) => setCsvText(e.target.value)}
+            sx={{ mt: 2 }}
+            variant="outlined"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUploadDialog(false)}>
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={handleGeneMapperUpload}
+            disabled={!csvText.trim()}
+            sx={{ bgcolor: '#0D488F' }}
+          >
+            Parse & Load Data
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

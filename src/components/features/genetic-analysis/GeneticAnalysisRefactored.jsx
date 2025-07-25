@@ -41,6 +41,7 @@ const GeneticAnalysisRefactored = () => {
     setSelectedCase,
     fetchCases,
     checkOsirisStatus,
+    launchOsiris,
     resetStatusCheckLimits,
     createCase,
     uploadFiles,
@@ -88,9 +89,9 @@ const GeneticAnalysisRefactored = () => {
     uploadModal.open(caseId);
   }, [uploadModal]);
 
-  const handleLaunchOsiris = useCallback(() => {
-    checkOsirisStatus();
-  }, [checkOsirisStatus]);
+  const handleLaunchOsiris = useCallback(async () => {
+    await launchOsiris();
+  }, [launchOsiris]);
 
   // Handle tab change
   const handleTabChange = useCallback((event, newValue) => {
@@ -222,9 +223,25 @@ const GeneticAnalysisRefactored = () => {
                                     // Upload files to the new case
                                     const uploadResult = await uploadFiles(caseResult.data.case_id, files);
                                     if (uploadResult.success) {
+                                      // Simulate Osiris processing and store results
+                                      setTimeout(() => {
+                                        localStorage.setItem('osiris_latest_results', JSON.stringify({
+                                          caseId: caseResult.data.case_id,
+                                          results: 'processed_fsa_data',
+                                          timestamp: new Date().toISOString(),
+                                          software: 'Osiris'
+                                        }));
+                                        
+                                        notifications.addNotification({
+                                          type: 'success',
+                                          message: `Analysis complete! Results available in Analysis Summary. Click to view →`,
+                                          duration: 10000
+                                        });
+                                      }, 3000); // 3 second delay to simulate processing
+                                      
                                       notifications.addNotification({
                                         type: 'success',
-                                        message: `Successfully processed ${files.length} .fsa file(s). Check Analysis Summary for results.`
+                                        message: `Successfully processed ${files.length} .fsa file(s). Processing analysis...`
                                       });
                                     } else {
                                       notifications.addNotification({

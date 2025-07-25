@@ -1,9 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from 'recharts';
-import { api } from '../../services/api';
-import { useTheme } from '../../hooks/useTheme';
+import { 
+  PieChart, 
+  Pie, 
+  Cell, 
+  Legend, 
+  Tooltip, 
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  BarChart,
+  Bar,
+  Area,
+  AreaChart
+} from 'recharts';
+import { api as optimizedApi } from '../../services/api';
 import {
   Box,
   Paper,
@@ -23,97 +36,337 @@ import {
   TableRow,
   Chip,
   Button,
-  Stack
+  Stack,
+  Card,
+  CardContent,
+  CircularProgress,
+  Alert,
+  Divider,
+  useTheme,
+  useMediaQuery,
+  TextField,
+  FormControlLabel,
+  Checkbox
 } from '@mui/material';
-import { Refresh, GetApp } from '@mui/icons-material';
+import { 
+  Refresh, 
+  GetApp, 
+  TrendingUp, 
+  Assessment, 
+  Speed, 
+  CheckCircle,
+  Schedule,
+  Science,
+  DateRange,
+  Warning,
+  FilterList,
+  PictureAsPdf,
+  TableChart
+} from '@mui/icons-material';
 
 export default function Statistics() {
-  const { colors, isDarkMode } = useTheme();
-  const [view, setView] = useState('daily');
-  const [statistics, setStatistics] = useState(null);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isDarkMode = theme.palette.mode === 'dark';
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [currentTab, setCurrentTab] = useState(0);
   const [filterPeriod, setFilterPeriod] = useState('all');
-  const [totalSamples, setTotalSamples] = useState([]);
-  const [pcrBatchSamples, setPcrBatchSamples] = useState([]);
-  const [electrophoresisBatchSamples, setElectrophoresisBatchSamples] = useState([]);
-  const [completedElectrophoresisSamples, setCompletedElectrophoresisSamples] = useState([]);
-  const [completedSamples, setCompletedSamples] = useState([]);
+  const [customDateRange, setCustomDateRange] = useState({
+    startDate: '',
+    endDate: '',
+    enabled: false
+  });
+  const [alertThresholds, setAlertThresholds] = useState({
+    processingTime: 7, // days
+    completionRate: 80 // percentage
+  });
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  
+  // Enhanced state for comprehensive statistics
+  const [dashboardData, setDashboardData] = useState({
+    totalSamples: [],
+    recentSamples: [],
+    batchData: [],
+    reportData: [],
+    qualityData: [],
+    workflowStats: {},
+    demographics: {},
+    processingTimes: [],
+    alerts: []
+  });
 
-  const COLORS = [colors.warning, colors.info, colors.success];
+  const COLORS = ['#0D488F', '#8EC74F', '#022539', '#DBF1FC', '#ff9800', '#f44336'];
 
   useEffect(() => {
-    loadStatistics(view);
-    loadSampleData(filterPeriod);
-  }, [view, filterPeriod]);
+    loadEnhancedStatistics();
+  }, [filterPeriod]);
 
-  const loadStatistics = async (period) => {
+  const loadEnhancedStatistics = async () => {
     try {
       setLoading(true);
-      const response = await api.getStatistics(period);
-      if (response.success) {
-        setStatistics(response.data);
-      } else {
-        setError('Failed to load statistics');
-      }
-    } catch (error) {
-      setError('Error loading statistics');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadSampleData = async (period = 'all') => {
-    try {
-      setLoading(true);
+      setError(null);
       
-      // Load different sample categories
-      const [totalRes, pcrRes, electroRes, completedElectroRes, completedRes] = await Promise.all([
-        api.getSamples({ period, status: 'all' }),
-        api.getSamples({ period, status: 'pcr_batch' }),
-        api.getSamples({ period, status: 'electrophoresis_batch' }),
-        api.getSamples({ period, status: 'completed_electrophoresis' }),
-        api.getSamples({ period, status: 'completed' })
+      // Load comprehensive data from existing API endpoints
+      const [samplesRes, batchesRes, reportsRes] = await Promise.all([
+        optimizedApi.getAllSamples(),
+        // Note: Add batch and report endpoints when available
+        // For now, we'll work with sample data
+        Promise.resolve({ data: [] }),
+        Promise.resolve({ data: [] })
       ]);
       
-      setTotalSamples(totalRes.data || []);
-      setPcrBatchSamples(pcrRes.data || []);
-      setElectrophoresisBatchSamples(electroRes.data || []);
-      setCompletedElectrophoresisSamples(completedElectroRes.data || []);
-      setCompletedSamples(completedRes.data || []);
+      if (samplesRes.success) {
+        const samples = samplesRes.data || [];
+        
+        // Process samples for comprehensive statistics
+        const processedData = processStatisticsData(samples, filterPeriod);
+        setDashboardData(processedData);
+      } else {
+        setError('Failed to load samples data');
+      }
       
     } catch (error) {
-      setError('Error loading sample data');
+      console.error('Statistics loading error:', error);
+      setError('Error loading statistics data');
     } finally {
       setLoading(false);
     }
   };
 
-  const getChartData = () => {
-    if (!statistics) return [];
+  // Enhanced data processing function
+  const processStatisticsData = (samples, period) => {
+    // Filter samples by period or custom date range
+    const filteredSamples = customDateRange.enabled 
+      ? filterSamplesByCustomRange(samples, customDateRange.startDate, customDateRange.endDate)
+      : filterSamplesByPeriod(samples, period);
     
-    const { total_counts } = statistics;
-    return [
-      { name: 'Pending', value: total_counts.pending || 0 },
-      { name: 'Processing', value: total_counts.processing || 0 },
-      { name: 'Completed', value: total_counts.completed || 0 },
-    ].filter(item => item.value > 0);
+    // Calculate workflow statistics
+    const workflowStats = calculateWorkflowStats(filteredSamples);
+    
+    // Calculate demographics
+    const demographics = calculateDemographics(filteredSamples);
+    
+    // Calculate processing times (using available date fields)
+    const processingTimes = calculateProcessingTimes(filteredSamples);
+    
+    // Get recent samples for trend analysis
+    const recentSamples = getRecentSamples(samples, 30); // Last 30 days
+    
+    // Generate alerts based on thresholds
+    const alerts = generateAlerts(filteredSamples, processingTimes, alertThresholds);
+    
+    return {
+      totalSamples: filteredSamples,
+      recentSamples,
+      workflowStats,
+      demographics,
+      processingTimes,
+      alerts,
+      // Placeholder for future data
+      batchData: [],
+      reportData: [],
+      qualityData: []
+    };
   };
 
-  const data = getChartData();
-
-  const chartOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'bottom'
-      },
-      title: {
-        display: true,
-        text: `Sample Status Distribution (${view === 'daily' ? 'Today' : 'This Month'})`
-      }
+  // Helper functions for data processing
+  const filterSamplesByPeriod = (samples, period) => {
+    const now = new Date();
+    const startDate = new Date();
+    
+    switch (period) {
+      case 'today':
+        startDate.setHours(0, 0, 0, 0);
+        break;
+      case 'week':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case 'month':
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+      case 'year':
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        return samples; // 'all' - return all samples
     }
+    
+    return samples.filter(sample => {
+      const sampleDate = new Date(sample.created_at || sample.collection_date);
+      return sampleDate >= startDate;
+    });
+  };
+
+  const calculateWorkflowStats = (samples) => {
+    const stats = {};
+    samples.forEach(sample => {
+      const status = sample.workflow_status || sample.status || 'unknown';
+      stats[status] = (stats[status] || 0) + 1;
+    });
+    return stats;
+  };
+
+  const calculateDemographics = (samples) => {
+    const demographics = {
+      relations: {},
+      genders: {},
+      testTypes: {},
+      sampleTypes: {}
+    };
+    
+    samples.forEach(sample => {
+      // Relation distribution
+      const relation = sample.relation || 'Unknown';
+      demographics.relations[relation] = (demographics.relations[relation] || 0) + 1;
+      
+      // Gender distribution
+      const gender = sample.gender || 'Not specified';
+      demographics.genders[gender] = (demographics.genders[gender] || 0) + 1;
+      
+      // Sample type distribution
+      const sampleType = sample.sample_type || 'Unknown';
+      demographics.sampleTypes[sampleType] = (demographics.sampleTypes[sampleType] || 0) + 1;
+    });
+    
+    return demographics;
+  };
+
+  const calculateProcessingTimes = (samples) => {
+    return samples
+      .filter(sample => sample.collection_date && sample.updated_at)
+      .map(sample => {
+        const collectionDate = new Date(sample.collection_date);
+        const updateDate = new Date(sample.updated_at);
+        const daysDiff = Math.ceil((updateDate - collectionDate) / (1000 * 60 * 60 * 24));
+        
+        return {
+          sampleId: sample.lab_number,
+          processingDays: daysDiff,
+          status: sample.workflow_status || sample.status
+        };
+      });
+  };
+
+  const getRecentSamples = (samples, days) => {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+    
+    return samples
+      .filter(sample => {
+        const sampleDate = new Date(sample.created_at || sample.collection_date);
+        return sampleDate >= cutoffDate;
+      })
+      .sort((a, b) => new Date(b.created_at || b.collection_date) - new Date(a.created_at || a.collection_date));
+  };
+
+  // Custom date range filtering
+  const filterSamplesByCustomRange = (samples, startDate, endDate) => {
+    if (!startDate || !endDate) return samples;
+    
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999); // Include the entire end date
+    
+    return samples.filter(sample => {
+      const sampleDate = new Date(sample.created_at || sample.collection_date);
+      return sampleDate >= start && sampleDate <= end;
+    });
+  };
+
+  // Alert generation based on thresholds
+  const generateAlerts = (samples, processingTimes, thresholds) => {
+    const alerts = [];
+    
+    // Processing time alerts
+    const avgProcessingTime = processingTimes.length > 0 
+      ? processingTimes.reduce((sum, item) => sum + item.processingDays, 0) / processingTimes.length
+      : 0;
+    
+    if (avgProcessingTime > thresholds.processingTime) {
+      alerts.push({
+        type: 'warning',
+        title: 'High Processing Time',
+        message: `Average processing time (${Math.round(avgProcessingTime)} days) exceeds threshold (${thresholds.processingTime} days)`,
+        value: Math.round(avgProcessingTime),
+        threshold: thresholds.processingTime
+      });
+    }
+    
+    // Completion rate alerts
+    const completedCount = samples.filter(s => 
+      s.workflow_status === 'analysis_completed' || s.status === 'completed'
+    ).length;
+    const completionRate = samples.length > 0 ? (completedCount / samples.length) * 100 : 0;
+    
+    if (completionRate < thresholds.completionRate) {
+      alerts.push({
+        type: 'error',
+        title: 'Low Completion Rate',
+        message: `Completion rate (${Math.round(completionRate)}%) is below target (${thresholds.completionRate}%)`,
+        value: Math.round(completionRate),
+        threshold: thresholds.completionRate
+      });
+    }
+    
+    // Sample volume alerts (if unusually low)
+    const recentSamples = getRecentSamples(samples, 7);
+    if (recentSamples.length < 5 && samples.length > 20) {
+      alerts.push({
+        type: 'info',
+        title: 'Low Sample Volume',
+        message: `Only ${recentSamples.length} samples received in the last 7 days`,
+        value: recentSamples.length,
+        threshold: 5
+      });
+    }
+    
+    return alerts;
+  };
+
+  // Chart data preparation functions
+  const getWorkflowChartData = () => {
+    if (!dashboardData || !dashboardData.workflowStats) {
+      return [];
+    }
+    const stats = dashboardData.workflowStats;
+    return Object.entries(stats).map(([status, count]) => ({
+      name: status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      value: count,
+      status: status
+    }));
+  };
+
+  const getRelationChartData = () => {
+    if (!dashboardData || !dashboardData.demographics || !dashboardData.demographics.relations) {
+      return [];
+    }
+    const relations = dashboardData.demographics.relations;
+    return Object.entries(relations).map(([relation, count]) => ({
+      name: relation,
+      value: count
+    }));
+  };
+
+  const getDailyTrendData = () => {
+    if (!dashboardData || !dashboardData.recentSamples) {
+      return [];
+    }
+    const samples = dashboardData.recentSamples;
+    const dailyData = {};
+    
+    samples.forEach(sample => {
+      const dateKey = new Date(sample.created_at || sample.collection_date).toISOString().split('T')[0];
+      dailyData[dateKey] = (dailyData[dateKey] || 0) + 1;
+    });
+    
+    return Object.entries(dailyData)
+      .sort(([a], [b]) => new Date(a) - new Date(b))
+      .slice(-14) // Last 14 days
+      .map(([date, count]) => ({
+        date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        samples: count
+      }));
   };
 
   const handleTabChange = (event, newValue) => {
@@ -127,6 +380,66 @@ export default function Statistics() {
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString();
   };
+
+  // Export functionality
+  const exportToCSV = () => {
+    const csvData = (dashboardData.totalSamples || []).map(sample => ({
+      'Lab Number': sample.lab_number,
+      'Name': `${sample.name} ${sample.surname}`,
+      'Relation': sample.relation,
+      'Gender': sample.gender,
+      'Status': sample.workflow_status || sample.status,
+      'Collection Date': formatDate(sample.collection_date),
+      'Created Date': formatDate(sample.created_at),
+      'Case Number': sample.case_number,
+      'Sample Type': sample.sample_type
+    }));
+    
+    const csvContent = convertToCSV(csvData);
+    downloadCSV(csvContent, `laboratory-statistics-${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
+  const convertToCSV = (data) => {
+    if (!data.length) return '';
+    
+    const headers = Object.keys(data[0]).join(',');
+    const rows = data.map(row => 
+      Object.values(row).map(value => 
+        typeof value === 'string' && value.includes(',') 
+          ? `"${value}"` 
+          : value
+      ).join(',')
+    );
+    
+    return [headers, ...rows].join('\n');
+  };
+
+  const downloadCSV = (content, filename) => {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportToPDF = () => {
+    // For now, we'll create a printable version
+    window.print();
+  };
+
+  // Calculate key metrics
+  const totalSamples = dashboardData.totalSamples?.length || 0;
+  const avgProcessingTime = (dashboardData.processingTimes?.length || 0) > 0 
+    ? Math.round(dashboardData.processingTimes.reduce((sum, item) => sum + item.processingDays, 0) / dashboardData.processingTimes.length)
+    : 0;
+  const recentSamplesCount = dashboardData.recentSamples?.length || 0;
+  const completedSamples = (dashboardData.totalSamples || []).filter(s => 
+    s.workflow_status === 'analysis_completed' || s.status === 'completed'
+  ).length;
 
   const SampleTable = ({ samples, title }) => (
     <TableContainer component={Paper} sx={{ mt: 2 }}>
@@ -161,20 +474,42 @@ export default function Statistics() {
     </TableContainer>
   );
 
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+        <CircularProgress size={60} />
+      </Box>
+    );
+  }
+
   return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
-      <Paper sx={{ p: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4" sx={{ color: '#1e4976', fontWeight: 'bold' }}>
-            Samples Overview
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-            <FormControl size="small" sx={{ minWidth: 120 }}>
+    <Box sx={{ maxWidth: 1400, mx: 'auto', p: isMobile ? 2 : 3 }}>
+      {/* Header Section */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: isMobile ? 'column' : 'row',
+          justifyContent: 'space-between', 
+          alignItems: isMobile ? 'stretch' : 'center', 
+          gap: 2,
+          mb: 3 
+        }}>
+          <Box>
+            <Typography variant="h4" sx={{ color: '#0D488F', fontWeight: 'bold', mb: 1 }}>
+              Laboratory Statistics Dashboard
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Comprehensive analytics and performance metrics for your LIMS
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <FormControl size="small" sx={{ minWidth: 140 }}>
               <InputLabel>Filter Period</InputLabel>
               <Select
                 value={filterPeriod}
                 label="Filter Period"
                 onChange={handlePeriodChange}
+                disabled={customDateRange.enabled}
               >
                 <MenuItem value="all">All Time</MenuItem>
                 <MenuItem value="today">Today</MenuItem>
@@ -183,139 +518,534 @@ export default function Statistics() {
                 <MenuItem value="year">This Year</MenuItem>
               </Select>
             </FormControl>
+            
             <Button
               variant="outlined"
+              startIcon={<FilterList />}
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              size="small"
+            >
+              Filters
+            </Button>
+            
+            <Button
+              variant="outlined"
+              startIcon={<TableChart />}
+              onClick={exportToCSV}
+              size="small"
+              disabled={!dashboardData.totalSamples?.length}
+            >
+              Export CSV
+            </Button>
+            
+            <Button
+              variant="outlined"
+              startIcon={<PictureAsPdf />}
+              onClick={exportToPDF}
+              size="small"
+            >
+              Print/PDF
+            </Button>
+            
+            <Button
+              variant="contained"
               startIcon={<Refresh />}
-              onClick={() => loadSampleData(filterPeriod)}
+              onClick={loadEnhancedStatistics}
+              sx={{ bgcolor: '#0D488F', '&:hover': { bgcolor: '#1e4976' } }}
             >
               Refresh
             </Button>
           </Box>
         </Box>
+      </Paper>
 
-        {/* Statistics Overview */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} md={2.4}>
-            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e3f2fd' }}>
-              <Typography variant="h4" sx={{ color: '#1976d2', fontWeight: 'bold' }}>
-                {totalSamples.length}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Total Samples
-              </Typography>
-            </Paper>
+      {/* Advanced Filters Panel */}
+      {showAdvancedFilters && (
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h6" sx={{ mb: 3, color: '#0D488F', fontWeight: 600 }}>
+            Advanced Filters & Settings
+          </Typography>
+          
+          <Grid container spacing={3}>
+            {/* Custom Date Range */}
+            <Grid item xs={12} md={6}>
+              <Box>
+                <Typography variant="subtitle2" sx={{ mb: 2 }}>
+                  Custom Date Range
+                </Typography>
+                <Stack spacing={2}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={customDateRange.enabled}
+                        onChange={(e) => setCustomDateRange(prev => ({
+                          ...prev,
+                          enabled: e.target.checked
+                        }))}
+                      />
+                    }
+                    label="Use custom date range"
+                  />
+                  
+                  {customDateRange.enabled && (
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      <TextField
+                        type="date"
+                        label="Start Date"
+                        value={customDateRange.startDate}
+                        onChange={(e) => setCustomDateRange(prev => ({
+                          ...prev,
+                          startDate: e.target.value
+                        }))}
+                        InputLabelProps={{ shrink: true }}
+                        size="small"
+                      />
+                      <TextField
+                        type="date"
+                        label="End Date"
+                        value={customDateRange.endDate}
+                        onChange={(e) => setCustomDateRange(prev => ({
+                          ...prev,
+                          endDate: e.target.value
+                        }))}
+                        InputLabelProps={{ shrink: true }}
+                        size="small"
+                      />
+                    </Box>
+                  )}
+                </Stack>
+              </Box>
+            </Grid>
+            
+            {/* Alert Thresholds */}
+            <Grid item xs={12} md={6}>
+              <Box>
+                <Typography variant="subtitle2" sx={{ mb: 2 }}>
+                  Alert Thresholds
+                </Typography>
+                <Stack spacing={2}>
+                  <TextField
+                    type="number"
+                    label="Processing Time Alert (days)"
+                    value={alertThresholds.processingTime}
+                    onChange={(e) => setAlertThresholds(prev => ({
+                      ...prev,
+                      processingTime: parseInt(e.target.value) || 7
+                    }))}
+                    size="small"
+                    inputProps={{ min: 1, max: 30 }}
+                  />
+                  <TextField
+                    type="number"
+                    label="Completion Rate Alert (%)"
+                    value={alertThresholds.completionRate}
+                    onChange={(e) => setAlertThresholds(prev => ({
+                      ...prev,
+                      completionRate: parseInt(e.target.value) || 80
+                    }))}
+                    size="small"
+                    inputProps={{ min: 0, max: 100 }}
+                  />
+                </Stack>
+              </Box>
+            </Grid>
           </Grid>
-          <Grid item xs={12} md={2.4}>
-            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff3e0' }}>
-              <Typography variant="h4" sx={{ color: '#f57c00', fontWeight: 'bold' }}>
-                {pcrBatchSamples.length}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                PCR Batch
-              </Typography>
-            </Paper>
+          
+          <Box sx={{ mt: 3, textAlign: 'right' }}>
+            <Button
+              variant="contained"
+              onClick={loadEnhancedStatistics}
+              sx={{ bgcolor: '#8EC74F', '&:hover': { bgcolor: '#6BA23A' } }}
+            >
+              Apply Filters
+            </Button>
+          </Box>
+        </Paper>
+      )}
+
+      {/* Alerts Section */}
+      {(dashboardData.alerts?.length || 0) > 0 && (
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h6" sx={{ mb: 3, color: '#0D488F', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+            <Warning sx={{ mr: 1 }} />
+            System Alerts ({dashboardData.alerts?.length || 0})
+          </Typography>
+          
+          <Grid container spacing={2}>
+            {(dashboardData.alerts || []).map((alert, index) => (
+              <Grid item xs={12} md={6} key={index}>
+                <Alert 
+                  severity={alert.type} 
+                  sx={{ height: '100%' }}
+                  icon={<Warning />}
+                >
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                    {alert.title}
+                  </Typography>
+                  <Typography variant="body2">
+                    {alert.message}
+                  </Typography>
+                </Alert>
+              </Grid>
+            ))}
           </Grid>
-          <Grid item xs={12} md={2.4}>
-            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#f3e5f5' }}>
-              <Typography variant="h4" sx={{ color: '#7b1fa2', fontWeight: 'bold' }}>
-                {electrophoresisBatchSamples.length}
+        </Paper>
+      )}
+
+      {/* Key Performance Indicators */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6} lg={3}>
+          <Card sx={{ 
+            p: 3, 
+            textAlign: 'center',
+            background: 'linear-gradient(135deg, #0D488F 0%, #1e4976 100%)',
+            color: 'white'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+              <Science sx={{ fontSize: 40, mr: 1 }} />
+              <Typography variant="h3" sx={{ fontWeight: 'bold' }}>
+                {totalSamples}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Electrophoresis Batch
-              </Typography>
-            </Paper>
-          </Grid>
-          <Grid item xs={12} md={2.4}>
-            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e8' }}>
-              <Typography variant="h4" sx={{ color: '#388e3c', fontWeight: 'bold' }}>
-                {completedElectrophoresisSamples.length}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Completed Electrophoresis
-              </Typography>
-            </Paper>
-          </Grid>
-          <Grid item xs={12} md={2.4}>
-            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e0f2f1' }}>
-              <Typography variant="h4" sx={{ color: '#00695c', fontWeight: 'bold' }}>
-                {completedSamples.length}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Completed Samples
-              </Typography>
-            </Paper>
-          </Grid>
+            </Box>
+            <Typography variant="h6" sx={{ opacity: 0.9 }}>
+              Total Samples
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.7, mt: 1 }}>
+              {filterPeriod === 'all' ? 'All time' : `This ${filterPeriod}`}
+            </Typography>
+          </Card>
         </Grid>
 
-        {/* Tabs for different sample categories */}
-        <Box sx={{ width: '100%' }}>
-          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs value={currentTab} onChange={handleTabChange} aria-label="sample categories">
-              <Tab label="Total Samples" />
-              <Tab label="PCR Batch" />
-              <Tab label="Electrophoresis Plate Setup" />
-              <Tab label="Completed Electrophoresis" />
-              <Tab label="Completed Samples" />
-            </Tabs>
-          </Box>
+        <Grid item xs={12} sm={6} lg={3}>
+          <Card sx={{ 
+            p: 3, 
+            textAlign: 'center',
+            background: 'linear-gradient(135deg, #8EC74F 0%, #6BA23A 100%)',
+            color: 'white'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+              <CheckCircle sx={{ fontSize: 40, mr: 1 }} />
+              <Typography variant="h3" sx={{ fontWeight: 'bold' }}>
+                {completedSamples}
+              </Typography>
+            </Box>
+            <Typography variant="h6" sx={{ opacity: 0.9 }}>
+              Completed
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.7, mt: 1 }}>
+              {totalSamples > 0 ? Math.round((completedSamples / totalSamples) * 100) : 0}% completion rate
+            </Typography>
+          </Card>
+        </Grid>
 
-          {/* Tab Panels */}
-          <Box sx={{ mt: 2 }}>
-            {currentTab === 0 && (
-              <Box>
-                <Typography variant="h6" sx={{ mb: 2, color: '#1e4976' }}>
-                  Total Samples ({totalSamples.length})
-                </Typography>
-                <SampleTable samples={totalSamples} title="Total Samples" />
-              </Box>
-            )}
-            {currentTab === 1 && (
-              <Box>
-                <Typography variant="h6" sx={{ mb: 2, color: '#1e4976' }}>
-                  PCR Batch Samples ({pcrBatchSamples.length})
-                </Typography>
-                <SampleTable samples={pcrBatchSamples} title="PCR Batch Samples" />
-              </Box>
-            )}
-            {currentTab === 2 && (
-              <Box>
-                <Typography variant="h6" sx={{ mb: 2, color: '#1e4976' }}>
-                  Electrophoresis Plate Setup ({electrophoresisBatchSamples.length})
-                </Typography>
-                <SampleTable samples={electrophoresisBatchSamples} title="Electrophoresis Batch Samples" />
-              </Box>
-            )}
-            {currentTab === 3 && (
-              <Box>
-                <Typography variant="h6" sx={{ mb: 2, color: '#1e4976' }}>
-                  Completed Electrophoresis Samples ({completedElectrophoresisSamples.length})
-                </Typography>
-                <SampleTable samples={completedElectrophoresisSamples} title="Completed Electrophoresis Samples" />
-              </Box>
-            )}
-            {currentTab === 4 && (
-              <Box>
-                <Typography variant="h6" sx={{ mb: 2, color: '#1e4976' }}>
-                  Completed Samples ({completedSamples.length})
-                </Typography>
-                <SampleTable samples={completedSamples} title="Completed Samples" />
-              </Box>
-            )}
-          </Box>
-        </Box>
+        <Grid item xs={12} sm={6} lg={3}>
+          <Card sx={{ 
+            p: 3, 
+            textAlign: 'center',
+            background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+            color: 'white'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+              <Schedule sx={{ fontSize: 40, mr: 1 }} />
+              <Typography variant="h3" sx={{ fontWeight: 'bold' }}>
+                {avgProcessingTime}
+              </Typography>
+            </Box>
+            <Typography variant="h6" sx={{ opacity: 0.9 }}>
+              Avg Days
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.7, mt: 1 }}>
+              Processing time
+            </Typography>
+          </Card>
+        </Grid>
 
-        {loading && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-            <Typography>Loading sample data...</Typography>
-          </Box>
-        )}
+        <Grid item xs={12} sm={6} lg={3}>
+          <Card sx={{ 
+            p: 3, 
+            textAlign: 'center',
+            background: 'linear-gradient(135deg, #022539 0%, #032539 100%)',
+            color: 'white'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+              <TrendingUp sx={{ fontSize: 40, mr: 1 }} />
+              <Typography variant="h3" sx={{ fontWeight: 'bold' }}>
+                {recentSamplesCount}
+              </Typography>
+            </Box>
+            <Typography variant="h6" sx={{ opacity: 0.9 }}>
+              Recent (30d)
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.7, mt: 1 }}>
+              Last 30 days
+            </Typography>
+          </Card>
+        </Grid>
+      </Grid>
 
-        {error && (
-          <Box sx={{ p: 2, bgcolor: '#ffebee', borderRadius: 1, mt: 2 }}>
-            <Typography color="error">{error}</Typography>
+      {/* Charts and Analytics Section */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        {/* Workflow Status Distribution */}
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3, height: 400 }}>
+            <Typography variant="h6" sx={{ mb: 3, color: '#0D488F', fontWeight: 600 }}>
+              Sample Workflow Status
+            </Typography>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={getWorkflowChartData()}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                  label={({ name, value }) => `${name}: ${value}`}
+                >
+                  {getWorkflowChartData().map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </Paper>
+        </Grid>
+
+        {/* Sample Relations Distribution */}
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3, height: 400 }}>
+            <Typography variant="h6" sx={{ mb: 3, color: '#0D488F', fontWeight: 600 }}>
+              Sample Relations
+            </Typography>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={getRelationChartData()}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="value" fill="#8EC74F" />
+              </BarChart>
+            </ResponsiveContainer>
+          </Paper>
+        </Grid>
+
+        {/* Daily Sample Trend */}
+        <Grid item xs={12}>
+          <Paper sx={{ p: 3, height: 350 }}>
+            <Typography variant="h6" sx={{ mb: 3, color: '#0D488F', fontWeight: 600 }}>
+              Daily Sample Collection Trend (Last 14 Days)
+            </Typography>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={getDailyTrendData()}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Area type="monotone" dataKey="samples" stroke="#0D488F" fill="#DBF1FC" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      {/* Detailed Sample Analysis */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h5" sx={{ mb: 3, color: '#0D488F', fontWeight: 600 }}>
+          Detailed Sample Analysis
+        </Typography>
+        
+        <Grid container spacing={3}>
+          {/* Demographics Summary */}
+          <Grid item xs={12} md={6}>
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Demographics Overview
+              </Typography>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Sample Relations
+                  </Typography>
+                  {Object.entries(dashboardData.demographics?.relations || {}).map(([relation, count]) => (
+                    <Box key={relation} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                      <Typography variant="body2">{relation}</Typography>
+                      <Chip label={count} size="small" color="primary" />
+                    </Box>
+                  ))}
+                </Box>
+                
+                <Divider />
+                
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Gender Distribution
+                  </Typography>
+                  {Object.entries(dashboardData.demographics?.genders || {}).map(([gender, count]) => (
+                    <Box key={gender} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                      <Typography variant="body2">{gender}</Typography>
+                      <Chip label={count} size="small" color="secondary" />
+                    </Box>
+                  ))}
+                </Box>
+              </Stack>
+            </Box>
+          </Grid>
+
+          {/* Processing Statistics */}
+          <Grid item xs={12} md={6}>
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Processing Statistics
+              </Typography>
+              <Stack spacing={2}>
+                <Box sx={{ p: 2, bgcolor: isDarkMode ? 'grey.800' : 'grey.50', borderRadius: 1 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Average Processing Time
+                  </Typography>
+                  <Typography variant="h4" sx={{ color: '#0D488F', fontWeight: 'bold' }}>
+                    {avgProcessingTime} days
+                  </Typography>
+                </Box>
+                
+                <Box sx={{ p: 2, bgcolor: isDarkMode ? 'grey.800' : 'grey.50', borderRadius: 1 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Completion Rate
+                  </Typography>
+                  <Typography variant="h4" sx={{ color: '#8EC74F', fontWeight: 'bold' }}>
+                    {totalSamples > 0 ? Math.round((completedSamples / totalSamples) * 100) : 0}%
+                  </Typography>
+                </Box>
+                
+                <Box sx={{ p: 2, bgcolor: isDarkMode ? 'grey.800' : 'grey.50', borderRadius: 1 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Samples with Processing Time Data
+                  </Typography>
+                  <Typography variant="h4" sx={{ color: '#ff9800', fontWeight: 'bold' }}>
+                    {dashboardData.processingTimes?.length || 0}
+                  </Typography>
+                </Box>
+              </Stack>
+            </Box>
+          </Grid>
+        </Grid>
+      </Paper>
+
+      {/* Recent Samples Table */}
+      <Paper sx={{ p: 3 }}>
+        <Typography variant="h6" sx={{ mb: 3, color: '#0D488F', fontWeight: 600 }}>
+          Recent Samples ({dashboardData.recentSamples?.length || 0} in last 30 days)
+        </Typography>
+        <SampleTable samples={(dashboardData.recentSamples || []).slice(0, 20)} title="Recent Samples" />
+        {(dashboardData.recentSamples?.length || 0) > 20 && (
+          <Box sx={{ textAlign: 'center', mt: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              Showing 20 of {dashboardData.recentSamples?.length || 0} recent samples
+            </Typography>
           </Box>
         )}
       </Paper>
+
+      {/* Performance Insights Section */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" sx={{ mb: 3, color: '#0D488F', fontWeight: 600 }}>
+          Performance Insights
+        </Typography>
+        
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={4}>
+            <Box sx={{ textAlign: 'center', p: 2, bgcolor: isDarkMode ? 'grey.800' : 'grey.50', borderRadius: 2 }}>
+              <Speed sx={{ fontSize: 40, color: '#0D488F', mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#0D488F' }}>
+                {totalSamples > 0 ? Math.round((recentSamplesCount / totalSamples) * 100) : 0}%
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Recent Activity Rate
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Samples in last 30 days vs total
+              </Typography>
+            </Box>
+          </Grid>
+          
+          <Grid item xs={12} md={4}>
+            <Box sx={{ textAlign: 'center', p: 2, bgcolor: isDarkMode ? 'grey.800' : 'grey.50', borderRadius: 2 }}>
+              <TrendingUp sx={{ fontSize: 40, color: '#8EC74F', mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#8EC74F' }}>
+                {(dashboardData.processingTimes || []).filter(pt => pt.processingDays <= 5).length}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Fast Processing
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Samples processed ≤ 5 days
+              </Typography>
+            </Box>
+          </Grid>
+          
+          <Grid item xs={12} md={4}>
+            <Box sx={{ textAlign: 'center', p: 2, bgcolor: isDarkMode ? 'grey.800' : 'grey.50', borderRadius: 2 }}>
+              <Assessment sx={{ fontSize: 40, color: '#ff9800', mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#ff9800' }}>
+                {Object.keys(dashboardData.workflowStats || {}).length}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Active Workflows
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Different processing stages
+              </Typography>
+            </Box>
+          </Grid>
+        </Grid>
+        
+        {/* Sample Type Distribution */}
+        {Object.keys(dashboardData.demographics?.sampleTypes || {}).length > 0 && (
+          <Box sx={{ mt: 4 }}>
+            <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
+              Sample Type Distribution
+            </Typography>
+            <Grid container spacing={2}>
+              {Object.entries(dashboardData.demographics?.sampleTypes || {}).map(([type, count]) => (
+                <Grid item xs={6} sm={4} md={3} key={type}>
+                  <Box sx={{ 
+                    p: 2, 
+                    textAlign: 'center',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 1,
+                    '&:hover': { bgcolor: 'action.hover' }
+                  }}>
+                    <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                      {count}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {type || 'Unknown'}
+                    </Typography>
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+        )}
+      </Paper>
+
+      {/* Error Display */}
+      {error && (
+        <Alert severity="error" sx={{ mt: 3 }}>
+          <Typography variant="h6">Error Loading Statistics</Typography>
+          <Typography variant="body2">{error}</Typography>
+          <Button 
+            variant="outlined" 
+            onClick={loadEnhancedStatistics} 
+            sx={{ mt: 2 }}
+            startIcon={<Refresh />}
+          >
+            Try Again
+          </Button>
+        </Alert>
+      )}
     </Box>
   );
 } 

@@ -52,7 +52,11 @@ import {
   Refresh,
   CloudOff,
   CloudDone,
-  Warning
+  Warning,
+  Speed,
+  TrendingUp,
+  Assessment,
+  People
 } from '@mui/icons-material';
 
 import { api as optimizedApi } from '../../services/api';
@@ -61,8 +65,8 @@ export default function ClientRegister() {
   const navigate = useNavigate();
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const isTablet = useMediaQuery(theme.breakpoints.between('md', 'lg'));
+  const isMobile = false; // Temporarily disabled
+  const isTablet = false; // Temporarily disabled
   const [samples, setSamples] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -647,151 +651,99 @@ export default function ClientRegister() {
           </Button>
         </Box>
 
-        {/* Status Count Cards */}
-        <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid item xs={2.4}>
-            <Card sx={{ 
+        {/* Bold Metric Blocks */}
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid item xs={12} md={3}>
+            <Box sx={{ 
               textAlign: 'center', 
-              bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #0D488F 0%, #1e4976 100%)',
+              color: 'white',
+              borderRadius: 2, 
               cursor: 'pointer',
-              border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
-              '&:hover': { 
-                bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
-                boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)' 
-              }
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 8px 20px rgba(13, 72, 143, 0.3)'
+              },
+              transition: 'all 0.3s ease'
             }} onClick={() => setStatusFilter('all')}>
-              <CardContent sx={{ py: 2 }}>
-                <Typography variant="h5" sx={{ 
-                  fontWeight: 'bold', 
-                  color: isDarkMode ? 'white' : '#1a1a1a', 
-                  mb: 0.5 
-                }}>
-                  {statusCounts.total}
-                </Typography>
-                <Typography variant="body2" sx={{ 
-                  color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
-                  fontWeight: 500 
-                }}>
-                  📊 Total Samples
-                </Typography>
-              </CardContent>
-            </Card>
+              <People sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {statusCounts.total}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Total Samples
+              </Typography>
+            </Box>
           </Grid>
-          <Grid item xs={2.4}>
-            <Card sx={{ 
+          <Grid item xs={12} md={3}>
+            <Box sx={{ 
               textAlign: 'center', 
-              bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+              color: 'white',
+              borderRadius: 2, 
               cursor: 'pointer',
-              border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
-              borderLeft: '4px solid #ffa726',
-              '&:hover': { 
-                bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
-                boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)' 
-              }
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 8px 20px rgba(255, 152, 0, 0.3)'
+              },
+              transition: 'all 0.3s ease'
             }} onClick={() => setStatusFilter('pending')}>
-              <CardContent sx={{ py: 2 }}>
-                <Typography variant="h5" sx={{ 
-                  fontWeight: 'bold', 
-                  color: isDarkMode ? 'white' : '#1a1a1a', 
-                  mb: 0.5 
-                }}>
-                  {statusCounts.pending}
-                </Typography>
-                <Typography variant="body2" sx={{ 
-                  color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
-                  fontWeight: 500 
-                }}>
-                  📋 Pending
-                </Typography>
-              </CardContent>
-            </Card>
+              <Speed sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {statusCounts.pending}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Pending Samples
+              </Typography>
+            </Box>
           </Grid>
-          <Grid item xs={2.4}>
-            <Card sx={{ 
+          <Grid item xs={12} md={3}>
+            <Box sx={{ 
               textAlign: 'center', 
-              bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #42a5f5 0%, #1976d2 100%)',
+              color: 'white',
+              borderRadius: 2, 
               cursor: 'pointer',
-              border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
-              borderLeft: '4px solid #42a5f5',
-              '&:hover': { 
-                bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
-                boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)' 
-              }
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 8px 20px rgba(66, 165, 245, 0.3)'
+              },
+              transition: 'all 0.3s ease'
             }} onClick={() => setStatusFilter('pcr_batched')}>
-              <CardContent sx={{ py: 2 }}>
-                <Typography variant="h5" sx={{ 
-                  fontWeight: 'bold', 
-                  color: isDarkMode ? 'white' : '#1a1a1a', 
-                  mb: 0.5 
-                }}>
-                  {statusCounts.pcrBatched}
-                </Typography>
-                <Typography variant="body2" sx={{ 
-                  color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
-                  fontWeight: 500 
-                }}>
-                  🧬 PCR Batched
-                </Typography>
-              </CardContent>
-            </Card>
+              <TrendingUp sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {statusCounts.pcrBatched || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                PCR Batched
+              </Typography>
+            </Box>
           </Grid>
-          <Grid item xs={2.4}>
-            <Card sx={{ 
+          <Grid item xs={12} md={3}>
+            <Box sx={{ 
               textAlign: 'center', 
-              bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #8EC74F 0%, #6BA23A 100%)',
+              color: 'white',
+              borderRadius: 2, 
               cursor: 'pointer',
-              border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
-              borderLeft: '4px solid #ab47bc',
-              '&:hover': { 
-                bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
-                boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)' 
-              }
-            }} onClick={() => setStatusFilter('electro_batched')}>
-              <CardContent sx={{ py: 2 }}>
-                <Typography variant="h5" sx={{ 
-                  fontWeight: 'bold', 
-                  color: isDarkMode ? 'white' : '#1a1a1a', 
-                  mb: 0.5 
-                }}>
-                  {statusCounts.electroBatched}
-                </Typography>
-                <Typography variant="body2" sx={{ 
-                  color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
-                  fontWeight: 500 
-                }}>
-                  ⚡ Electro Batched
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={2.4}>
-            <Card sx={{ 
-              textAlign: 'center', 
-              bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
-              cursor: 'pointer',
-              border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
-              borderLeft: '4px solid #ef5350',
-              '&:hover': { 
-                bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
-                boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)' 
-              }
-            }} onClick={() => setStatusFilter('rerun_batched')}>
-              <CardContent sx={{ py: 2 }}>
-                <Typography variant="h5" sx={{ 
-                  fontWeight: 'bold', 
-                  color: isDarkMode ? 'white' : '#1a1a1a', 
-                  mb: 0.5 
-                }}>
-                  {statusCounts.rerunBatched}
-                </Typography>
-                <Typography variant="body2" sx={{ 
-                  color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
-                  fontWeight: 500 
-                }}>
-                  🔄 Rerun Batched
-                </Typography>
-              </CardContent>
-            </Card>
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 8px 20px rgba(142, 199, 79, 0.3)'
+              },
+              transition: 'all 0.3s ease'
+            }} onClick={() => setStatusFilter('completed')}>
+              <Assessment sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {statusCounts.completed || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Completed
+              </Typography>
+            </Box>
           </Grid>
         </Grid>
       </Box>

@@ -43,9 +43,9 @@ const PCRPlate = () => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
   
-  // Responsive detection
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const isTablet = useMediaQuery(theme.breakpoints.between('md', 'lg'));
+  // Responsive detection - temporarily disabled
+  const isMobile = false;
+  const isTablet = false;
   
   // Calculate responsive well size
   const getWellSize = () => {

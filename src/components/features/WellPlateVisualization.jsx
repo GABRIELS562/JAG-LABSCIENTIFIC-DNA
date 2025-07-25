@@ -3,8 +3,8 @@ import { Box, Grid, Typography, useTheme, useMediaQuery } from '@mui/material';
 
 const WellPlateVisualization = ({ data, onWellClick, onWellDragOver, onWellDrop, selectedWells }) => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = false; // Temporarily disabled
+  const isSmallMobile = false; // Temporarily disabled
   
   const cols = Array.from({ length: 12 }, (_, i) => i + 1);
   const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];

@@ -24,7 +24,10 @@ import {
   ViewModule,
   Assignment,
   Group,
-  Refresh
+  Refresh,
+  Speed,
+  TrendingUp,
+  People
 } from '@mui/icons-material';
 import { api as optimizedApi } from '../../services/api';
 
@@ -87,17 +90,10 @@ const HomePage = ({ isDarkMode }) => {
 
   const databaseButtons = [
     {
-      title: 'API Status',
-      description: 'Check backend server status and health',
-      icon: <Storage />,
-      color: '#0D488F',
-      onClick: () => window.open('http://localhost:3001/health', '_blank')
-    },
-    {
       title: 'Sample Management',
       description: 'View and manage all samples with batch tracking',
       icon: <Science />,
-      color: '#8EC74F',
+      color: '#0D488F',
       onClick: () => navigate('/client-register')
     },
     {
@@ -118,19 +114,12 @@ const HomePage = ({ isDarkMode }) => {
       title: 'Sample Queues',
       description: 'View sample workflow queues and status',
       icon: <TableChart />,
-      color: '#0D488F',
+      color: '#8EC74F',
       onClick: () => navigate('/sample-queues')
     }
   ];
 
   const applicationButtons = [
-    {
-      title: 'Register Client',
-      description: 'Add new client and sample information',
-      icon: <Group />,
-      color: '#8EC74F',
-      onClick: () => navigate('/register-client')
-    },
     {
       title: 'Sample Management',
       description: 'Manage and track Peace of Mind samples',
@@ -184,150 +173,98 @@ const HomePage = ({ isDarkMode }) => {
         </Box>
         
         {sampleCounts && (
-          <Grid container spacing={2} sx={{ justifyContent: 'center', maxWidth: 1000, mx: 'auto' }}>
-            <Grid item xs={6} sm={12/5}>
-              <Card sx={{ 
+          <Grid container spacing={3} sx={{ justifyContent: 'center', maxWidth: 1000, mx: 'auto', mb: 4 }}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Box sx={{ 
                 textAlign: 'center', 
-                bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
+                p: 3, 
+                background: 'linear-gradient(135deg, #0D488F 0%, #1e4976 100%)',
+                color: 'white',
+                borderRadius: 2, 
                 cursor: 'pointer',
-                border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
-                '&:hover': { 
-                  bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
-                  boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)'
-                }
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 20px rgba(13, 72, 143, 0.3)'
+                },
+                transition: 'all 0.3s ease'
               }} onClick={() => navigate('/client-register')}>
-                <CardContent sx={{ py: 2 }}>
-                  <Typography variant="h5" sx={{ 
-                    fontWeight: 'bold', 
-                    color: isDarkMode ? 'white' : '#1a1a1a', 
-                    mb: 0.5 
-                  }}>
-                    {sampleCounts.total}
-                  </Typography>
-                  <Typography variant="body2" sx={{ 
-                    color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
-                    fontWeight: 500 
-                  }}>
-                    📊 Total Samples
-                  </Typography>
-                </CardContent>
-              </Card>
+                <People sx={{ fontSize: 40, mb: 1 }} />
+                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  {sampleCounts.total}
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  Total Samples
+                </Typography>
+              </Box>
             </Grid>
-            <Grid item xs={6} sm={12/5}>
-              <Card sx={{ 
+            <Grid item xs={12} sm={6} md={3}>
+              <Box sx={{ 
                 textAlign: 'center', 
-                bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
+                p: 3, 
+                background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+                color: 'white',
+                borderRadius: 2, 
                 cursor: 'pointer',
-                border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
-                borderLeft: '4px solid #ffa726',
-                '&:hover': { 
-                  bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
-                  boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)' 
-                }
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 20px rgba(255, 152, 0, 0.3)'
+                },
+                transition: 'all 0.3s ease'
               }} onClick={() => navigate('/client-register')}>
-                <CardContent sx={{ py: 2 }}>
-                  <Typography variant="h5" sx={{ 
-                    fontWeight: 'bold', 
-                    color: isDarkMode ? 'white' : '#1a1a1a', 
-                    mb: 0.5 
-                  }}>
-                    {sampleCounts.pending}
-                  </Typography>
-                  <Typography variant="body2" sx={{ 
-                    color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
-                    fontWeight: 500 
-                  }}>
-                    📋 Pending
-                  </Typography>
-                </CardContent>
-              </Card>
+                <Speed sx={{ fontSize: 40, mb: 1 }} />
+                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  {sampleCounts.pending}
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  Pending Samples
+                </Typography>
+              </Box>
             </Grid>
-            <Grid item xs={6} sm={12/5}>
-              <Card sx={{ 
+            <Grid item xs={12} sm={6} md={3}>
+              <Box sx={{ 
                 textAlign: 'center', 
-                bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
+                p: 3, 
+                background: 'linear-gradient(135deg, #42a5f5 0%, #1976d2 100%)',
+                color: 'white',
+                borderRadius: 2, 
                 cursor: 'pointer',
-                border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
-                borderLeft: '4px solid #42a5f5',
-                '&:hover': { 
-                  bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
-                  boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)' 
-                }
-              }} onClick={() => navigate('/client-register')}>
-                <CardContent sx={{ py: 2 }}>
-                  <Typography variant="h5" sx={{ 
-                    fontWeight: 'bold', 
-                    color: isDarkMode ? 'white' : '#1a1a1a', 
-                    mb: 0.5 
-                  }}>
-                    {sampleCounts.pcrBatched}
-                  </Typography>
-                  <Typography variant="body2" sx={{ 
-                    color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
-                    fontWeight: 500 
-                  }}>
-                    🧬 PCR Batched
-                  </Typography>
-                </CardContent>
-              </Card>
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 20px rgba(66, 165, 245, 0.3)'
+                },
+                transition: 'all 0.3s ease'
+              }} onClick={() => navigate('/pcr-plate')}>
+                <TrendingUp sx={{ fontSize: 40, mb: 1 }} />
+                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  {sampleCounts.pcrBatched || 0}
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  PCR Batched
+                </Typography>
+              </Box>
             </Grid>
-            <Grid item xs={6} sm={12/5}>
-              <Card sx={{ 
+            <Grid item xs={12} sm={6} md={3}>
+              <Box sx={{ 
                 textAlign: 'center', 
-                bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
+                p: 3, 
+                background: 'linear-gradient(135deg, #8EC74F 0%, #6BA23A 100%)',
+                color: 'white',
+                borderRadius: 2, 
                 cursor: 'pointer',
-                border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
-                borderLeft: '4px solid #ab47bc',
-                '&:hover': { 
-                  bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
-                  boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)' 
-                }
-              }} onClick={() => navigate('/client-register')}>
-                <CardContent sx={{ py: 2 }}>
-                  <Typography variant="h5" sx={{ 
-                    fontWeight: 'bold', 
-                    color: isDarkMode ? 'white' : '#1a1a1a', 
-                    mb: 0.5 
-                  }}>
-                    {sampleCounts.electroBatched}
-                  </Typography>
-                  <Typography variant="body2" sx={{ 
-                    color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
-                    fontWeight: 500 
-                  }}>
-                    ⚡ Electro Batched
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={6} sm={12/5}>
-              <Card sx={{ 
-                textAlign: 'center', 
-                bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white', 
-                cursor: 'pointer',
-                border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
-                borderLeft: '4px solid #ef5350',
-                '&:hover': { 
-                  bgcolor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f8f9fa',
-                  boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)' 
-                }
-              }} onClick={() => navigate('/client-register')}>
-                <CardContent sx={{ py: 2 }}>
-                  <Typography variant="h5" sx={{ 
-                    fontWeight: 'bold', 
-                    color: isDarkMode ? 'white' : '#1a1a1a', 
-                    mb: 0.5 
-                  }}>
-                    {sampleCounts.rerunBatched || 0}
-                  </Typography>
-                  <Typography variant="body2" sx={{ 
-                    color: isDarkMode ? 'rgba(255,255,255,0.7)' : '#666666', 
-                    fontWeight: 500 
-                  }}>
-                    🔄 Rerun Batched
-                  </Typography>
-                </CardContent>
-              </Card>
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 20px rgba(142, 199, 79, 0.3)'
+                },
+                transition: 'all 0.3s ease'
+              }} onClick={() => navigate('/statistics')}>
+                <Assessment sx={{ fontSize: 40, mb: 1 }} />
+                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  {(sampleCounts.electroBatched || 0) + (sampleCounts.rerunBatched || 0)}
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  In Progress
+                </Typography>
+              </Box>
             </Grid>
           </Grid>
         )}
@@ -509,7 +446,7 @@ const HomePage = ({ isDarkMode }) => {
         </Typography>
         <Grid container spacing={3}>
           {databaseButtons.map((button, index) => (
-            <Grid item xs={12} sm={6} md={4} lg={2.4} key={index}>
+            <Grid item xs={12} sm={6} md={3} key={index}>
               <Card 
                 sx={{ 
                   height: '100%',
