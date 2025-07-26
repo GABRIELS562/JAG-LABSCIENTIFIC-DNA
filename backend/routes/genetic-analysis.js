@@ -422,19 +422,16 @@ router.post(
           // Store sample metadata
           db.db.prepare(`
             INSERT OR REPLACE INTO genetic_samples 
-            (sample_id, case_id, sample_name, sample_type, file_path, file_size, quality_score, loci_count, is_real_data, processing_error, created_date) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            (sample_id, case_id, sample_type, file_path, quality_score, status, kit) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)
           `).run(
             sample.sampleId,
             caseId, 
-            sample.originalName,
             sample.sampleType,
             sample.filePath,
-            sample.fileSize,
             sample.qualityScore,
-            sample.markerCount,
-            sample.isRealData ? 1 : 0,
-            sample.processingError
+            sample.isRealData ? 'processed' : 'review_needed',
+            sample.kit || 'PowerPlex ESX'
           );
 
           // Store STR profile data if available
@@ -931,7 +928,7 @@ router.get("/results", async (req, res) => {
       
       // Get STR data for paternity analysis
       const strData = {};
-      const sampleNames = samples.map(s => s.sample_name);
+      const sampleNames = samples.map(s => s.sample_id);
       
       for (const sample of samples) {
         const sampleStr = db.db.prepare(`
@@ -941,7 +938,7 @@ router.get("/results", async (req, res) => {
           ORDER BY locus, allele_value
         `).all(sample.sample_id);
         
-        strData[sample.sample_name] = sampleStr;
+        strData[sample.sample_id] = sampleStr;
       }
 
       // Generate analysis summary from real data
@@ -960,7 +957,7 @@ router.get("/results", async (req, res) => {
         kit: samples[0]?.kit || 'PowerPlex ESX',
         runDate: new Date().toLocaleDateString(),
         samples: samples.map(s => ({
-          name: s.sample_name,
+          name: s.sample_id,
           status: s.quality_score > 80 ? 'success' : 'warning',
           confidence: s.quality_score,
           lociDetected: s.loci_detected || 0,
@@ -1008,7 +1005,7 @@ router.get("/genemapper-results", async (req, res) => {
       SELECT s.*, COUNT(str.locus) as loci_detected 
       FROM genetic_samples s 
       LEFT JOIN str_profiles str ON s.sample_id = str.sample_id 
-      WHERE s.sample_name LIKE '%GeneMapper%' OR s.case_id IN (
+      WHERE s.sample_id LIKE '%GeneMapper%' OR s.case_id IN (
         SELECT case_id FROM genetic_cases WHERE case_name LIKE '%GeneMapper%'
       )
       GROUP BY s.sample_id 
@@ -1032,7 +1029,7 @@ router.get("/genemapper-results", async (req, res) => {
         successfulAnalyses: recentResults.filter(s => s.quality_score > 80).length,
         requiresReview: recentResults.filter(s => s.quality_score <= 80).length,
         samples: recentResults.map(s => ({
-          name: s.sample_name,
+          name: s.sample_id,
           status: s.quality_score > 80 ? 'success' : 'warning',
           confidence: s.quality_score,
           lociDetected: s.loci_detected || 0,

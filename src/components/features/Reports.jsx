@@ -39,7 +39,13 @@ import {
   CheckCircle as CheckCircleIcon,
   Pending as PendingIcon,
   Send as SendIcon,
-  Archive as ArchiveIcon
+  Archive as ArchiveIcon,
+  Assessment as AssessmentIcon,
+  Gavel as GavelIcon,
+  Psychology as PsychologyIcon,
+  Done as DoneIcon,
+  HourglassEmpty as HourglassIcon,
+  SendRounded as SendRoundedIcon
 } from '@mui/icons-material';
 
 export default function Reports() {
@@ -207,80 +213,151 @@ export default function Reports() {
         </Alert>
       )}
 
-      {/* Statistics Cards */}
+      {/* Bold Metric Blocks */}
       {stats && (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid container spacing={3} sx={{ mb: 3 }}>
           <Grid item xs={12} sm={6} md={2}>
-            <Card>
-              <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                <Typography variant="h4" color="primary">
-                  {stats.total_reports}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Total Reports
-                </Typography>
-              </CardContent>
-            </Card>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #0D488F 0%, #1e4976 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(13, 72, 143, 0.3)'
+              }
+            }}>
+              <AssessmentIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.total_reports || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Total Reports
+              </Typography>
+            </Box>
           </Grid>
+          
           <Grid item xs={12} sm={6} md={2}>
-            <Card>
-              <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                <Typography variant="h4" color="error">
-                  {stats.legal_reports}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Legal
-                </Typography>
-              </CardContent>
-            </Card>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(220, 38, 38, 0.3)'
+              }
+            }}>
+              <GavelIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.legal_reports || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Legal
+              </Typography>
+            </Box>
           </Grid>
+          
           <Grid item xs={12} sm={6} md={2}>
-            <Card>
-              <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                <Typography variant="h4" color="info.main">
-                  {stats.peace_of_mind_reports}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Peace of Mind
-                </Typography>
-              </CardContent>
-            </Card>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #42a5f5 0%, #1976d2 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(66, 165, 245, 0.3)'
+              }
+            }}>
+              <PsychologyIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.peace_of_mind_reports || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Peace of Mind
+              </Typography>
+            </Box>
           </Grid>
+          
           <Grid item xs={12} sm={6} md={2}>
-            <Card>
-              <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                <Typography variant="h4" color="success.main">
-                  {stats.completed_reports}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Completed
-                </Typography>
-              </CardContent>
-            </Card>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(22, 163, 74, 0.3)'
+              }
+            }}>
+              <DoneIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.completed_reports || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Completed
+              </Typography>
+            </Box>
           </Grid>
+          
           <Grid item xs={12} sm={6} md={2}>
-            <Card>
-              <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                <Typography variant="h4" color="warning.main">
-                  {stats.pending_reports}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Pending
-                </Typography>
-              </CardContent>
-            </Card>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(255, 152, 0, 0.3)'
+              }
+            }}>
+              <HourglassIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.pending_reports || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Pending
+              </Typography>
+            </Box>
           </Grid>
+          
           <Grid item xs={12} sm={6} md={2}>
-            <Card>
-              <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                <Typography variant="h4" color="primary">
-                  {stats.sent_reports}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Sent
-                </Typography>
-              </CardContent>
-            </Card>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(139, 92, 246, 0.3)'
+              }
+            }}>
+              <SendRoundedIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.sent_reports || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Sent
+              </Typography>
+            </Box>
           </Grid>
         </Grid>
       )}

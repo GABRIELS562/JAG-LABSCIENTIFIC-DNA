@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Tesseract from 'tesseract.js';
 import {
   Box,
   Paper,
@@ -38,7 +39,19 @@ import {
   FormGroup,
   useTheme,
   useMediaQuery,
-  CardActions
+  CardActions,
+  Backdrop,
+  Stepper,
+  Step,
+  StepLabel,
+  StepContent,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon
 } from '@mui/material';
 import {
   Search,
@@ -56,7 +69,18 @@ import {
   Speed,
   TrendingUp,
   Assessment,
-  People
+  People,
+  PhotoCamera,
+  Upload,
+  CameraAlt,
+  Scanner as DocumentScanner,
+  AutoFixHigh,
+  CheckCircle,
+  Error as ErrorIcon,
+  ExpandMore,
+  Edit,
+  Save,
+  Cancel
 } from '@mui/icons-material';
 
 import { api as optimizedApi } from '../../services/api';
@@ -86,6 +110,29 @@ export default function ClientRegister() {
   // Dialog state
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
   const [newBatchNumber, setNewBatchNumber] = useState('');
+  
+  // OCR and Photo Upload state
+  const [ocrDialogOpen, setOcrDialogOpen] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState(null);
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const [ocrStatus, setOcrStatus] = useState('idle'); // idle, processing, completed, error
+  const [extractedData, setExtractedData] = useState({});
+  const [ocrText, setOcrText] = useState('');
+  const [newClientDialogOpen, setNewClientDialogOpen] = useState(false);
+  const [clientFormData, setClientFormData] = useState({
+    clientName: '',
+    contactNumber: '',
+    emailAddress: '',
+    address: '',
+    idNumber: '',
+    sampleType: 'buccal_swab',
+    relationship: '',
+    dateOfBirth: '',
+    gender: '',
+    additionalNotes: ''
+  });
+  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
   
   // Status counts
   const [statusCounts, setStatusCounts] = useState({
@@ -181,6 +228,221 @@ export default function ClientRegister() {
     await fetchSamples();
     await fetchStatusCounts();
     setIsRefreshing(false);
+  };
+  
+  // OCR and Image Processing Functions
+  const handleImageUpload = (event) => {
+    const file = event.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setUploadedImage(e.target.result);
+        setOcrDialogOpen(true);
+        processImageWithOCR(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setSnackbar({
+        open: true,
+        message: 'Please select a valid image file',
+        severity: 'error'
+      });
+    }
+  };
+  
+  const processImageWithOCR = async (imageData) => {
+    try {
+      setOcrStatus('processing');
+      setOcrProgress(0);
+      
+      const result = await Tesseract.recognize(
+        imageData,
+        'eng',
+        {
+          logger: (m) => {
+            if (m.status === 'recognizing text') {
+              setOcrProgress(Math.round(m.progress * 100));
+            }
+          }
+        }
+      );
+      
+      const extractedText = result.data.text;
+      setOcrText(extractedText);
+      
+      // Parse extracted text for form fields
+      const parsedData = parseHandwrittenForm(extractedText);
+      setExtractedData(parsedData);
+      
+      setOcrStatus('completed');
+      setOcrProgress(100);
+      
+      setSnackbar({
+        open: true,
+        message: 'Handwriting successfully recognized! Review and confirm the extracted information.',
+        severity: 'success'
+      });
+      
+    } catch (error) {
+      console.error('OCR Error:', error);
+      setOcrStatus('error');
+      setSnackbar({
+        open: true,
+        message: 'Failed to process handwriting. Please try again with a clearer image.',
+        severity: 'error'
+      });
+    }
+  };
+  
+  const parseHandwrittenForm = (text) => {
+    const lines = text.split('\n').filter(line => line.trim());
+    const parsedData = {};
+    
+    // Define patterns for different field types
+    const patterns = {
+      name: /(?:name|client|patient)[:\s]*([a-zA-Z\s]+)/i,
+      phone: /(?:phone|contact|tel|mobile)[:\s]*([\d\s\-\(\)\+]+)/i,
+      email: /(?:email|e-mail)[:\s]*([\w\.-]+@[\w\.-]+\.\w+)/i,
+      address: /(?:address|addr)[:\s]*([^\n]+)/i,
+      id: /(?:id|identification|identity)[:\s]*([\d\s\-]+)/i,
+      dob: /(?:dob|date of birth|birth)[:\s]*([\d\/\-\.\s]+)/i,
+      gender: /(?:gender|sex)[:\s]*(male|female|m|f)/i,
+      relationship: /(?:relationship|relation)[:\s]*([a-zA-Z\s]+)/i
+    };
+    
+    // Process each line to extract information
+    lines.forEach(line => {
+      const cleanLine = line.trim();
+      
+      // Try to match each pattern
+      Object.entries(patterns).forEach(([field, pattern]) => {
+        const match = cleanLine.match(pattern);
+        if (match && match[1]) {
+          let value = match[1].trim();
+          
+          // Clean up specific field types
+          switch (field) {
+            case 'phone':
+              value = value.replace(/[^\d]/g, ''); // Keep only digits
+              if (value.length >= 10) {
+                parsedData.contactNumber = value;
+              }
+              break;
+            case 'email':
+              if (value.includes('@')) {
+                parsedData.emailAddress = value.toLowerCase();
+              }
+              break;
+            case 'name':
+              if (value.length > 2) {
+                parsedData.clientName = value;
+              }
+              break;
+            case 'id':
+              value = value.replace(/[^\d]/g, '');
+              if (value.length >= 6) {
+                parsedData.idNumber = value;
+              }
+              break;
+            case 'dob':
+              // Try to parse date formats
+              if (value.match(/\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}/)) {
+                parsedData.dateOfBirth = value;
+              }
+              break;
+            case 'gender':
+              if (value.toLowerCase().includes('m') || value.toLowerCase().includes('male')) {
+                parsedData.gender = 'male';
+              } else if (value.toLowerCase().includes('f') || value.toLowerCase().includes('female')) {
+                parsedData.gender = 'female';
+              }
+              break;
+            case 'address':
+              if (value.length > 5) {
+                parsedData.address = value;
+              }
+              break;
+            case 'relationship':
+              if (value.length > 2) {
+                parsedData.relationship = value;
+              }
+              break;
+          }
+        }
+      });
+    });
+    
+    return parsedData;
+  };
+  
+  const applyExtractedData = () => {
+    setClientFormData(prev => ({
+      ...prev,
+      ...extractedData
+    }));
+    
+    setOcrDialogOpen(false);
+    setNewClientDialogOpen(true);
+    
+    setSnackbar({
+      open: true,
+      message: 'Information applied to form. Please review and submit.',
+      severity: 'success'
+    });
+  };
+  
+  const handleSubmitNewClient = async () => {
+    try {
+      // Validate required fields
+      if (!clientFormData.clientName || !clientFormData.contactNumber) {
+        setSnackbar({
+          open: true,
+          message: 'Client name and contact number are required',
+          severity: 'error'
+        });
+        return;
+      }
+      
+      // Submit to API
+      const response = await optimizedApi.createSample({
+        ...clientFormData,
+        status: 'pending',
+        dateCreated: new Date().toISOString(),
+        createdBy: 'OCR_System'
+      });
+      
+      if (response.success) {
+        setSnackbar({
+          open: true,
+          message: 'Client registered successfully!',
+          severity: 'success'
+        });
+        
+        setNewClientDialogOpen(false);
+        setClientFormData({
+          clientName: '',
+          contactNumber: '',
+          emailAddress: '',
+          address: '',
+          idNumber: '',
+          sampleType: 'buccal_swab',
+          relationship: '',
+          dateOfBirth: '',
+          gender: '',
+          additionalNotes: ''
+        });
+        
+        // Refresh the samples list
+        await fetchSamples();
+        await fetchStatusCounts();
+      }
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to register client: ' + error.message,
+        severity: 'error'
+      });
+    }
   };
 
   const getStatusColor = (status) => {
@@ -839,6 +1101,75 @@ export default function ClientRegister() {
         </Alert>
       )}
 
+
+      {/* OCR Photo Upload Section */}
+      <Card sx={{ mb: 3, background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)' }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <DocumentScanner sx={{ mr: 2, color: 'primary.main', fontSize: 32 }} />
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                📝 Smart Form Recognition
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Upload a photo of handwritten forms to automatically extract client information
+              </Typography>
+            </Box>
+          </Box>
+          
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              style={{ display: 'none' }}
+              ref={fileInputRef}
+            />
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleImageUpload}
+              style={{ display: 'none' }}
+              ref={cameraInputRef}
+            />
+            
+            <Button
+              variant="contained"
+              startIcon={<Upload />}
+              onClick={() => fileInputRef.current?.click()}
+              sx={{ background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)' }}
+            >
+              Upload Photo
+            </Button>
+            
+            <Button
+              variant="outlined"
+              startIcon={<CameraAlt />}
+              onClick={() => cameraInputRef.current?.click()}
+              sx={{ borderColor: 'primary.main', color: 'primary.main' }}
+            >
+              Take Photo
+            </Button>
+            
+            <Button
+              variant="outlined"
+              startIcon={<PlaylistAdd />}
+              onClick={() => setNewClientDialogOpen(true)}
+              sx={{ borderColor: 'secondary.main', color: 'secondary.main' }}
+            >
+              Manual Entry
+            </Button>
+          </Box>
+          
+          <Alert severity="info" sx={{ mt: 2 }}>
+            <Typography variant="body2">
+              💡 <strong>Tip:</strong> Ensure handwriting is clear and well-lit. The system can recognize:
+              Name, Phone, Email, Address, ID Number, Date of Birth, Gender, and Relationship.
+            </Typography>
+          </Alert>
+        </CardContent>
+      </Card>
 
       {/* Filters */}
       <Paper sx={{ p: isMobile ? 2 : 3, mb: 3 }}>

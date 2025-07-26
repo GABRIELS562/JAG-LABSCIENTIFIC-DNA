@@ -91,18 +91,37 @@ class UnifiedDatabaseService {
       'foreign_keys = ON',
       'synchronous = NORMAL',
       'cache_size = -64000',
-      'temp_store = MEMORY'
+      'temp_store = MEMORY',
+      'mmap_size = 268435456',
+      'recursive_triggers = ON',
+      'optimize = 0x10002'
     ];
 
     pragmas.forEach(pragma => {
       try {
         this.db.pragma(pragma);
+        if (logger && logger.debug) {
+          logger.debug(`Applied pragma: ${pragma}`);
+        }
       } catch (error) {
-        if (logger.warn) {
+        if (logger && logger.warn) {
           logger.warn('Failed to apply pragma', { pragma, error: error.message });
+        } else {
+          console.warn(`⚠️ Failed to apply pragma ${pragma}:`, error.message);
         }
       }
     });
+    
+    // Performance optimization
+    try {
+      this.db.pragma('analysis_limit = 1000');
+      this.db.exec('PRAGMA optimize');
+      console.log('✅ Database optimization pragmas applied');
+    } catch (error) {
+      if (logger && logger.warn) {
+        logger.warn('Failed to apply optimization pragmas', { error: error.message });
+      }
+    }
   }
 
   createTables() {
@@ -146,8 +165,50 @@ class UnifiedDatabaseService {
       if (logger.info) {
         logger.info('Database schema created/updated successfully');
       }
+      
+      // Create optimized indexes for better performance
+      this.createOptimizedIndexes();
+      
     } catch (error) {
       throw new DatabaseError('Failed to create database schema', error);
+    }
+  }
+
+  // Create optimized indexes for better query performance
+  createOptimizedIndexes() {
+    const indexes = [
+      'CREATE INDEX IF NOT EXISTS idx_samples_status ON samples(status)',
+      'CREATE INDEX IF NOT EXISTS idx_samples_workflow ON samples(workflow_status)',
+      'CREATE INDEX IF NOT EXISTS idx_samples_batch ON samples(batch_id)',
+      'CREATE INDEX IF NOT EXISTS idx_samples_case ON samples(case_number)',
+      'CREATE INDEX IF NOT EXISTS idx_samples_created ON samples(created_at)',
+      'CREATE INDEX IF NOT EXISTS idx_samples_lab_number ON samples(lab_number)',
+      'CREATE INDEX IF NOT EXISTS idx_batches_status ON batches(status)',
+      'CREATE INDEX IF NOT EXISTS idx_batches_created ON batches(created_at)'
+    ];
+    
+    try {
+      const startTime = Date.now();
+      indexes.forEach(indexSQL => {
+        this.db.exec(indexSQL);
+      });
+      
+      const indexTime = Date.now() - startTime;
+      
+      if (logger && logger.debug) {
+        logger.debug('Database indexes created successfully', { 
+          indexCount: indexes.length,
+          indexTime: `${indexTime}ms`
+        });
+      } else {
+        console.log(`✅ Created ${indexes.length} database indexes (${indexTime}ms)`);
+      }
+    } catch (error) {
+      if (logger && logger.warn) {
+        logger.warn('Failed to create some indexes', { error: error.message });
+      } else {
+        console.warn('⚠️ Failed to create some database indexes:', error.message);
+      }
     }
   }
 
@@ -456,6 +517,198 @@ class UnifiedDatabaseService {
         COUNT(CASE WHEN workflow_status IN ('pcr_batched', 'pcr_completed') THEN 1 END) as processing
       FROM samples
     `)[0];
+  }
+
+  // Sample queue management methods
+  getSampleQueueCounts() {
+    return this.raw(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'active' THEN 1 END) as active,
+        COUNT(CASE WHEN workflow_status IN ('sample_collected', 'pcr_ready') AND batch_id IS NULL THEN 1 END) as pending,
+        COUNT(CASE WHEN workflow_status = 'pcr_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'LDS_%' AND lab_batch_number NOT LIKE '%_RR') THEN 1 END) as pcrBatched,
+        COUNT(CASE WHEN workflow_status = 'electro_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'ELEC_%') THEN 1 END) as electroBatched,
+        COUNT(CASE WHEN workflow_status = 'rerun_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE '%_RR') THEN 1 END) as rerunBatched,
+        COUNT(CASE WHEN workflow_status IN ('analysis_completed') THEN 1 END) as completed,
+        COUNT(CASE WHEN workflow_status IN ('pcr_batched', 'pcr_completed') THEN 1 END) as processing
+      FROM samples
+    `)[0];
+  }
+
+  getSamplesForQueue(queueType) {
+    let whereClause = '';
+    let params = [];
+    
+    switch (queueType) {
+      case 'pcr_ready':
+        whereClause = "WHERE workflow_status IN ('sample_collected', 'pcr_ready') AND batch_id IS NULL";
+        break;
+      case 'pcr_batched':
+        whereClause = "WHERE workflow_status = 'pcr_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'LDS_%' AND lab_batch_number NOT LIKE '%_RR')";
+        break;
+      case 'electro_ready':
+        whereClause = "WHERE workflow_status = 'pcr_completed' OR workflow_status = 'electro_ready'";
+        break;
+      case 'electro_batched':
+        whereClause = "WHERE workflow_status = 'electro_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'ELEC_%')";
+        break;
+      case 'analysis_ready':
+        whereClause = "WHERE workflow_status = 'electro_completed' OR workflow_status = 'analysis_ready'";
+        break;
+      case 'completed':
+        whereClause = "WHERE workflow_status IN ('analysis_completed')";
+        break;
+      default:
+        whereClause = "WHERE 1=1";
+    }
+    
+    return this.raw(`
+      SELECT 
+        id, lab_number, name, surname, relation, status, 
+        collection_date, workflow_status, case_number, batch_id, lab_batch_number
+      FROM samples 
+      ${whereClause}
+      ORDER BY lab_number ASC 
+      LIMIT 100
+    `, params);
+  }
+
+  // Batch update sample workflow status
+  batchUpdateSampleWorkflowStatus(sampleIds, workflowStatus) {
+    if (!Array.isArray(sampleIds) || sampleIds.length === 0) {
+      throw new DatabaseError('Sample IDs array is required and cannot be empty');
+    }
+    
+    const placeholders = sampleIds.map(() => '?').join(',');
+    const sql = `
+      UPDATE samples 
+      SET workflow_status = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE id IN (${placeholders})
+    `;
+    
+    const params = [workflowStatus, ...sampleIds];
+    const stmt = this.db.prepare(sql);
+    return stmt.run(...params);
+  }
+
+  // Additional missing methods for API compatibility
+  getSamplesWithBatchingStatus() {
+    return this.raw(`
+      SELECT 
+        id, lab_number, name, surname, relation, status, 
+        collection_date, workflow_status, case_number, batch_id, lab_batch_number
+      FROM samples 
+      ORDER BY lab_number ASC
+    `);
+  }
+
+  generateSequentialLabNumbers(clientType = 'paternity', count = 1) {
+    const year = new Date().getFullYear();
+    const yearSuffix = year.toString().slice(-2);
+    
+    let prefix = '';
+    if (clientType === 'legal' || clientType === 'lt') {
+      prefix = 'LT';
+    }
+    
+    const searchPattern = prefix ? `${prefix}${yearSuffix}_%` : `${yearSuffix}_%`;
+    const stmt = this.db.prepare(`
+      SELECT lab_number FROM samples 
+      WHERE lab_number LIKE ? 
+      ORDER BY CAST(SUBSTR(lab_number, INSTR(lab_number, '_') + 1) AS INTEGER) DESC 
+      LIMIT 1
+    `);
+    
+    const lastNumber = stmt.get(searchPattern);
+    let startSeq = 1;
+    
+    if (lastNumber) {
+      const parts = lastNumber.lab_number.split('_');
+      startSeq = (parseInt(parts[1]) || 0) + 1;
+    }
+    
+    const labNumbers = [];
+    for (let i = 0; i < count; i++) {
+      labNumbers.push(`${prefix}${yearSuffix}_${String(startSeq + i).padStart(3, '0')}`);
+    }
+    
+    return labNumbers;
+  }
+
+  getSamplesByBatchNumber(batchNumber) {
+    return this.raw(`
+      SELECT s.*, b.batch_number 
+      FROM samples s
+      JOIN batches b ON s.batch_id = b.id
+      WHERE b.batch_number = ?
+      ORDER BY s.lab_number ASC
+    `, [batchNumber]);
+  }
+
+  // Well assignment methods (create tables if needed)
+  createWellAssignment(wellData) {
+    try {
+      // Create table if it doesn't exist
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS well_assignments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          batch_id INTEGER NOT NULL,
+          well_position TEXT NOT NULL,
+          sample_id INTEGER,
+          well_type TEXT NOT NULL,
+          kit_number TEXT,
+          sample_name TEXT,
+          comment TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      
+      const stmt = this.db.prepare(`
+        INSERT INTO well_assignments (
+          batch_id, well_position, sample_id, well_type, 
+          kit_number, sample_name, comment
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      return stmt.run(
+        wellData.batch_id,
+        wellData.well_position,
+        wellData.sample_id,
+        wellData.well_type,
+        wellData.kit_number,
+        wellData.sample_name,
+        wellData.comment
+      );
+    } catch (error) {
+      throw new DatabaseError('Failed to create well assignment', error);
+    }
+  }
+
+  getWellAssignments(batchId) {
+    try {
+      // Create table if it doesn't exist
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS well_assignments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          batch_id INTEGER NOT NULL,
+          well_position TEXT NOT NULL,
+          sample_id INTEGER,
+          well_type TEXT NOT NULL,
+          kit_number TEXT,
+          sample_name TEXT,
+          comment TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      
+      return this.raw(`
+        SELECT * FROM well_assignments 
+        WHERE batch_id = ? 
+        ORDER BY well_position ASC
+      `, [batchId]);
+    } catch (error) {
+      throw new DatabaseError('Failed to get well assignments', error);
+    }
   }
 
   // Test case methods

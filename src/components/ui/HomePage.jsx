@@ -62,7 +62,9 @@ const HomePage = ({ isDarkMode }) => {
       setRefreshing(true);
       const response = await optimizedApi.refreshDatabase();
       if (response.success) {
-        setDbStats(response.statistics);
+        // Handle both wrapped and direct response formats
+        const stats = response.data?.statistics || response.statistics;
+        setDbStats(stats);
         setSnackbar({
           open: true,
           message: 'Database refreshed successfully',

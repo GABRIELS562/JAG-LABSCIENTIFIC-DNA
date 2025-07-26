@@ -30,13 +30,27 @@ router.get("/test", (req, res) => {
   });
 });
 
-// Database refresh endpoint
-router.post("/refresh-database", (req, res) => {
+// Enhanced database refresh endpoint with optimizations
+router.post("/refresh-database", async (req, res) => {
   try {
     if (DB_MODE === 'sqlite') {
-      // Refresh database schema and connections
-      db.createTables();
+      const startTime = Date.now();
       
+      // Optimize database with VACUUM and ANALYZE
+      try {
+        db.db.exec('VACUUM');
+        db.db.exec('ANALYZE');
+      } catch (optimizeError) {
+        console.warn('Database optimization warning:', optimizeError.message);
+      }
+      
+      // Only recreate tables if schema has changed
+      const forceRebuild = req.body?.forceRebuild || false;
+      if (forceRebuild) {
+        db.createTables();
+      }
+      
+      // Get database statistics efficiently
       const stats = {
         samples: db.getAllSamples().length,
         batches: db.getAllBatches().length,
@@ -46,11 +60,18 @@ router.post("/refresh-database", (req, res) => {
         reports: db.getAllReports().length
       };
       
+      const processingTime = Date.now() - startTime;
+      
       res.json({
         success: true,
-        message: 'Database refreshed successfully',
+        message: 'Database refreshed and optimized successfully',
         timestamp: new Date().toISOString(),
-        statistics: stats
+        statistics: stats,
+        performance: {
+          processingTime: `${processingTime}ms`,
+          optimized: true,
+          schemaRebuilt: forceRebuild
+        }
       });
     } else {
       res.status(501).json({ 
@@ -62,7 +83,8 @@ router.post("/refresh-database", (req, res) => {
     console.error('Database refresh error:', error);
     res.status(500).json({ 
       success: false, 
-      error: error.message 
+      error: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });

@@ -271,6 +271,58 @@ app.get("/api/samples/queue-counts", (req, res) => {
   }
 });
 
+app.get("/api/samples/queue/:queueType", (req, res) => {
+  try {
+    const { queueType } = req.params;
+    const validQueues = ['pcr_ready', 'pcr_batched', 'electro_ready', 'electro_batched', 'analysis_ready', 'completed'];
+    
+    if (!validQueues.includes(queueType)) {
+      return ResponseHandler.error(res, `Invalid queue type. Must be one of: ${validQueues.join(', ')}`, 400);
+    }
+    
+    let samples = [];
+    let whereClause = '';
+    
+    switch (queueType) {
+      case 'pcr_ready':
+        whereClause = "WHERE workflow_status IN ('sample_collected', 'pcr_ready') AND batch_id IS NULL";
+        break;
+      case 'pcr_batched':
+        whereClause = "WHERE workflow_status = 'pcr_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'LDS_%' AND lab_batch_number NOT LIKE '%_RR')";
+        break;
+      case 'electro_ready':
+        whereClause = "WHERE workflow_status = 'pcr_completed' OR workflow_status = 'electro_ready'";
+        break;
+      case 'electro_batched':
+        whereClause = "WHERE workflow_status = 'electro_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'ELEC_%')";
+        break;
+      case 'analysis_ready':
+        whereClause = "WHERE workflow_status = 'electro_completed' OR workflow_status = 'analysis_ready'";
+        break;
+      case 'completed':
+        whereClause = "WHERE workflow_status IN ('analysis_completed')";
+        break;
+      default:
+        whereClause = "WHERE 1=1";
+    }
+    
+    const stmt = db.prepare(`
+      SELECT 
+        id, lab_number, name, surname, relation, status, 
+        collection_date, workflow_status, case_number, batch_id, lab_batch_number
+      FROM samples 
+      ${whereClause}
+      ORDER BY lab_number ASC 
+      LIMIT 100
+    `);
+    
+    samples = stmt.all();
+    ResponseHandler.success(res, samples);
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to get samples for queue', error);
+  }
+});
+
 app.get("/api/samples/search", (req, res) => {
   try {
     const query = req.query.q;
