@@ -1,26 +1,57 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { api as optimizedApi } from '../../services/api';
+import {
+  Box,
+  Card,
+  CardContent,
+  Typography,
+  TextField,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Chip,
+  Grid,
+  Alert,
+  CircularProgress,
+  Button,
+  InputAdornment,
+  IconButton,
+  Tooltip
+} from '@mui/material';
+import {
+  Search as SearchIcon,
+  Refresh as RefreshIcon,
+  Clear as ClearIcon,
+  People as PeopleIcon,
+  Science as ScienceIcon,
+  Assessment as AssessmentIcon,
+  TrendingUp as TrendingUpIcon
+} from '@mui/icons-material';
+import api from '../../services/api';
+import { getStatusColor, formatDate } from '../../utils/statusHelpers';
 
 export default function SampleSearch() {
   const [query, setQuery] = useState('');
   const [samples, setSamples] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [stats, setStats] = useState(null);
 
   // Load all samples on component mount
   useEffect(() => {
     loadAllSamples();
+    loadSampleStats();
   }, []);
 
   const loadAllSamples = async () => {
     try {
       setLoading(true);
-      const response = await optimizedApi.getAllSamples();
+      const response = await api.getSamples();
       if (response.success) {
-        setSamples(response.data);
+        setSamples(response.data || []);
       } else {
         setError('Failed to load samples');
       }
@@ -28,6 +59,17 @@ export default function SampleSearch() {
       setError('Error loading samples');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSampleStats = async () => {
+    try {
+      const response = await api.getSampleCounts();
+      if (response.success) {
+        setStats(response.data);
+      }
+    } catch (error) {
+      console.error('Error loading sample stats:', error);
     }
   };
 
@@ -41,9 +83,9 @@ export default function SampleSearch() {
 
     try {
       setLoading(true);
-      const response = await optimizedApi.searchSamples(searchQuery);
+      const response = await api.searchSamples(searchQuery);
       if (response.success) {
-        setSamples(response.data);
+        setSamples(response.data || []);
       } else {
         setError('Failed to search samples');
       }
@@ -53,79 +95,240 @@ export default function SampleSearch() {
       setLoading(false);
     }
   };
+
+  const handleClearSearch = () => {
+    setQuery('');
+    loadAllSamples();
+  };
+
+  const handleRefresh = async () => {
+    await Promise.all([loadAllSamples(), loadSampleStats()]);
+  };
+
+  // Status utilities now imported from centralized location
+
   return (
-    <div className="flex justify-center p-8">
-      <Card className="w-full max-w-4xl">
-        <CardHeader>
-          <CardTitle>Sample Search</CardTitle>
-        </CardHeader>
+    <Box sx={{ p: 3 }}>
+      {/* Header */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h4" component="h1">
+          🔍 Sample Search
+        </Typography>
+        <Button
+          variant="outlined"
+          startIcon={<RefreshIcon />}
+          onClick={handleRefresh}
+          disabled={loading}
+        >
+          Refresh
+        </Button>
+      </Box>
+
+      {/* Error Alert */}
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      {/* Stats Cards */}
+      {stats && (
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #0D488F 0%, #1e4976 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(13, 72, 143, 0.3)'
+              }
+            }}>
+              <PeopleIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.total || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Total Samples
+              </Typography>
+            </Box>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(255, 152, 0, 0.3)'
+              }
+            }}>
+              <AssessmentIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.pending || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Pending
+              </Typography>
+            </Box>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #42a5f5 0%, #1976d2 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(66, 165, 245, 0.3)'
+              }
+            }}>
+              <ScienceIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.processing || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Processing
+              </Typography>
+            </Box>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(22, 163, 74, 0.3)'
+              }
+            }}>
+              <TrendingUpIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.completed || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Completed
+              </Typography>
+            </Box>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* Search Section */}
+      <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Input
-            placeholder="Search by Lab Number, Name, or Surname"
+          <TextField
+            fullWidth
+            placeholder="Search by Lab Number, Name, Surname, or Case Number"
             value={query}
-            onChange={e => handleSearch(e.target.value)}
-            className="mb-4"
+            onChange={(e) => handleSearch(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon color="action" />
+                </InputAdornment>
+              ),
+              endAdornment: query && (
+                <InputAdornment position="end">
+                  <Tooltip title="Clear search">
+                    <IconButton onClick={handleClearSearch} edge="end">
+                      <ClearIcon />
+                    </IconButton>
+                  </Tooltip>
+                </InputAdornment>
+              )
+            }}
           />
           
-          {error && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-              {error}
-            </div>
-          )}
-          
-          {loading && (
-            <div className="mb-4 text-center">
-              <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-              <span className="ml-2">Loading samples...</span>
-            </div>
-          )}
-
-          <div className="mb-4 text-sm text-gray-600">
-            Found {samples.length} sample{samples.length !== 1 ? 's' : ''}
-          </div>
-
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Lab Number</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Surname</TableHead>
-                <TableHead>Relation</TableHead>
-                <TableHead>Collection Date</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {samples.length === 0 && !loading ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-gray-500 py-8">
-                    {query ? 'No samples found matching your search' : 'No samples available'}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                samples.map((sample) => (
-                  <TableRow key={sample.id}>
-                    <TableCell className="font-medium">{sample.lab_number}</TableCell>
-                    <TableCell>{sample.name}</TableCell>
-                    <TableCell>{sample.surname}</TableCell>
-                    <TableCell>{sample.relation}</TableCell>
-                    <TableCell>{sample.collection_date}</TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        sample.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        sample.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {sample.status}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mt={2}>
+            <Typography variant="body2" color="text.secondary">
+              {loading ? 'Searching...' : `Found ${samples.length} sample${samples.length !== 1 ? 's' : ''}`}
+              {query && ` matching "${query}"`}
+            </Typography>
+            
+            {loading && <CircularProgress size={20} />}
+          </Box>
         </CardContent>
       </Card>
-    </div>
+
+      {/* Results Table */}
+      <Card>
+        <CardContent>
+          <TableContainer component={Paper} elevation={0} sx={{ overflowX: 'auto' }}>
+            <Table sx={{ minWidth: 650 }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell><strong>Lab Number</strong></TableCell>
+                  <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Name</strong></TableCell>
+                  <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Surname</strong></TableCell>
+                  <TableCell><strong>Relation</strong></TableCell>
+                  <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}><strong>Case Number</strong></TableCell>
+                  <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}><strong>Collection Date</strong></TableCell>
+                  <TableCell><strong>Status</strong></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {samples.length === 0 && !loading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                      <Typography variant="body1" color="text.secondary">
+                        {query ? 'No samples found matching your search criteria' : 'No samples available'}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  samples.map((sample) => (
+                    <TableRow key={sample.id} hover>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                          {sample.lab_number}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{sample.name}</TableCell>
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{sample.surname}</TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={sample.relation} 
+                          size="small" 
+                          variant="outlined"
+                          color="primary"
+                        />
+                      </TableCell>
+                      <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{sample.case_number}</TableCell>
+                      <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{formatDate(sample.collection_date)}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={sample.workflow_status || sample.status}
+                          size="small"
+                          color={getStatusColor(sample.workflow_status || sample.status)}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </CardContent>
+      </Card>
+    </Box>
   );
 } 

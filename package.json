@@ -15,8 +15,8 @@
     "logs": "pm2 logs",
     "build": "vite build",
     "build:prod": "cross-env NODE_ENV=production vite build",
-    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
-    "lint:prod": "eslint . --ext js,jsx --max-warnings 0",
+    "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
+    "lint:prod": "eslint . --max-warnings 0",
     "preview": "vite preview",
     "server": "node backend/server.js",
     "server:full": "node backend/server.js",
@@ -33,9 +33,12 @@
     "dist": "npm run build && electron-builder --publish=never",
     "clean": "rm -rf dist build",
     "clean:all": "npm run clean && rm -rf node_modules backend/node_modules",
+    "analyze": "npm run build:prod && npx vite-bundle-analyzer dist",
+    "optimize": "npm run lint:prod && npm run build:prod",
     "postinstall": "npm run postinstall:backend",
     "postinstall:backend": "cd backend && npm install",
-    "audit:prod": "npm audit --audit-level moderate"
+    "audit:prod": "npm audit --audit-level moderate",
+    "security:check": "npm audit && npm run audit:prod"
   },
   "dependencies": {
     "@emotion/react": "^11.11.3",
@@ -114,7 +117,6 @@
       "public/preload.js",
       "backend/**/*",
       "!backend/node_modules/**/*",
-      "!backend/test/**/*",
       "!backend/scripts/**/*",
       "!backend/uploads/**/*",
       "!backend/reports/**/*",

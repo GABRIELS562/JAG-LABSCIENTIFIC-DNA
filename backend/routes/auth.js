@@ -1,197 +1,277 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
-const { generateToken, authenticateToken } = require('../middleware/auth');
+const { 
+  authenticateToken, 
+  tokenUtils, 
+  passwordUtils, 
+  validationUtils, 
+  authResponse 
+} = require('../middleware/auth');
+const databaseService = require('../services/database');
 const router = express.Router();
-
-// In-memory user store (in production, use a proper database)
-const users = [
-  {
-    id: 1,
-    email: 'admin@labdna.co.za',
-    password: '$2a$10$JWRu9A0AX6J6plBp0nBIh.vCQ2IlvJNpfHX0STIcASDaDLcCATuDa', // 'admin123'
-    name: 'Lab Administrator',
-    role: 'staff'
-  },
-  {
-    id: 2,
-    email: 'staff@labdna.co.za',
-    password: '$2a$10$JWRu9A0AX6J6plBp0nBIh.vCQ2IlvJNpfHX0STIcASDaDLcCATuDa', // 'admin123'
-    name: 'Lab Staff',
-    role: 'staff'
-  },
-  {
-    id: 3,
-    email: 'client@example.com',
-    password: '$2a$10$JWRu9A0AX6J6plBp0nBIh.vCQ2IlvJNpfHX0STIcASDaDLcCATuDa', // 'admin123'
-    name: 'Test Client',
-    role: 'client'
-  }
-];
 
 // Login endpoint
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { username, email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        error: 'Email and password are required'
-      });
+    // Validate input
+    const validation = validationUtils.validateLogin({ username, email, password });
+    if (!validation.isValid) {
+      return authResponse.error(res, validation.errors.join(', '), 400, 'VALIDATION_ERROR');
     }
 
-    // Find user by email
-    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    // Find user by username or email
+    let user = null;
+    if (username) {
+      user = databaseService.getUserByUsername(username);
+    } else if (email) {
+      user = databaseService.getUserByEmail(email);
+    }
+
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid credentials'
-      });
+      return authResponse.error(res, 'Invalid credentials', 401, 'INVALID_CREDENTIALS');
     }
 
     // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password);
+    const isValidPassword = await passwordUtils.verifyPassword(password, user.password_hash);
     if (!isValidPassword) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid credentials'
-      });
+      return authResponse.error(res, 'Invalid credentials', 401, 'INVALID_CREDENTIALS');
     }
 
+    // Update last login
+    databaseService.updateUserLastLogin(user.id);
+
     // Generate token
-    const token = generateToken({
+    const token = tokenUtils.generateToken({
       id: user.id,
+      username: user.username,
       email: user.email,
-      name: user.name,
       role: user.role
     });
 
     // Return success response
-    res.json({
-      success: true,
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role
-      }
-    });
+    authResponse.loginSuccess(res, user, token);
 
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    });
+    authResponse.error(res, 'Internal server error', 500, 'SERVER_ERROR');
   }
 });
 
 // Get current user endpoint
 router.get('/me', authenticateToken, (req, res) => {
   try {
-    const user = users.find(u => u.id === req.user.id);
+    const user = databaseService.getUserById(req.user.id);
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: 'User not found'
-      });
+      return authResponse.error(res, 'User not found', 404, 'USER_NOT_FOUND');
     }
 
-    res.json({
-      success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role
-      }
+    authResponse.success(res, {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      created_at: user.created_at,
+      updated_at: user.updated_at
     });
   } catch (error) {
     console.error('Get user error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    });
+    authResponse.error(res, 'Internal server error', 500, 'SERVER_ERROR');
   }
 });
 
 // Token refresh endpoint
 router.post('/refresh', authenticateToken, (req, res) => {
   try {
-    // Generate new token with same payload
-    const newToken = generateToken({
-      id: req.user.id,
-      email: req.user.email,
-      name: req.user.name,
-      role: req.user.role
+    // Verify user still exists
+    const user = databaseService.getUserById(req.user.id);
+    if (!user) {
+      return authResponse.error(res, 'User not found', 404, 'USER_NOT_FOUND');
+    }
+
+    // Generate new token with current user data
+    const newToken = tokenUtils.generateToken({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role
     });
 
-    res.json({
-      success: true,
-      token: newToken
-    });
+    authResponse.success(res, { token: newToken });
   } catch (error) {
     console.error('Token refresh error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    });
+    authResponse.error(res, 'Internal server error', 500, 'SERVER_ERROR');
   }
 });
 
-// Create initial admin user (for development)
-router.post('/create-admin', async (req, res) => {
+// Logout endpoint (for token blacklisting if needed)
+router.post('/logout', authenticateToken, (req, res) => {
   try {
-    const { email, password, name } = req.body;
-    
-    if (!email || !password || !name) {
-      return res.status(400).json({
-        success: false,
-        error: 'Email, password, and name are required'
-      });
+    // In a full implementation, you would blacklist the token here
+    // For now, we'll just return success as token expiry handles security
+    authResponse.success(res, { message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    authResponse.error(res, 'Internal server error', 500, 'SERVER_ERROR');
+  }
+});
+
+// Register new user endpoint (staff only)
+router.post('/register', authenticateToken, async (req, res) => {
+  try {
+    // Check if current user is staff
+    if (req.user.role !== 'staff') {
+      return authResponse.error(res, 'Only staff can register new users', 403, 'INSUFFICIENT_PERMISSIONS');
     }
 
-    // Check if user already exists
-    const existingUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        error: 'User already exists'
-      });
+    const { username, email, password, role } = req.body;
+
+    // Validate input
+    const validation = validationUtils.validateRegistration({ username, email, password, role });
+    if (!validation.isValid) {
+      return authResponse.error(res, validation.errors.join(', '), 400, 'VALIDATION_ERROR');
+    }
+
+    // Check if username or email already exists
+    if (databaseService.checkUsernameExists(username)) {
+      return authResponse.error(res, 'Username already exists', 400, 'USERNAME_EXISTS');
+    }
+
+    if (databaseService.checkEmailExists(email)) {
+      return authResponse.error(res, 'Email already exists', 400, 'EMAIL_EXISTS');
     }
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await passwordUtils.hashPassword(password);
 
     // Create new user
-    const newUser = {
-      id: users.length + 1,
+    const newUser = databaseService.createUser({
+      username: username.toLowerCase(),
       email: email.toLowerCase(),
-      password: hashedPassword,
-      name,
-      role: 'staff'
-    };
+      password_hash: hashedPassword,
+      role
+    });
 
-    users.push(newUser);
-
-    res.json({
-      success: true,
-      message: 'Admin user created successfully',
+    authResponse.success(res, {
+      message: 'User created successfully',
       user: {
         id: newUser.id,
+        username: newUser.username,
         email: newUser.email,
-        name: newUser.name,
         role: newUser.role
       }
     });
 
   } catch (error) {
-    console.error('Create admin error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
+    console.error('Register error:', error);
+    authResponse.error(res, 'Internal server error', 500, 'SERVER_ERROR');
+  }
+});
+
+// Get all users endpoint (staff only)
+router.get('/users', authenticateToken, (req, res) => {
+  try {
+    // Check if current user is staff
+    if (req.user.role !== 'staff') {
+      return authResponse.error(res, 'Only staff can view all users', 403, 'INSUFFICIENT_PERMISSIONS');
+    }
+
+    const users = databaseService.getAllUsers();
+    authResponse.success(res, users);
+  } catch (error) {
+    console.error('Get users error:', error);
+    authResponse.error(res, 'Internal server error', 500, 'SERVER_ERROR');
+  }
+});
+
+// Update user endpoint (staff only or own profile)
+router.put('/users/:id', authenticateToken, async (req, res) => {
+  try {
+    const targetUserId = parseInt(req.params.id);
+    const { username, email, password, role } = req.body;
+
+    // Check permissions - staff can edit anyone, users can edit their own profile
+    if (req.user.role !== 'staff' && req.user.id !== targetUserId) {
+      return authResponse.error(res, 'Insufficient permissions', 403, 'INSUFFICIENT_PERMISSIONS');
+    }
+
+    // Non-staff users can't change roles
+    if (req.user.role !== 'staff' && role) {
+      return authResponse.error(res, 'Cannot change role', 403, 'CANNOT_CHANGE_ROLE');
+    }
+
+    const updateData = {};
+
+    if (username) {
+      if (databaseService.checkUsernameExists(username, targetUserId)) {
+        return authResponse.error(res, 'Username already exists', 400, 'USERNAME_EXISTS');
+      }
+      updateData.username = username.toLowerCase();
+    }
+
+    if (email) {
+      if (!validationUtils.isValidEmail(email)) {
+        return authResponse.error(res, 'Invalid email format', 400, 'INVALID_EMAIL');
+      }
+      if (databaseService.checkEmailExists(email, targetUserId)) {
+        return authResponse.error(res, 'Email already exists', 400, 'EMAIL_EXISTS');
+      }
+      updateData.email = email.toLowerCase();
+    }
+
+    if (password) {
+      if (password.length < 6) {
+        return authResponse.error(res, 'Password must be at least 6 characters', 400, 'PASSWORD_TOO_SHORT');
+      }
+      updateData.password_hash = await passwordUtils.hashPassword(password);
+    }
+
+    if (role && req.user.role === 'staff') {
+      if (!['staff', 'client'].includes(role)) {
+        return authResponse.error(res, 'Invalid role', 400, 'INVALID_ROLE');
+      }
+      updateData.role = role;
+    }
+
+    const updatedUser = databaseService.updateUser(targetUserId, updateData);
+    
+    authResponse.success(res, {
+      message: 'User updated successfully',
+      user: {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        role: updatedUser.role
+      }
     });
+
+  } catch (error) {
+    console.error('Update user error:', error);
+    authResponse.error(res, 'Internal server error', 500, 'SERVER_ERROR');
+  }
+});
+
+// Delete user endpoint (staff only)
+router.delete('/users/:id', authenticateToken, (req, res) => {
+  try {
+    // Check if current user is staff
+    if (req.user.role !== 'staff') {
+      return authResponse.error(res, 'Only staff can delete users', 403, 'INSUFFICIENT_PERMISSIONS');
+    }
+
+    const targetUserId = parseInt(req.params.id);
+
+    // Don't allow users to delete themselves
+    if (req.user.id === targetUserId) {
+      return authResponse.error(res, 'Cannot delete your own account', 400, 'CANNOT_DELETE_SELF');
+    }
+
+    databaseService.deleteUser(targetUserId);
+    authResponse.success(res, { message: 'User deleted successfully' });
+
+  } catch (error) {
+    console.error('Delete user error:', error);
+    authResponse.error(res, 'Internal server error', 500, 'SERVER_ERROR');
   }
 });
 

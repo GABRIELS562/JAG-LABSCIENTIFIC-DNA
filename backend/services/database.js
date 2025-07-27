@@ -1007,6 +1007,211 @@ class UnifiedDatabaseService {
     }
   }
 
+  // User authentication methods
+  createUser(userData) {
+    try {
+      this.ensureConnection();
+      const stmt = this.db.prepare(`
+        INSERT INTO users (username, email, password_hash, role)
+        VALUES (?, ?, ?, ?)
+      `);
+      
+      const result = stmt.run(
+        userData.username,
+        userData.email,
+        userData.password_hash,
+        userData.role
+      );
+      
+      return {
+        id: result.lastInsertRowid,
+        username: userData.username,
+        email: userData.email,
+        role: userData.role
+      };
+    } catch (error) {
+      throw new DatabaseError('Failed to create user', error);
+    }
+  }
+
+  getUserByUsername(username) {
+    try {
+      this.ensureConnection();
+      const stmt = this.db.prepare(`
+        SELECT id, username, email, password_hash, role, created_at, updated_at
+        FROM users 
+        WHERE username = ?
+      `);
+      
+      return stmt.get(username);
+    } catch (error) {
+      throw new DatabaseError('Failed to get user by username', error);
+    }
+  }
+
+  getUserByEmail(email) {
+    try {
+      this.ensureConnection();
+      const stmt = this.db.prepare(`
+        SELECT id, username, email, password_hash, role, created_at, updated_at
+        FROM users 
+        WHERE email = ?
+      `);
+      
+      return stmt.get(email);
+    } catch (error) {
+      throw new DatabaseError('Failed to get user by email', error);
+    }
+  }
+
+  getUserById(id) {
+    try {
+      this.ensureConnection();
+      const stmt = this.db.prepare(`
+        SELECT id, username, email, role, created_at, updated_at
+        FROM users 
+        WHERE id = ?
+      `);
+      
+      return stmt.get(id);
+    } catch (error) {
+      throw new DatabaseError('Failed to get user by ID', error);
+    }
+  }
+
+  getAllUsers() {
+    try {
+      this.ensureConnection();
+      const stmt = this.db.prepare(`
+        SELECT id, username, email, role, created_at, updated_at
+        FROM users 
+        ORDER BY created_at DESC
+      `);
+      
+      return stmt.all();
+    } catch (error) {
+      throw new DatabaseError('Failed to get all users', error);
+    }
+  }
+
+  updateUser(id, userData) {
+    try {
+      this.ensureConnection();
+      const updates = [];
+      const values = [];
+      
+      if (userData.username) {
+        updates.push('username = ?');
+        values.push(userData.username);
+      }
+      
+      if (userData.email) {
+        updates.push('email = ?');
+        values.push(userData.email);
+      }
+      
+      if (userData.password_hash) {
+        updates.push('password_hash = ?');
+        values.push(userData.password_hash);
+      }
+      
+      if (userData.role) {
+        updates.push('role = ?');
+        values.push(userData.role);
+      }
+      
+      updates.push('updated_at = CURRENT_TIMESTAMP');
+      values.push(id);
+      
+      const stmt = this.db.prepare(`
+        UPDATE users 
+        SET ${updates.join(', ')} 
+        WHERE id = ?
+      `);
+      
+      const result = stmt.run(...values);
+      
+      if (result.changes === 0) {
+        throw new Error('User not found');
+      }
+      
+      return this.getUserById(id);
+    } catch (error) {
+      throw new DatabaseError('Failed to update user', error);
+    }
+  }
+
+  deleteUser(id) {
+    try {
+      this.ensureConnection();
+      const stmt = this.db.prepare('DELETE FROM users WHERE id = ?');
+      const result = stmt.run(id);
+      
+      if (result.changes === 0) {
+        throw new Error('User not found');
+      }
+      
+      return { success: true, deletedId: id };
+    } catch (error) {
+      throw new DatabaseError('Failed to delete user', error);
+    }
+  }
+
+  updateUserLastLogin(id) {
+    try {
+      this.ensureConnection();
+      const stmt = this.db.prepare(`
+        UPDATE users 
+        SET updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+      `);
+      
+      stmt.run(id);
+    } catch (error) {
+      throw new DatabaseError('Failed to update user last login', error);
+    }
+  }
+
+  checkUsernameExists(username, excludeId = null) {
+    try {
+      this.ensureConnection();
+      let stmt;
+      let result;
+      
+      if (excludeId) {
+        stmt = this.db.prepare('SELECT COUNT(*) as count FROM users WHERE username = ? AND id != ?');
+        result = stmt.get(username, excludeId);
+      } else {
+        stmt = this.db.prepare('SELECT COUNT(*) as count FROM users WHERE username = ?');
+        result = stmt.get(username);
+      }
+      
+      return result.count > 0;
+    } catch (error) {
+      throw new DatabaseError('Failed to check username exists', error);
+    }
+  }
+
+  checkEmailExists(email, excludeId = null) {
+    try {
+      this.ensureConnection();
+      let stmt;
+      let result;
+      
+      if (excludeId) {
+        stmt = this.db.prepare('SELECT COUNT(*) as count FROM users WHERE email = ? AND id != ?');
+        result = stmt.get(email, excludeId);
+      } else {
+        stmt = this.db.prepare('SELECT COUNT(*) as count FROM users WHERE email = ?');
+        result = stmt.get(email);
+      }
+      
+      return result.count > 0;
+    } catch (error) {
+      throw new DatabaseError('Failed to check email exists', error);
+    }
+  }
+
   async shutdown() {
     if (logger.info) {
       logger.info('Initiating database shutdown');

@@ -175,9 +175,6 @@ export const api = {
   clearCache: () => apiClient.clearCache(),
 
   // Core API methods
-  async getReports() {
-    return apiClient.fetchJson('/api/reports');
-  },
 
   async submitPaternityTest(data) {
     return apiClient.fetchJson('/api/submit-test', {
@@ -359,6 +356,5 @@ export const batchApi = {
 // Export the client instance for direct access if needed
 export { apiClient };
 
-// Legacy compatibility exports
-export { api as default };
-export { api as optimizedApi };
+// Export as default
+export default api;

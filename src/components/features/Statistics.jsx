@@ -16,7 +16,7 @@ import {
   Area,
   AreaChart
 } from 'recharts';
-import { api as optimizedApi } from '../../services/api';
+import api from '../../services/api';
 import {
   Box,
   Paper,
@@ -109,7 +109,7 @@ export default function Statistics() {
       
       // Load comprehensive data from existing API endpoints
       const [samplesRes, batchesRes, reportsRes] = await Promise.all([
-        optimizedApi.getAllSamples(),
+        api.getAllSamples(),
         // Note: Add batch and report endpoints when available
         // For now, we'll work with sample data
         Promise.resolve({ data: [] }),
@@ -216,12 +216,57 @@ export default function Statistics() {
     };
     
     samples.forEach(sample => {
-      // Relation distribution
-      const relation = sample.relation || 'Unknown';
+      // Clean and normalize relation data
+      let relation = sample.relation || 'Unknown';
+      
+      // Handle cases where relation contains lab numbers or other data
+      if (relation.includes('(') && relation.includes(')')) {
+        // Extract the relation type before parentheses: "child(25_123)M" -> "child"
+        relation = relation.split('(')[0];
+      }
+      
+      // Normalize common relation types
+      relation = relation.toLowerCase();
+      switch (relation) {
+        case 'child':
+        case 'children':
+          relation = 'Child';
+          break;
+        case 'mother':
+        case 'mom':
+          relation = 'Mother';
+          break;
+        case 'father':
+        case 'alleged_father':
+        case 'dad':
+          relation = 'Alleged Father';
+          break;
+        case 'guardian':
+          relation = 'Guardian';
+          break;
+        default:
+          relation = relation.charAt(0).toUpperCase() + relation.slice(1);
+      }
+      
       demographics.relations[relation] = (demographics.relations[relation] || 0) + 1;
       
-      // Gender distribution
-      const gender = sample.gender || 'Not specified';
+      // Clean gender data
+      let gender = sample.gender || 'Not specified';
+      
+      // Handle cases where gender is embedded in relation string
+      if (!sample.gender && sample.relation) {
+        const relationStr = sample.relation;
+        if (relationStr.includes('M') && !relationStr.includes('Mother')) {
+          gender = 'Male';
+        } else if (relationStr.includes('F')) {
+          gender = 'Female';
+        }
+      }
+      
+      // Normalize gender values
+      if (gender === 'M') gender = 'Male';
+      if (gender === 'F') gender = 'Female';
+      
       demographics.genders[gender] = (demographics.genders[gender] || 0) + 1;
       
       // Sample type distribution
@@ -860,34 +905,64 @@ export default function Statistics() {
           {/* Demographics Summary */}
           <Grid item xs={12} md={6}>
             <Box>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Demographics Overview
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+                👥 Demographics Overview
               </Typography>
-              <Stack spacing={2}>
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">
+              <Stack spacing={3}>
+                <Box sx={{ p: 2, bgcolor: isDarkMode ? 'grey.800' : 'grey.50', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5 }}>
                     Sample Relations
                   </Typography>
-                  {Object.entries(dashboardData.demographics?.relations || {}).map(([relation, count]) => (
-                    <Box key={relation} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
-                      <Typography variant="body2">{relation}</Typography>
-                      <Chip label={count} size="small" color="primary" />
-                    </Box>
-                  ))}
+                  <Stack spacing={1}>
+                    {Object.entries(dashboardData.demographics?.relations || {})
+                      .sort(([,a], [,b]) => b - a) // Sort by count descending
+                      .map(([relation, count]) => (
+                      <Box key={relation} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          {relation}
+                        </Typography>
+                        <Chip 
+                          label={count} 
+                          size="small" 
+                          color="primary" 
+                          sx={{ minWidth: 50, fontWeight: 'bold' }}
+                        />
+                      </Box>
+                    ))}
+                    {Object.keys(dashboardData.demographics?.relations || {}).length === 0 && (
+                      <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                        No relation data available
+                      </Typography>
+                    )}
+                  </Stack>
                 </Box>
                 
-                <Divider />
-                
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">
+                <Box sx={{ p: 2, bgcolor: isDarkMode ? 'grey.800' : 'grey.50', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5 }}>
                     Gender Distribution
                   </Typography>
-                  {Object.entries(dashboardData.demographics?.genders || {}).map(([gender, count]) => (
-                    <Box key={gender} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
-                      <Typography variant="body2">{gender}</Typography>
-                      <Chip label={count} size="small" color="secondary" />
-                    </Box>
-                  ))}
+                  <Stack spacing={1}>
+                    {Object.entries(dashboardData.demographics?.genders || {})
+                      .sort(([,a], [,b]) => b - a) // Sort by count descending
+                      .map(([gender, count]) => (
+                      <Box key={gender} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          {gender === 'Male' ? '👨 Male' : gender === 'Female' ? '👩 Female' : gender}
+                        </Typography>
+                        <Chip 
+                          label={count} 
+                          size="small" 
+                          color={gender === 'Male' ? 'primary' : gender === 'Female' ? 'secondary' : 'default'}
+                          sx={{ minWidth: 50, fontWeight: 'bold' }}
+                        />
+                      </Box>
+                    ))}
+                    {Object.keys(dashboardData.demographics?.genders || {}).length === 0 && (
+                      <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                        No gender data available
+                      </Typography>
+                    )}
+                  </Stack>
                 </Box>
               </Stack>
             </Box>

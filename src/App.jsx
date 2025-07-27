@@ -9,7 +9,7 @@ import HomePage from './components/ui/HomePage';
 import ThemeToggle from './components/ui/ThemeToggle';
 import Sidebar from './components/layout/Sidebar';
 import Reports from './components/features/Reports';
-import ReportsPage from './components/ui/ReportsPage';
+import LabResults from './components/features/LabResults';
 import ElectrophoresisBatches from './components/features/ElectrophoresisBatches';
 import SampleSearch from './components/features/SampleSearch';
 import SampleQueues from './components/features/SampleQueues';
@@ -24,8 +24,13 @@ import ElectrophoresisLayout from './components/features/ElectrophoresisLayout';
 import Reruns from './components/features/Reruns';
 import ApiTest from './components/debug/ApiTest';
 
+// Import authentication components
+import LoginPage from './components/auth/LoginPage';
+import ProtectedRoute, { StaffOnlyRoute } from './components/auth/ProtectedRoute';
+
 // Import contexts and utilities
 import { ThemeProvider, useThemeContext } from './contexts/ThemeContext';
+import { AuthProvider } from './contexts/AuthContext';
 import ErrorBoundary, { withErrorBoundary } from './components/common/ErrorBoundary';
 
 function AppContent() {
@@ -83,6 +88,17 @@ function AppContent() {
         <main className={`flex-1 overflow-y-auto w-full ${isMobile ? 'pt-16' : ''}`}>
           <ThemeToggle onToggle={toggleTheme} isDarkMode={isDarkMode} />
           <Routes>
+            {/* Authentication pages - accessible separately */}
+            <Route 
+              path="/login" 
+              element={<LoginPage />} 
+            />
+            <Route 
+              path="/admin" 
+              element={<LoginPage />} 
+            />
+            
+            {/* Routes - temporarily disabled authentication for development */}
             <Route 
               path="/" 
               element={
@@ -91,6 +107,7 @@ function AppContent() {
                 </div>
               } 
             />
+            
             <Route 
               path="/register-client" 
               element={
@@ -122,26 +139,6 @@ function AppContent() {
               } 
             />
             <Route 
-              path="/reports" 
-              element={
-                <ErrorBoundary fallback="minimal">
-                  <div className={`${containerBackground} min-h-screen`}>
-                    <Reports />
-                  </div>
-                </ErrorBoundary>
-              } 
-            />
-            <Route 
-              path="/lab-results" 
-              element={
-                <ErrorBoundary fallback="minimal">
-                  <div className={`${containerBackground} min-h-screen`}>
-                    <ReportsPage />
-                  </div>
-                </ErrorBoundary>
-              } 
-            />
-            <Route 
               path="/pcr-batches" 
               element={
                 <ErrorBoundary fallback="minimal">
@@ -156,7 +153,77 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <ElectrophoresisBatches />
+                    <ElectrophoresisLayout />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/electrophoresis-layout" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <ElectrophoresisLayout />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/genetic-analysis" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <GeneticAnalysis />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/quality-control" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <QualityControl />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/reruns" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <Reruns />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/api-test" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <ApiTest />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/reports" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <Reports />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/lab-results" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <LabResults />
                   </div>
                 </ErrorBoundary>
               } 
@@ -192,26 +259,6 @@ function AppContent() {
               } 
             />
             <Route 
-              path="/quality-control" 
-              element={
-                <ErrorBoundary fallback="minimal">
-                  <div className={`${containerBackground} min-h-screen`}>
-                    <QualityControl />
-                  </div>
-                </ErrorBoundary>
-              } 
-            />
-            <Route 
-              path="/genetic-analysis" 
-              element={
-                <ErrorBoundary fallback="minimal">
-                  <div className={`${containerBackground} min-h-screen`}>
-                    <GeneticAnalysis />
-                  </div>
-                </ErrorBoundary>
-              } 
-            />
-            <Route 
               path="/analysis-summary" 
               element={
                 <ErrorBoundary fallback="minimal">
@@ -221,36 +268,7 @@ function AppContent() {
                 </ErrorBoundary>
               } 
             />
-            <Route 
-              path="/electrophoresis-layout" 
-              element={
-                <ErrorBoundary fallback="minimal">
-                  <div className={`${containerBackground} min-h-screen`}>
-                    <ElectrophoresisLayout />
-                  </div>
-                </ErrorBoundary>
-              } 
-            />
-            <Route 
-              path="/reruns" 
-              element={
-                <ErrorBoundary fallback="minimal">
-                  <div className={`${containerBackground} min-h-screen`}>
-                    <Reruns />
-                  </div>
-                </ErrorBoundary>
-              } 
-            />
-            <Route 
-              path="/api-test" 
-              element={
-                <ErrorBoundary fallback="minimal">
-                  <div className={`${containerBackground} min-h-screen`}>
-                    <ApiTest />
-                  </div>
-                </ErrorBoundary>
-              } 
-            />
+            
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
@@ -272,9 +290,11 @@ function AppWithTheme() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <AppWithTheme />
-      </ThemeProvider>
+      <AuthProvider>
+        <ThemeProvider>
+          <AppWithTheme />
+        </ThemeProvider>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }

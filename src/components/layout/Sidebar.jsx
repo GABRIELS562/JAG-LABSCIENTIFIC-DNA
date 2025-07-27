@@ -11,9 +11,16 @@ import {
   Typography,
   IconButton,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button
 } from '@mui/material';
 import { useThemeContext } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   Home,
   PersonAdd,
@@ -30,138 +37,177 @@ import {
   Group,
   Queue,
   ElectricBolt,
-  Replay
+  Replay,
+  AccountCircle,
+  Logout
 } from '@mui/icons-material';
 import Logo from '../ui/Logo';
 
 const Sidebar = ({ mobileOpen, setMobileOpen }) => {
   const navigate = useNavigate();
   const { isDarkMode } = useThemeContext();
+  const { user, logout, isStaff } = useAuth();
   const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  
+  // State for logout confirmation dialog
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
 
-  const menuItems = [
+  // Handle logout confirmation
+  const handleLogoutClick = () => {
+    setLogoutDialogOpen(true);
+  };
+
+  const handleLogoutConfirm = async () => {
+    try {
+      await logout();
+      setLogoutDialogOpen(false);
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      setLogoutDialogOpen(false);
+    }
+  };
+
+  const handleLogoutCancel = () => {
+    setLogoutDialogOpen(false);
+  };
+
+  // Define all menu items with role restrictions
+  const allMenuItems = [
     {
       icon: <Home />,
       label: 'Home',
       hasSubMenu: false,
       path: '/',
-      onClick: () => navigate('/')
+      onClick: () => navigate('/'),
+      roles: ['staff', 'client']
     },
     { 
       icon: <PersonAdd />, 
       label: 'Register Client',
       hasSubMenu: false,
       path: '/register-client',
-      onClick: () => navigate('/register-client')
+      onClick: () => navigate('/register-client'),
+      roles: ['staff']
     },
     { 
       icon: <Group />, 
       label: 'Samples',
       hasSubMenu: false,
       path: '/client-register',
-      onClick: () => navigate('/client-register')
+      onClick: () => navigate('/client-register'),
+      roles: ['staff']
     },
     { 
       icon: <EditNote />, 
       label: 'PCR Plate',
       hasSubMenu: false,
       path: '/pcr-plate',
-      onClick: () => navigate('/pcr-plate')
+      onClick: () => navigate('/pcr-plate'),
+      roles: ['staff']
     },
     { 
       icon: <Visibility />, 
       label: 'LDS PCR Batch',
       hasSubMenu: false,
       path: '/pcr-batches',
-      onClick: () => navigate('/pcr-batches')
+      onClick: () => navigate('/pcr-batches'),
+      roles: ['staff']
     },
     { 
       icon: <ElectricBolt />, 
       label: 'Electrophoresis Plate Layout',
       hasSubMenu: false,
       path: '/electrophoresis-layout',
-      onClick: () => navigate('/electrophoresis-layout')
+      onClick: () => navigate('/electrophoresis-layout'),
+      roles: ['staff']
     },
     { 
       icon: <ElectricBolt />, 
       label: 'LDS Electrophoresis Batch',
       hasSubMenu: false,
       path: '/electrophoresis-batches',
-      onClick: () => navigate('/electrophoresis-batches')
+      onClick: () => navigate('/electrophoresis-batches'),
+      roles: ['staff']
     },
     { 
       icon: <Replay />, 
       label: 'Reruns',
       hasSubMenu: false,
       path: '/reruns',
-      onClick: () => navigate('/reruns')
+      onClick: () => navigate('/reruns'),
+      roles: ['staff']
     },
     { 
       icon: <Science />, 
       label: 'Genetic Analysis Setup',
       hasSubMenu: false,
       path: '/genetic-analysis',
-      onClick: () => navigate('/genetic-analysis')
+      onClick: () => navigate('/genetic-analysis'),
+      roles: ['staff']
     },
     { 
       icon: <Assessment />, 
       label: 'Analysis Summary',
       hasSubMenu: false,
       path: '/analysis-summary',
-      onClick: () => navigate('/analysis-summary')
+      onClick: () => navigate('/analysis-summary'),
+      roles: ['staff', 'client']
     },
     { 
       icon: <Science />, 
       label: 'Lab Results',
       hasSubMenu: false,
       path: '/lab-results',
-      onClick: () => navigate('/lab-results')
+      onClick: () => navigate('/lab-results'),
+      roles: ['staff', 'client']
     },
     { 
       icon: <Description />,
       label: 'Reports',
       hasSubMenu: false,
       path: '/reports',
-      onClick: () => navigate('/reports')
+      onClick: () => navigate('/reports'),
+      roles: ['staff', 'client']
     },
     { 
       icon: <Assessment />, 
       label: 'Quality Control',
       hasSubMenu: true,
       path: '/quality-control',
-      onClick: () => navigate('/quality-control')
+      onClick: () => navigate('/quality-control'),
+      roles: ['staff']
     },
     { 
       icon: <Search />, 
       label: 'Sample Search',
       hasSubMenu: false,
       path: '/sample-search',
-      onClick: () => navigate('/sample-search')
+      onClick: () => navigate('/sample-search'),
+      roles: ['staff', 'client']
     },
     { 
       icon: <Queue />, 
       label: 'Sample Queues',
       hasSubMenu: false,
       path: '/sample-queues',
-      onClick: () => navigate('/sample-queues')
+      onClick: () => navigate('/sample-queues'),
+      roles: ['staff', 'client']
     },
     { 
       icon: <TableChart />, 
       label: 'Statistics',
       hasSubMenu: false,
       path: '/statistics',
-      onClick: () => navigate('/statistics')
-    },
-    { 
-      icon: <ExitToApp />, 
-      label: 'Log Out',
-      hasSubMenu: false,
-      path: '/logout',
-      onClick: () => navigate('/logout')
+      onClick: () => navigate('/statistics'),
+      roles: ['staff', 'client']
     }
   ];
+
+  // For development - show all menu items without role filtering
+  const menuItems = allMenuItems;
 
   const handleDrawerToggle = () => {
     if (setMobileOpen) {
@@ -198,6 +244,42 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       >
         <Logo />
       </Box>
+
+      {/* User Info Section - Disabled for development */}
+      {/* 
+      {user && (
+        <Box sx={{ p: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              borderRadius: 1,
+              p: 1.5,
+              mb: 1,
+            }}
+          >
+            <AccountCircle sx={{ mr: 1.5, fontSize: 32, opacity: 0.8 }} />
+            <Box>
+              <Typography variant="body2" sx={{ 
+                fontWeight: 'bold', 
+                color: 'white',
+                fontSize: '0.85rem'
+              }}>
+                {user.username}
+              </Typography>
+              <Typography variant="caption" sx={{ 
+                opacity: 0.7,
+                color: 'rgba(255, 255, 255, 0.7)',
+                textTransform: 'capitalize'
+              }}>
+                {user.role}
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+      )}
+      */}
 
       <Box sx={{ p: 2 }}>
         <Box
@@ -306,58 +388,153 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
           </ListItem>
         ))}
       </List>
+
+      {/* Logout Section - Disabled for development */}
+      {/* 
+      {user && (
+        <>
+          <Divider sx={{ 
+            borderColor: 'rgba(255, 255, 255, 0.1)', 
+            mx: 2,
+            mt: 'auto' 
+          }} />
+          <Box sx={{ p: 2 }}>
+            <ListItemButton
+              onClick={handleLogoutClick}
+              sx={{
+                minHeight: 48,
+                px: 2.5,
+                borderRadius: 1,
+                '&:hover': {
+                  backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                },
+                transition: 'background-color 0.2s ease',
+              }}
+            >
+              <ListItemIcon 
+                sx={{ 
+                  minWidth: 40, 
+                  color: '#f44336',
+                  mr: 1,
+                }}
+              >
+                <Logout />
+              </ListItemIcon>
+              <ListItemText 
+                primary="Logout"
+                sx={{
+                  '& .MuiListItemText-primary': {
+                    fontSize: '0.9rem',
+                    fontWeight: 500,
+                    color: '#f44336',
+                  }
+                }}
+              />
+            </ListItemButton>
+          </Box>
+        </>
+      )}
+      */}
     </>
   );
 
-  return (
-    <Box
-      component="nav"
-      sx={{ 
-        width: { md: 220 }, 
-        flexShrink: { md: 0 } 
+  // Logout Confirmation Dialog
+  const logoutDialog = (
+    <Dialog 
+      open={logoutDialogOpen} 
+      onClose={handleLogoutCancel}
+      PaperProps={{
+        sx: {
+          bgcolor: isDarkMode ? '#1e1e1e' : 'white',
+          color: isDarkMode ? 'white' : 'inherit'
+        }
       }}
     >
-      {/* Mobile drawer */}
-      <Drawer
-        variant="temporary"
-        open={mobileOpen}
-        onClose={handleDrawerToggle}
-        ModalProps={{
-          keepMounted: true, // Better open performance on mobile
-        }}
-        sx={{
-          display: { xs: 'block', md: 'none' },
-          '& .MuiDrawer-paper': {
-            boxSizing: 'border-box',
-            width: 280,
-            backgroundColor: isDarkMode ? '#022539' : '#0D488F',
-            color: 'white',
-            borderRight: 'none',
-            transition: 'background-color 0.3s ease',
-          },
+      <DialogTitle>
+        <Box display="flex" alignItems="center" gap={1}>
+          <Logout color="warning" />
+          Confirm Logout
+        </Box>
+      </DialogTitle>
+      <DialogContent>
+        <Typography>
+          Are you sure you want to logout from LabDNA LIMS?
+        </Typography>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={handleLogoutCancel}>
+          Cancel
+        </Button>
+        <Button 
+          onClick={handleLogoutConfirm}
+          variant="contained"
+          color="error"
+          startIcon={<Logout />}
+        >
+          Logout
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+
+  return (
+    <>
+      <Box
+        component="nav"
+        sx={{ 
+          width: { md: 220 }, 
+          flexShrink: { md: 0 } 
         }}
       >
-        {drawerContent}
-      </Drawer>
+        {/* Mobile drawer */}
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={handleDrawerToggle}
+          ModalProps={{
+            keepMounted: true, // Better open performance on mobile
+          }}
+          sx={{
+            display: { xs: 'block', md: 'none' },
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
+              width: 280,
+              backgroundColor: isDarkMode ? '#022539' : '#0D488F',
+              color: 'white',
+              borderRight: 'none',
+              transition: 'background-color 0.3s ease',
+              display: 'flex',
+              flexDirection: 'column',
+            },
+          }}
+        >
+          {drawerContent}
+        </Drawer>
+        
+        {/* Desktop drawer */}
+        <Drawer
+          variant="permanent"
+          sx={{
+            display: { xs: 'none', md: 'block' },
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
+              width: 220,
+              backgroundColor: isDarkMode ? '#022539' : '#0D488F',
+              color: 'white',
+              borderRight: 'none',
+              transition: 'background-color 0.3s ease',
+              display: 'flex',
+              flexDirection: 'column',
+            },
+          }}
+        >
+          {drawerContent}
+        </Drawer>
+      </Box>
       
-      {/* Desktop drawer */}
-      <Drawer
-        variant="permanent"
-        sx={{
-          display: { xs: 'none', md: 'block' },
-          '& .MuiDrawer-paper': {
-            boxSizing: 'border-box',
-            width: 220,
-            backgroundColor: isDarkMode ? '#022539' : '#0D488F',
-            color: 'white',
-            borderRight: 'none',
-            transition: 'background-color 0.3s ease',
-          },
-        }}
-      >
-        {drawerContent}
-      </Drawer>
-    </Box>
+      {/* Logout Confirmation Dialog */}
+      {logoutDialog}
+    </>
   );
 };
 

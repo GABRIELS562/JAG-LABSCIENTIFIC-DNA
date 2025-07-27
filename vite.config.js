@@ -12,21 +12,36 @@ export default defineConfig({
   build: {
     // Performance optimizations
     target: 'esnext',
-    minify: 'esbuild', // Use esbuild instead of terser for now
+    minify: 'esbuild',
     rollupOptions: {
       output: {
         // Code splitting for better performance
         manualChunks: {
           vendor: ['react', 'react-dom'],
-          mui: ['@mui/material', '@mui/icons-material'],
-          utils: ['axios', 'recharts', 'chart.js'],
+          mui: ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
+          charts: ['recharts', 'chart.js', 'react-chartjs-2'],
+          router: ['react-router-dom'],
+          utils: ['file-saver', 'jsonwebtoken']
         },
       },
     },
     // Optimize chunk size
     chunkSizeWarningLimit: 1000,
-    // Source maps for production debugging (optional)
-    sourcemap: false,
+    // Source maps for production debugging
+    sourcemap: process.env.NODE_ENV !== 'production',
+    // Asset optimization
+    assetsInlineLimit: 4096,
+    // Terser options for production minification
+    terserOptions: process.env.NODE_ENV === 'production' ? {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+        pure_funcs: ['console.log', 'console.info', 'console.debug'],
+      },
+      mangle: {
+        safari10: true,
+      },
+    } : {},
   },
   server: {
     host: '0.0.0.0',

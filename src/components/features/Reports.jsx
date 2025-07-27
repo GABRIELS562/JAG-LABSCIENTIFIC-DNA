@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getStatusColor, getBatchTypeColor, getBatchTypeLabel } from '../../utils/statusHelpers';
 import {
   Card,
   CardContent,
@@ -45,7 +46,8 @@ import {
   Psychology as PsychologyIcon,
   Done as DoneIcon,
   HourglassEmpty as HourglassIcon,
-  SendRounded as SendRoundedIcon
+  SendRounded as SendRoundedIcon,
+  Science as ScienceIcon
 } from '@mui/icons-material';
 
 export default function Reports() {
@@ -60,6 +62,33 @@ export default function Reports() {
   const [totalPages, setTotalPages] = useState(1);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
+
+  // Status icon helper function
+  const getStatusIcon = (status) => {
+    if (!status) return <PendingIcon color="disabled" />;
+    
+    switch (status.toLowerCase()) {
+      case 'completed':
+      case 'analysis_completed':
+        return <CheckCircleIcon color="success" />;
+      case 'processing':
+      case 'pcr_batched':
+      case 'electro_batched':
+        return <ScienceIcon color="warning" />;
+      case 'pending':
+      case 'sample_collected':
+        return <PendingIcon color="warning" />;
+      case 'sent':
+        return <SendIcon color="primary" />;
+      case 'archived':
+        return <ArchiveIcon color="disabled" />;
+      case 'error':
+      case 'failed':
+        return <ErrorIcon color="error" />;
+      default:
+        return <PendingIcon color="disabled" />;
+    }
+  };
 
   useEffect(() => {
     loadReports();
@@ -134,65 +163,20 @@ export default function Reports() {
     }
   };
 
-  const getStatusIcon = (status) => {
-    switch (status.toLowerCase()) {
-      case 'completed':
-        return <CheckCircleIcon color="success" />;
-      case 'pending':
-        return <PendingIcon color="warning" />;
-      case 'sent':
-        return <SendIcon color="primary" />;
-      case 'archived':
-        return <ArchiveIcon color="disabled" />;
-      default:
-        return <PendingIcon color="disabled" />;
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status.toLowerCase()) {
-      case 'completed':
-        return 'success';
-      case 'pending':
-        return 'warning';
-      case 'sent':
-        return 'primary';
-      case 'archived':
-        return 'default';
-      default:
-        return 'default';
-    }
-  };
-
-  const getBatchTypeColor = (batchType) => {
-    switch (batchType.toLowerCase()) {
-      case 'legal':
-        return 'error';
-      case 'peace_of_mind':
-        return 'info';
-      default:
-        return 'default';
-    }
-  };
-
-  const getBatchTypeLabel = (batchType) => {
-    switch (batchType.toLowerCase()) {
-      case 'legal':
-        return 'Legal';
-      case 'peace_of_mind':
-        return 'Peace of Mind';
-      default:
-        return 'Standard';
-    }
-  };
+  // Status utilities now imported from centralized location
 
   return (
     <Box sx={{ p: 3 }}>
       {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1">
-          📊 Reports Management
-        </Typography>
+        <Box>
+          <Typography variant="h4" component="h1">
+            📋 Final Reports & Deliverables
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
+            Generated PDF reports and certificates ready for client delivery
+          </Typography>
+        </Box>
         <Button
           variant="outlined"
           startIcon={<RefreshIcon />}
@@ -425,17 +409,17 @@ export default function Reports() {
               <CircularProgress />
             </Box>
           ) : (
-            <TableContainer>
-              <Table>
+            <TableContainer sx={{ overflowX: 'auto' }}>
+              <Table sx={{ minWidth: 800 }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Report</TableCell>
-                    <TableCell>Batch Type</TableCell>
-                    <TableCell>Lab Batch</TableCell>
-                    <TableCell>Filename</TableCell>
-                    <TableCell>Date</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Batch Type</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Lab Batch</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>Filename</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Date</TableCell>
                     <TableCell>Status</TableCell>
-                    <TableCell>File</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>File</TableCell>
                     <TableCell align="center">Actions</TableCell>
                   </TableRow>
                 </TableHead>
@@ -464,7 +448,7 @@ export default function Reports() {
                             </Typography>
                           </Box>
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                           <Chip
                             label={getBatchTypeLabel(report.batch_type)}
                             color={getBatchTypeColor(report.batch_type)}
@@ -472,12 +456,12 @@ export default function Reports() {
                             variant="outlined"
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                           <Typography variant="body2" fontFamily="monospace">
                             {report.lab_batch_number || 'N/A'}
                           </Typography>
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>
                           <Tooltip title={report.original_filename}>
                             <Typography 
                               variant="body2" 
@@ -492,7 +476,7 @@ export default function Reports() {
                             </Typography>
                           </Tooltip>
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                           <Typography variant="body2">
                             {new Date(report.date_generated).toLocaleDateString()}
                           </Typography>
@@ -508,7 +492,7 @@ export default function Reports() {
                             />
                           </Box>
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                           {report.file_accessible ? (
                             <Tooltip title="File exists">
                               <FileIcon color="success" />

@@ -29,7 +29,7 @@ import {
   TrendingUp,
   People
 } from '@mui/icons-material';
-import { api as optimizedApi } from '../../services/api';
+import api from '../../services/api';
 
 const HomePage = ({ isDarkMode }) => {
   const navigate = useNavigate();
@@ -48,7 +48,7 @@ const HomePage = ({ isDarkMode }) => {
 
   const fetchSampleCounts = async () => {
     try {
-      const response = await optimizedApi.getSampleCounts();
+      const response = await api.getSampleCounts();
       if (response.success) {
         setSampleCounts(response.data);
       }
@@ -60,7 +60,7 @@ const HomePage = ({ isDarkMode }) => {
   const refreshDatabase = async () => {
     try {
       setRefreshing(true);
-      const response = await optimizedApi.refreshDatabase();
+      const response = await api.refreshDatabase();
       if (response.success) {
         // Handle both wrapped and direct response formats
         const stats = response.data?.statistics || response.statistics;
