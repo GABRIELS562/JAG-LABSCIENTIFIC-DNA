@@ -1,57 +1,62 @@
-# 🧬 LabScientific LIMS
+# 🧬 LabScientific LIMS - DevOps Portfolio
 
-**A modern Laboratory Information Management System (LIMS) for genetic analysis and paternity testing.**
+**Full-Stack Application with Production-Ready DevOps Implementation**
 
 [![React](https://img.shields.io/badge/React-18.2-blue?logo=react)](https://reactjs.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green?logo=node.js)](https://nodejs.org/)
-[![Material-UI](https://img.shields.io/badge/Material--UI-5.x-blue?logo=mui)](https://mui.com/)
-[![SQLite](https://img.shields.io/badge/SQLite-3.x-lightgrey?logo=sqlite)](https://sqlite.org/)
+[![Docker](https://img.shields.io/badge/Docker-Containerized-blue?logo=docker)](https://docker.com/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-Ready-blue?logo=kubernetes)](https://kubernetes.io/)
+[![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-green?logo=github)](https://github.com/features/actions)
 
-A comprehensive Laboratory Information Management System designed for forensic and paternity testing laboratories. Features end-to-end workflow management from sample collection to final reporting, with integrated genetic analysis capabilities.
+This repository demonstrates **DevOps engineering skills** through a production-ready Laboratory Information Management System (LIMS). The project showcases modern infrastructure automation, containerization, CI/CD pipelines, and scalable deployment strategies.
 
-## ✨ **Key Features**
+> **Note**: This is the **portfolio branch** demonstrating DevOps skills. The full application code is available in the `client-specific` branch.
 
-### **🔬 Laboratory Workflow Management**
-- **Sample Management**: Complete sample lifecycle tracking
-- **Batch Processing**: PCR and electrophoresis batch management  
-- **Quality Control**: Automated quality assurance workflows
-- **Chain of Custody**: Full audit trail and compliance tracking
+## 🚀 **DevOps Portfolio Highlights**
 
-### **🧬 Genetic Analysis Integration**
-- **Osiris Integration**: Direct integration with OSIRIS genetic analysis software
-- **STR Analysis**: Support for major STR kits (Identifiler Plus, PowerPlex Fusion, GlobalFiler)
-- **Automated Results**: Streamlined analysis workflow with automated data processing
-- **Visual Analytics**: Executive-level dashboards and reporting
+### **🏗️ Infrastructure as Code**
+- **Docker Containerization**: Multi-stage builds with optimized images
+- **Docker Compose**: Development and production environment orchestration
+- **Kubernetes Deployment**: Production-ready cluster configuration with auto-scaling
+- **Nginx Configuration**: Load balancing, SSL termination, and reverse proxy
 
-### **📊 Advanced Features**
-- **Real-time Dashboard**: Live statistics and performance metrics
-- **Smart Notifications**: Context-aware alerts and status updates
-- **Responsive Design**: Mobile-friendly interface with dark/light mode
-- **RESTful API**: Comprehensive API for external integrations
+### **⚡ CI/CD Pipeline**
+- **GitHub Actions**: Automated testing, building, and deployment
+- **Multi-Environment**: Separate staging and production deployments
+- **Security Scanning**: Automated vulnerability detection and audit checks
+- **Quality Gates**: Linting, testing, and code quality enforcement
 
-## 🏗️ **Technology Stack**
+### **🛡️ Production-Ready Features**
+- **Health Checks**: Application and database monitoring endpoints
+- **Logging Strategy**: Structured logging with log aggregation
+- **Security Hardening**: Rate limiting, security headers, and input validation
+- **Performance Optimization**: Caching, connection pooling, and resource limits
 
-### **Frontend**
-- **React 18**: Modern UI framework with hooks
-- **Material-UI 5**: Professional component library
-- **Vite**: Fast build tool and dev server
-- **React Router**: Client-side routing
+## 🏗️ **DevOps Technology Stack**
 
-### **Backend**
-- **Node.js**: JavaScript runtime
-- **Express.js**: Web application framework  
-- **Better-SQLite3**: High-performance SQLite driver
-- **Multer**: File upload handling
+### **Containerization & Orchestration**
+- **Docker**: Multi-stage builds, image optimization
+- **Docker Compose**: Local development and testing environments
+- **Kubernetes**: Production cluster deployment with auto-scaling
+- **Helm**: Package management for Kubernetes deployments
 
-### **Database**
-- **SQLite**: Embedded database
-- **Full-text search**: Advanced querying capabilities
-- **ACID compliance**: Data integrity guarantees
+### **CI/CD & Automation**
+- **GitHub Actions**: Automated workflows for testing and deployment
+- **Jest**: Unit and integration testing framework
+- **ESLint**: Code quality and consistency enforcement
+- **Audit Tools**: Security vulnerability scanning
 
-### **External Integrations**
-- **OSIRIS**: Genetic analysis software
-- **Google Sheets**: Data backup and sharing
-- **PDF Generation**: Automated reporting
+### **Infrastructure & Monitoring**
+- **Nginx**: Reverse proxy, load balancing, SSL termination
+- **PostgreSQL**: Production database with connection pooling
+- **Redis**: Caching and session management
+- **Winston**: Structured logging and log aggregation
+
+### **Security & Performance**
+- **Rate Limiting**: API protection and abuse prevention
+- **Security Headers**: XSS, CSRF, and clickjacking protection
+- **SSL/TLS**: End-to-end encryption
+- **Resource Optimization**: Gzip compression, static file caching
 
 ## 🏗️ **Architecture**
 
@@ -73,58 +78,75 @@ A comprehensive Laboratory Information Management System designed for forensic a
                        └─────────────────┘
 ```
 
-## 🚀 **Quick Start**
+## 🚀 **DevOps Deployment Guide**
 
 ### **Prerequisites**
-- Node.js 18+ 
-- npm or yarn
-- OSIRIS 2.16+ (for genetic analysis)
+- Docker & Docker Compose
+- Kubernetes cluster (optional)
+- Node.js 18+ (for local development)
 
-### **Installation**
+### **Quick Start - Development**
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/labscientific-lims.git
-cd labscientific-lims
+git clone https://github.com/GABRIELS562/LABSCIENTIFIC-LIMS.git
+cd LABSCIENTIFIC-LIMS
 
-# Install dependencies
-npm install
+# Start with Docker Compose
+docker-compose -f docker-compose.dev.yml up -d
 
-# Start backend server
-cd backend && node server.js
+# Or run locally
+npm install && npm run dev
+```
 
-# Start frontend (in new terminal)
-npm run dev
+### **Production Deployment**
+
+```bash
+# Production with Docker Compose
+docker-compose -f deployment/docker-compose.prod.yml up -d
+
+# Kubernetes deployment
+kubectl apply -f deployment/k8s-deployment.yml
+
+# Monitor deployment
+kubectl get pods -l app=labscientific-lims
 ```
 
 ### **Access Points**
-- **Frontend**: http://localhost:5175
-- **Backend API**: http://localhost:3001
-- **Database**: SQLite (local file)
+- **Application**: http://localhost (production) / http://localhost:5173 (dev)
+- **API**: http://localhost/api
+- **Health Check**: http://localhost/health
 
-## 📱 **Usage**
+## 📋 **DevOps Workflows**
 
-### **Core Workflows**
+### **Development Workflow**
 
-1. **Sample Registration**
-   - Navigate to Client Register
-   - Enter case and sample information
-   - Upload supporting documents
+1. **Local Development**
+   - Run application with `npm run dev`
+   - Use Docker Compose for backend services
+   - Hot reload for rapid development
 
-2. **Batch Management**
-   - Create PCR/Electrophoresis batches
-   - Track processing status
-   - Monitor quality metrics
+2. **Testing & Quality**
+   - Automated testing with Jest
+   - Code linting with ESLint
+   - Security auditing with npm audit
 
-3. **Genetic Analysis**
-   - Launch Osiris integration
-   - Configure analysis parameters
-   - Review results and generate reports
+3. **Container Development**
+   - Build Docker images locally
+   - Test containerized application
+   - Validate multi-stage builds
 
-4. **Reporting**
-   - Generate paternity reports
-   - Export data in multiple formats
-   - Maintain audit trails
+### **Deployment Pipeline**
+
+1. **Continuous Integration**
+   - Automated testing on push/PR
+   - Security vulnerability scanning
+   - Docker image building and testing
+
+2. **Continuous Deployment**
+   - Staging deployment for `client-specific` branch
+   - Production deployment for `main` branch
+   - Health checks and rollback capabilities
 
 ## 📊 **Performance Features**
 
@@ -198,15 +220,41 @@ This project demonstrates modern full-stack development practices including:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🏆 **Project Highlights**
+## 🌿 **Branch Strategy**
 
-- **Full-Stack Development**: React + Node.js + SQLite
-- **Complex Domain Logic**: Laboratory workflow management
-- **External Integrations**: OSIRIS genetic analysis software
-- **Modern UI/UX**: Material Design with dark/light modes
-- **Performance Optimization**: Memoization, lazy loading, efficient queries
-- **Production-Ready**: Error handling, logging, monitoring
+This repository uses a **dual-branch approach** to demonstrate both portfolio and production capabilities:
+
+### **Main Branch** (Portfolio)
+- **Purpose**: DevOps skills demonstration
+- **Content**: Infrastructure code, deployment configurations, CI/CD pipelines
+- **Target Audience**: Recruiters, DevOps teams, technical leads
+- **Focus**: Production-ready deployment strategies and automation
+
+### **Client-Specific Branch** (Production)
+- **Purpose**: Full application implementation
+- **Content**: Complete LIMS application with all features
+- **Target Audience**: End users, laboratory staff, stakeholders
+- **Focus**: Business logic, user experience, domain expertise
+
+```bash
+# Switch to see full application
+git checkout client-specific
+
+# Return to DevOps portfolio
+git checkout main
+```
+
+## 🏆 **DevOps Skills Demonstrated**
+
+- **Infrastructure as Code**: Docker, Kubernetes, Docker Compose
+- **CI/CD Pipelines**: GitHub Actions with comprehensive workflows
+- **Production Deployment**: Multi-environment strategy with staging/production
+- **Security Practices**: Vulnerability scanning, security headers, rate limiting
+- **Performance Optimization**: Caching, load balancing, resource management
+- **Monitoring & Logging**: Health checks, structured logging, observability
+- **Container Orchestration**: Kubernetes deployments with auto-scaling
+- **Load Balancing**: Nginx configuration with SSL termination
 
 ---
 
-**Built with ❤️ for the forensic science community**
+**🚀 Showcasing DevOps excellence through practical implementation**

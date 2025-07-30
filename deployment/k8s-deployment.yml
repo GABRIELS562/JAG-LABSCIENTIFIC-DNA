@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: labscientific-lims
+  labels:
+    app: labscientific-lims
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: labscientific-lims
+  template:
+    metadata:
+      labels:
+        app: labscientific-lims
+    spec:
+      containers:
+      - name: app
+        image: labscientific-lims:latest
+        ports:
+        - containerPort: 3001
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: database-url
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: jwt-secret
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: labscientific-lims-service
+spec:
+  selector:
+    app: labscientific-lims
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 3001
+  type: LoadBalancer
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: labscientific-lims-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+  - hosts:
+    - labscientific-lims.com
+    secretName: labscientific-lims-tls
+  rules:
+  - host: labscientific-lims.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: labscientific-lims-service
+            port:
+              number: 80
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+type: Opaque
+data:
+  database-url: # base64 encoded database URL
+  jwt-secret: # base64 encoded JWT secret
