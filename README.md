@@ -1,6 +1,6 @@
-# 🧬 LabScientific LIMS - DevOps Portfolio
+# 🧬 LabScientific LIMS - Complete System with DevOps
 
-**Full-Stack Application with Production-Ready DevOps Implementation**
+**Full-Stack Laboratory Information Management System with Production-Ready Infrastructure**
 
 [![React](https://img.shields.io/badge/React-18.2-blue?logo=react)](https://reactjs.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green?logo=node.js)](https://nodejs.org/)
@@ -8,9 +8,9 @@
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-Ready-blue?logo=kubernetes)](https://kubernetes.io/)
 [![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-green?logo=github)](https://github.com/features/actions)
 
-This repository demonstrates **DevOps engineering skills** through a production-ready Laboratory Information Management System (LIMS). The project showcases modern infrastructure automation, containerization, CI/CD pipelines, and scalable deployment strategies.
+This is a **complete LIMS application** with comprehensive DevOps implementation. Features the full business application plus production-ready infrastructure, containerization, CI/CD pipelines, and scalable deployment strategies.
 
-> **Note**: This is the **portfolio branch** demonstrating DevOps skills. The full application code is available in the `client-specific` branch.
+> **Note**: This branch contains the **complete system** (application + DevOps). The `client-specific` branch contains only the core application without DevOps configurations.
 
 ## 🚀 **DevOps Portfolio Highlights**
 
@@ -224,23 +224,23 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 This repository uses a **dual-branch approach** to demonstrate both portfolio and production capabilities:
 
-### **Main Branch** (Portfolio)
-- **Purpose**: DevOps skills demonstration
-- **Content**: Infrastructure code, deployment configurations, CI/CD pipelines
-- **Target Audience**: Recruiters, DevOps teams, technical leads
-- **Focus**: Production-ready deployment strategies and automation
+### **Main Branch** (Complete System)
+- **Purpose**: Full system with DevOps capabilities
+- **Content**: Complete LIMS application + DevOps infrastructure
+- **Target Audience**: DevOps teams, technical leads, full-stack demonstrations
+- **Focus**: Production-ready application with deployment automation
 
-### **Client-Specific Branch** (Production)
-- **Purpose**: Full application implementation
-- **Content**: Complete LIMS application with all features
-- **Target Audience**: End users, laboratory staff, stakeholders
-- **Focus**: Business logic, user experience, domain expertise
+### **Client-Specific Branch** (Core Application)
+- **Purpose**: Clean application for client delivery
+- **Content**: LIMS application without DevOps configurations
+- **Target Audience**: End users, laboratory staff, client deployments
+- **Focus**: Core business functionality and user experience
 
 ```bash
-# Switch to see full application
+# Switch to clean client version
 git checkout client-specific
 
-# Return to DevOps portfolio
+# Return to complete system
 git checkout main
 ```
 
