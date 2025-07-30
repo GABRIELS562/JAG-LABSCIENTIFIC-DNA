@@ -969,6 +969,8 @@ export default function PaternityTestForm() {
                 onChange={(e) => handleChange(section, 'name', e.target.value)}
                 disabled={disabled}
                 required
+                error={!!errors[`${section}.name`]}
+                helperText={errors[`${section}.name`]}
               />
             </Grid>
 
@@ -981,6 +983,8 @@ export default function PaternityTestForm() {
                 onChange={(e) => handleChange(section, 'surname', e.target.value)}
                 disabled={disabled}
                 required
+                error={!!errors[`${section}.surname`]}
+                helperText={errors[`${section}.surname`]}
               />
             </Grid>
 
@@ -994,6 +998,9 @@ export default function PaternityTestForm() {
                 onChange={(e) => handleChange(section, 'dateOfBirth', e.target.value)}
                 disabled={disabled}
                 InputLabelProps={{ shrink: true }}
+                required
+                error={!!errors[`${section}.dateOfBirth`]}
+                helperText={errors[`${section}.dateOfBirth`]}
               />
             </Grid>
 
@@ -1076,11 +1083,18 @@ export default function PaternityTestForm() {
                 onChange={(e) => handleChange(section, 'idNumber', e.target.value)}
                 disabled={disabled}
                 required
+                error={!!errors[`${section}.idNumber`]}
+                helperText={errors[`${section}.idNumber`]}
               />
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <FormControl fullWidth disabled={disabled} required>
+              <FormControl 
+                fullWidth 
+                disabled={disabled} 
+                required
+                error={!!errors[`${section}.idType`]}
+              >
                 <InputLabel>ID Type</InputLabel>
                 <Select
                   name="idType"
@@ -1095,6 +1109,9 @@ export default function PaternityTestForm() {
                     </MenuItem>
                   ))}
                 </Select>
+                {errors[`${section}.idType`] && (
+                  <FormHelperText>{errors[`${section}.idType`]}</FormHelperText>
+                )}
               </FormControl>
             </Grid>
 
@@ -1293,8 +1310,16 @@ export default function PaternityTestForm() {
     const sectionErrors = validateSection(currentSection);
     if (Object.keys(sectionErrors).length === 0) {
       setCurrentSection(prev => Math.min(prev + 1, sections.length - 1));
+      setErrors({});
     } else {
       setErrors(sectionErrors);
+      console.log('Validation errors:', sectionErrors);
+      // Show snackbar with validation errors
+      setSnackbar({
+        open: true,
+        message: 'Please fill in all required fields before proceeding.',
+        severity: 'error'
+      });
     }
   };
 
@@ -1315,7 +1340,20 @@ export default function PaternityTestForm() {
       case 1: // Mother Information
         if (!formData.motherNotAvailable) {
           if (!formData.mother.name.trim()) errors['mother.name'] = 'Name is required';
+          if (!formData.mother.surname.trim()) errors['mother.surname'] = 'Surname is required';
           if (!formData.mother.dateOfBirth) errors['mother.dateOfBirth'] = 'Date of Birth is required';
+          if (!formData.mother.idNumber.trim()) errors['mother.idNumber'] = 'ID Number is required';
+          if (!formData.mother.idType.trim()) errors['mother.idType'] = 'ID Type is required';
+        }
+        break;
+        
+      case 2: // Father Information
+        if (!formData.fatherNotAvailable) {
+          if (!formData.father.name.trim()) errors['father.name'] = 'Name is required';
+          if (!formData.father.surname.trim()) errors['father.surname'] = 'Surname is required';
+          if (!formData.father.dateOfBirth) errors['father.dateOfBirth'] = 'Date of Birth is required';
+          if (!formData.father.idNumber.trim()) errors['father.idNumber'] = 'ID Number is required';
+          if (!formData.father.idType.trim()) errors['father.idType'] = 'ID Type is required';
         }
         break;
         
@@ -1529,6 +1567,8 @@ export default function PaternityTestForm() {
                   onChange={handleTopLevelChange}
                   placeholder="BN-"
                   required
+                  error={!!errors.refKitNumber}
+                  helperText={errors.refKitNumber}
                 />
               </Grid>
               <Grid item xs={12} md={6}>
