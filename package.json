@@ -15,6 +15,7 @@
     "logs": "pm2 logs",
     "build": "vite build",
     "build:prod": "cross-env NODE_ENV=production vite build",
+    "test": "echo 'No tests specified yet' && exit 0",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "lint:prod": "eslint . --max-warnings 0",
     "preview": "vite preview",
