@@ -27,9 +27,44 @@ import SignaturePad from '../ui/SignaturePad';
 import WitnessSection from '../ui/WitnessSection';
 import PhotoCapture from '../features/PhotoCapture';
 
+// Countries list for dropdowns
+const countries = [
+  'South Africa', 'Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Argentina', 'Armenia', 'Australia', 
+  'Austria', 'Azerbaijan', 'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados', 'Belarus', 'Belgium', 'Belize', 
+  'Benin', 'Bhutan', 'Bolivia', 'Bosnia and Herzegovina', 'Botswana', 'Brazil', 'Brunei', 'Bulgaria', 
+  'Burkina Faso', 'Burundi', 'Cambodia', 'Cameroon', 'Canada', 'Cape Verde', 'Central African Republic', 
+  'Chad', 'Chile', 'China', 'Colombia', 'Comoros', 'Congo', 'Costa Rica', 'Croatia', 'Cuba', 'Cyprus', 
+  'Czech Republic', 'Denmark', 'Djibouti', 'Dominica', 'Dominican Republic', 'East Timor', 'Ecuador', 
+  'Egypt', 'El Salvador', 'Equatorial Guinea', 'Eritrea', 'Estonia', 'Ethiopia', 'Fiji', 'Finland', 
+  'France', 'Gabon', 'Gambia', 'Georgia', 'Germany', 'Ghana', 'Greece', 'Grenada', 'Guatemala', 'Guinea', 
+  'Guinea-Bissau', 'Guyana', 'Haiti', 'Honduras', 'Hungary', 'Iceland', 'India', 'Indonesia', 'Iran', 
+  'Iraq', 'Ireland', 'Israel', 'Italy', 'Jamaica', 'Japan', 'Jordan', 'Kazakhstan', 'Kenya', 'Kiribati', 
+  'Kuwait', 'Kyrgyzstan', 'Laos', 'Latvia', 'Lebanon', 'Lesotho', 'Liberia', 'Libya', 'Liechtenstein', 
+  'Lithuania', 'Luxembourg', 'Madagascar', 'Malawi', 'Malaysia', 'Maldives', 'Mali', 'Malta', 'Marshall Islands', 
+  'Mauritania', 'Mauritius', 'Mexico', 'Micronesia', 'Moldova', 'Monaco', 'Mongolia', 'Montenegro', 'Morocco', 
+  'Mozambique', 'Myanmar', 'Namibia', 'Nauru', 'Nepal', 'Netherlands', 'New Zealand', 'Nicaragua', 'Niger', 
+  'Nigeria', 'North Korea', 'North Macedonia', 'Norway', 'Oman', 'Pakistan', 'Palau', 'Panama', 'Papua New Guinea', 
+  'Paraguay', 'Peru', 'Philippines', 'Poland', 'Portugal', 'Qatar', 'Romania', 'Russia', 'Rwanda', 
+  'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Samoa', 'San Marino', 
+  'Sao Tome and Principe', 'Saudi Arabia', 'Senegal', 'Serbia', 'Seychelles', 'Sierra Leone', 'Singapore', 
+  'Slovakia', 'Slovenia', 'Solomon Islands', 'Somalia', 'South Korea', 'South Sudan', 'Spain', 'Sri Lanka', 
+  'Sudan', 'Suriname', 'Sweden', 'Switzerland', 'Syria', 'Taiwan', 'Tajikistan', 'Tanzania', 'Thailand', 
+  'Togo', 'Tonga', 'Trinidad and Tobago', 'Tunisia', 'Turkey', 'Turkmenistan', 'Tuvalu', 'Uganda', 'Ukraine', 
+  'United Arab Emirates', 'United Kingdom', 'United States', 'Uruguay', 'Uzbekistan', 'Vanuatu', 'Vatican City', 
+  'Venezuela', 'Vietnam', 'Yemen', 'Zambia', 'Zimbabwe'
+];
+
+// ID Types for dropdown
+const idTypes = [
+  { value: 'passport', label: 'Passport' },
+  { value: 'permit', label: 'Permit' },
+  { value: 'nationalId', label: 'National ID' },
+  { value: 'driversLicense', label: "Driver's License" }
+];
+
 // Initial form state with matching fields across all sections
 const initialFormState = {
-  refKitNumber: 'BN123456',
+  refKitNumber: '',
   submissionDate: new Date().toISOString().split('T')[0],
   motherPresent: 'NO',
   
@@ -49,45 +84,41 @@ const initialFormState = {
   
   // Mother section
   mother: {
-    labNo: '2024_001',
-    name: 'Jane',
-    surname: 'Doe',
-    idDob: 'ID123456',
-    dateOfBirth: '1990-01-01',
-    placeOfBirth: 'Sydney',
-    nationality: 'Australian',
-    occupation: 'Engineer',
-    address: '123 Main St, Sydney',
-    phoneNumber: '0400123456',
-    email: 'jane.doe@email.com',
-    idNumber: 'ID98765',
-    idType: 'passport',
-    maritalStatus: 'single',
-    ethnicity: 'Caucasian',
+    labNo: '',
+    name: '',
+    surname: '',
+    dateOfBirth: '',
+    placeOfBirth: 'South Africa',
+    nationality: 'South Africa',
+    address: '',
+    phoneNumber: '',
+    email: '',
+    idNumber: '',
+    idType: '',
+    ethnicity: '',
     collectionDate: new Date().toISOString().split('T')[0],
-    additionalNotes: 'Sample mother notes'
+    additionalNotes: '',
+    cannotSign: false
   },
   motherNotAvailable: false,
 
   // Father section
   father: {
-    labNo: '2024_002',
-    name: 'John',
-    surname: 'Smith',
-    idDob: 'ID789012',
-    dateOfBirth: '1985-06-15',
-    placeOfBirth: 'Melbourne',
-    nationality: 'Australian',
-    occupation: 'Doctor',
-    address: '456 High St, Melbourne',
-    phoneNumber: '0400789012',
-    email: 'john.smith@email.com',
-    idNumber: 'ID45678',
-    idType: 'nationalId',
-    maritalStatus: 'single',
-    ethnicity: 'Caucasian',
+    labNo: '',
+    name: '',
+    surname: '',
+    dateOfBirth: '',
+    placeOfBirth: 'South Africa',
+    nationality: 'South Africa',
+    address: '',
+    phoneNumber: '',
+    email: '',
+    idNumber: '',
+    idType: '',
+    ethnicity: '',
     collectionDate: new Date().toISOString().split('T')[0],
-    additionalNotes: 'Sample father notes'
+    additionalNotes: '',
+    cannotSign: false
   },
   fatherNotAvailable: false,
 
@@ -956,18 +987,6 @@ export default function PaternityTestForm() {
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
-                label="ID/DOB"
-                name="idDob"
-                value={formData[section].idDob || ''}
-                onChange={(e) => handleChange(section, 'idDob', e.target.value)}
-                disabled={disabled}
-                required
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
                 label="Date of Birth"
                 name="dateOfBirth"
                 type="date"
@@ -979,36 +998,39 @@ export default function PaternityTestForm() {
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Place of Birth"
-                name="placeOfBirth"
-                value={formData[section].placeOfBirth || ''}
-                onChange={(e) => handleChange(section, 'placeOfBirth', e.target.value)}
-                disabled={disabled}
-              />
+              <FormControl fullWidth disabled={disabled}>
+                <InputLabel>Place of Birth</InputLabel>
+                <Select
+                  name="placeOfBirth"
+                  value={formData[section].placeOfBirth || ''}
+                  onChange={(e) => handleChange(section, 'placeOfBirth', e.target.value)}
+                  label="Place of Birth"
+                >
+                  {countries.map((country) => (
+                    <MenuItem key={country} value={country}>
+                      {country}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Nationality"
-                name="nationality"
-                value={formData[section].nationality || ''}
-                onChange={(e) => handleChange(section, 'nationality', e.target.value)}
-                disabled={disabled}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Occupation"
-                name="occupation"
-                value={formData[section].occupation || ''}
-                onChange={(e) => handleChange(section, 'occupation', e.target.value)}
-                disabled={disabled}
-              />
+              <FormControl fullWidth disabled={disabled}>
+                <InputLabel>Nationality</InputLabel>
+                <Select
+                  name="nationality"
+                  value={formData[section].nationality || ''}
+                  onChange={(e) => handleChange(section, 'nationality', e.target.value)}
+                  label="Nationality"
+                >
+                  {countries.map((country) => (
+                    <MenuItem key={country} value={country}>
+                      {country}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Grid>
 
             <Grid item xs={12} md={6}>
@@ -1053,11 +1075,12 @@ export default function PaternityTestForm() {
                 value={formData[section].idNumber || ''}
                 onChange={(e) => handleChange(section, 'idNumber', e.target.value)}
                 disabled={disabled}
+                required
               />
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <FormControl fullWidth disabled={disabled}>
+              <FormControl fullWidth disabled={disabled} required>
                 <InputLabel>ID Type</InputLabel>
                 <Select
                   name="idType"
@@ -1066,27 +1089,11 @@ export default function PaternityTestForm() {
                   label="ID Type"
                 >
                   <MenuItem value="">Select ID Type</MenuItem>
-                  <MenuItem value="passport">Passport</MenuItem>
-                  <MenuItem value="nationalId">National ID</MenuItem>
-                  <MenuItem value="driversLicense">Driver's License</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth disabled={disabled}>
-                <InputLabel>Marital Status</InputLabel>
-                <Select
-                  name="maritalStatus"
-                  value={formData[section].maritalStatus || ''}
-                  onChange={(e) => handleChange(section, 'maritalStatus', e.target.value)}
-                  label="Marital Status"
-                >
-                  <MenuItem value="">Select Marital Status</MenuItem>
-                  <MenuItem value="single">Single</MenuItem>
-                  <MenuItem value="married">Married</MenuItem>
-                  <MenuItem value="divorced">Divorced</MenuItem>
-                  <MenuItem value="widowed">Widowed</MenuItem>
+                  {idTypes.map((type) => (
+                    <MenuItem key={type.value} value={type.value}>
+                      {type.label}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>
@@ -1140,23 +1147,43 @@ export default function PaternityTestForm() {
 
         {/* Add signature pad for each person */}
         {!isNotAvailable && (
-          <SignaturePad
-            person={title.replace(' Information', '')}
-            onSignatureChange={(signature) => {
-              const signatureKey = section === 'additionalInfo' ? 'child' : section;
-              setFormData(prev => ({
-                ...prev,
-                signatures: {
-                  ...prev.signatures,
-                  [signatureKey]: signature
+          <Box sx={{ mt: 3 }}>
+            {(section === 'mother' || section === 'father') && (
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData[section].cannotSign || false}
+                    onChange={(e) => handleChange(section, 'cannotSign', e.target.checked)}
+                    name={`${section}CannotSign`}
+                  />
                 }
-              }));
-            }}
-            value={formData.signatures?.[section === 'additionalInfo' ? 'child' : section]}
-            required={formData.clientType.lt}
-            legalBinding={formData.clientType.lt}
-            disabled={disabled}
-          />
+                label={`${title.replace(' Information', '')} cannot sign`}
+                sx={{ mb: 2, '& .MuiFormControlLabel-label': { fontSize: '0.875rem' } }}
+              />
+            )}
+            
+            {(!formData[section]?.cannotSign || section === 'additionalInfo') && (
+              <SignaturePad
+                person={title.replace(' Information', '')}
+                onSignatureChange={(signature) => {
+                  const signatureKey = section === 'additionalInfo' ? 'child' : section;
+                  setFormData(prev => ({
+                    ...prev,
+                    signatures: {
+                      ...prev.signatures,
+                      [signatureKey]: signature
+                    }
+                  }));
+                }}
+                value={formData.signatures?.[section === 'additionalInfo' ? 'child' : section]}
+                required={formData.clientType.lt}
+                legalBinding={formData.clientType.lt}
+                disabled={disabled}
+                touchEnabled={true}
+                responsive={true}
+              />
+            )}
+          </Box>
         )}
       </Box>
     );
@@ -1500,7 +1527,7 @@ export default function PaternityTestForm() {
                   name="refKitNumber"
                   value={formData.refKitNumber || ''}
                   onChange={handleTopLevelChange}
-                  placeholder="Reference Kit Number"
+                  placeholder="BN-"
                   required
                 />
               </Grid>
