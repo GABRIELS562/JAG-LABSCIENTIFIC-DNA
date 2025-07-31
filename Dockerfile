@@ -37,7 +37,7 @@ RUN adduser -S lims -u 1001
 WORKDIR /app
 
 # Copy built application
-COPY --from=builder --chown=lims:nodejs /app/build ./build
+COPY --from=builder --chown=lims:nodejs /app/dist ./dist
 COPY --from=builder --chown=lims:nodejs /app/backend ./backend
 COPY --from=builder --chown=lims:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=lims:nodejs /app/package*.json ./
