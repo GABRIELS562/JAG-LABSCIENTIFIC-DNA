@@ -165,22 +165,102 @@ function getSampleCounts() {
   }
 }
 
+// Generate next lab number based on the last one
+function generateLabNumber() {
+  try {
+    const stmt = db.prepare('SELECT lab_number FROM samples ORDER BY id DESC LIMIT 1');
+    const result = stmt.get();
+    
+    if (!result) {
+      return '25_001';
+    }
+    
+    const lastLabNumber = result.lab_number;
+    const parts = lastLabNumber.split('_');
+    
+    if (parts.length === 2) {
+      const year = parts[0];
+      const number = parseInt(parts[1], 10);
+      const nextNumber = number + 1;
+      return `${year}_${nextNumber.toString().padStart(3, '0')}`;
+    }
+    
+    // Fallback
+    return '25_001';
+  } catch (error) {
+    logger.error('Error generating lab number', { error: error.message });
+    return '25_001';
+  }
+}
+
+// Create test case record for PaternityTestForm submissions
+function createTestCase(testCaseData) {
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO test_cases (
+        case_number, ref_kit_number, submission_date, client_type, mother_present,
+        email_contact, phone_contact, address_area, comments, test_purpose,
+        sample_type, authorized_collector, consent_type, has_signatures, has_witness,
+        witness_name, legal_declarations, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    `);
+    
+    const result = stmt.run(
+      testCaseData.case_number,
+      testCaseData.ref_kit_number,
+      testCaseData.submission_date,
+      testCaseData.client_type,
+      testCaseData.mother_present,
+      testCaseData.email_contact,
+      testCaseData.phone_contact,
+      testCaseData.address_area,
+      testCaseData.comments,
+      testCaseData.test_purpose,
+      testCaseData.sample_type,
+      testCaseData.authorized_collector,
+      testCaseData.consent_type,
+      testCaseData.has_signatures,
+      testCaseData.has_witness,
+      testCaseData.witness_name,
+      testCaseData.legal_declarations,
+      testCaseData.status || 'pending'
+    );
+    
+    return { id: result.lastInsertRowid, ...testCaseData };
+  } catch (error) {
+    logger.error('Error creating test case', { error: error.message, testCaseData });
+    throw error;
+  }
+}
+
 function createSample(sampleData) {
   try {
     const stmt = db.prepare(`
       INSERT INTO samples (
-        lab_number, name, surname, relation, status, phone_number,
+        case_id, lab_number, name, surname, relation, status, phone_number,
+        date_of_birth, place_of_birth, nationality, address, email, 
+        id_number, id_type, collection_date, submission_date,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     `);
     
     const result = stmt.run(
+      sampleData.case_id,
       sampleData.lab_number,
       sampleData.name,
       sampleData.surname,
       sampleData.relation || 'Child',
       sampleData.status || 'pending',
-      sampleData.phone_number
+      sampleData.phone_number,
+      sampleData.date_of_birth || sampleData.dateOfBirth,
+      sampleData.place_of_birth || sampleData.placeOfBirth,
+      sampleData.nationality,
+      sampleData.address,
+      sampleData.email,
+      sampleData.id_number || sampleData.idNumber,
+      sampleData.id_type || sampleData.idType,
+      sampleData.collection_date || sampleData.collectionDate,
+      sampleData.submission_date || sampleData.submissionDate
     );
     
     return { id: result.lastInsertRowid, ...sampleData };
@@ -250,6 +330,118 @@ app.post("/api/samples", (req, res) => {
     ResponseHandler.success(res, newSample, 'Sample created successfully', 201);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to create sample', error);
+  }
+});
+
+// Submit paternity test form
+app.post("/api/submit-test", (req, res) => {
+  try {
+    const { childRow, fatherRow, motherRow, clientType, signatures, witness, legalDeclarations, consentType } = req.body;
+    
+    // Generate case number
+    const caseNumber = `CASE_${Date.now()}`;
+    
+    // Create test case record first
+    const testCase = createTestCase({
+      case_number: caseNumber,
+      ref_kit_number: childRow?.refKitNumber || `BN-${Date.now()}`,
+      submission_date: childRow?.submissionDate || new Date().toISOString().split('T')[0],
+      client_type: clientType || 'paternity',
+      mother_present: motherRow ? 'YES' : 'NO',
+      email_contact: childRow?.emailContact,
+      phone_contact: childRow?.phoneContact,
+      address_area: childRow?.addressArea,
+      comments: childRow?.comments,
+      test_purpose: childRow?.testPurpose || 'peace_of_mind',
+      sample_type: childRow?.sampleType || 'buccal_swab',
+      authorized_collector: childRow?.authorizedCollector,
+      consent_type: consentType || 'paternity',
+      has_signatures: signatures ? 'YES' : 'NO',
+      has_witness: witness ? 'YES' : 'NO',
+      witness_name: witness?.name,
+      legal_declarations: legalDeclarations ? JSON.stringify(legalDeclarations) : null
+    });
+    
+    // Create samples for each person and link to test case
+    const samples = [];
+    
+    // Create child sample (from additionalInfo section)
+    if (childRow) {
+      const childSample = createSample({
+        case_id: testCase.id,
+        lab_number: childRow.labNo || generateLabNumber(),
+        name: childRow.name,
+        surname: childRow.surname,
+        relation: 'Child',
+        status: 'pending',
+        phone_number: childRow.phoneNumber || childRow.phoneContact,
+        date_of_birth: childRow.dateOfBirth,
+        place_of_birth: childRow.placeOfBirth,
+        nationality: childRow.nationality,
+        address: childRow.address,
+        email: childRow.email,
+        id_number: childRow.idNumber,
+        id_type: childRow.idType,
+        collection_date: childRow.collectionDate,
+        submission_date: childRow.submissionDate
+      });
+      samples.push(childSample);
+    }
+    
+    // Create father sample
+    if (fatherRow && fatherRow.name) {
+      const fatherSample = createSample({
+        case_id: testCase.id,
+        lab_number: fatherRow.labNo || generateLabNumber(),
+        name: fatherRow.name,
+        surname: fatherRow.surname,
+        relation: 'Father',
+        status: 'pending',
+        phone_number: fatherRow.phoneNumber || fatherRow.phoneContact,
+        date_of_birth: fatherRow.dateOfBirth,
+        place_of_birth: fatherRow.placeOfBirth,
+        nationality: fatherRow.nationality,
+        address: fatherRow.address,
+        email: fatherRow.email,
+        id_number: fatherRow.idNumber,
+        id_type: fatherRow.idType,
+        collection_date: fatherRow.collectionDate
+      });
+      samples.push(fatherSample);
+    }
+    
+    // Create mother sample
+    if (motherRow && motherRow.name) {
+      const motherSample = createSample({
+        case_id: testCase.id,
+        lab_number: motherRow.labNo || generateLabNumber(),
+        name: motherRow.name,
+        surname: motherRow.surname,
+        relation: 'Mother',
+        status: 'pending',
+        phone_number: motherRow.phoneNumber || motherRow.phoneContact,
+        date_of_birth: motherRow.dateOfBirth,
+        place_of_birth: motherRow.placeOfBirth,
+        nationality: motherRow.nationality,
+        address: motherRow.address,
+        email: motherRow.email,
+        id_number: motherRow.idNumber,
+        id_type: motherRow.idType,
+        collection_date: motherRow.collectionDate
+      });
+      samples.push(motherSample);
+    }
+    
+    ResponseHandler.success(res, {
+      testCase,
+      samples,
+      testType: clientType,
+      caseNumber: testCase.case_number
+    }, 'Paternity test submitted successfully', 201);
+    
+  } catch (error) {
+    logger.error('Error submitting paternity test', { error: error.message, body: req.body });
+    ResponseHandler.error(res, 'Failed to submit paternity test', error);
   }
 });
 
@@ -330,18 +522,31 @@ app.get("/api/samples/search", (req, res) => {
       return ResponseHandler.success(res, []);
     }
     
+    // Enhanced search with case information and more fields
     const stmt = db.prepare(`
       SELECT 
-        id, lab_number, name, surname, relation, status, 
-        collection_date, workflow_status, case_number
-      FROM samples 
-      WHERE lab_number LIKE ? OR name LIKE ? OR surname LIKE ?
-      ORDER BY id DESC 
+        s.*,
+        tc.case_number,
+        tc.ref_kit_number,
+        tc.client_type,
+        tc.test_purpose,
+        tc.has_signatures,
+        tc.has_witness
+      FROM samples s
+      LEFT JOIN test_cases tc ON s.case_id = tc.id
+      WHERE s.lab_number LIKE ? 
+         OR s.name LIKE ? 
+         OR s.surname LIKE ? 
+         OR s.id_number LIKE ?
+         OR s.phone_number LIKE ?
+         OR tc.case_number LIKE ?
+         OR tc.ref_kit_number LIKE ?
+      ORDER BY s.id DESC 
       LIMIT 50
     `);
     
     const searchTerm = `%${query}%`;
-    const samples = stmt.all(searchTerm, searchTerm, searchTerm);
+    const samples = stmt.all(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
     
     ResponseHandler.success(res, samples);
   } catch (error) {
@@ -515,6 +720,30 @@ app.get("/api/batches/:id", (req, res) => {
     ResponseHandler.success(res, batch);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to fetch batch', error);
+  }
+});
+
+// Get samples with test case data for verification
+app.get("/api/samples-with-cases", (req, res) => {
+  try {
+    const stmt = db.prepare(`
+      SELECT 
+        s.*,
+        tc.case_number,
+        tc.ref_kit_number,
+        tc.client_type,
+        tc.test_purpose,
+        tc.has_signatures,
+        tc.has_witness
+      FROM samples s
+      LEFT JOIN test_cases tc ON s.case_id = tc.id
+      ORDER BY s.id DESC
+    `);
+    
+    const samples = stmt.all();
+    ResponseHandler.success(res, samples);
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to fetch samples with cases', error);
   }
 });
 

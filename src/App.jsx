@@ -11,7 +11,6 @@ import Sidebar from './components/layout/Sidebar';
 import Reports from './components/features/Reports';
 import LabResults from './components/features/LabResults';
 import ElectrophoresisBatches from './components/features/ElectrophoresisBatches';
-import SampleSearch from './components/features/SampleSearch';
 import SampleQueues from './components/features/SampleQueues';
 import Statistics from './components/features/Statistics';
 import QualityControl from './components/features/QualityControl';
@@ -224,16 +223,6 @@ function AppContent() {
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
                     <LabResults />
-                  </div>
-                </ErrorBoundary>
-              } 
-            />
-            <Route 
-              path="/sample-search" 
-              element={
-                <ErrorBoundary fallback="minimal">
-                  <div className={`${containerBackground} min-h-screen`}>
-                    <SampleSearch />
                   </div>
                 </ErrorBoundary>
               } 

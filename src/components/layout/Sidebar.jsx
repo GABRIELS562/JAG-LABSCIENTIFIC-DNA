@@ -181,14 +181,6 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       roles: ['staff']
     },
     { 
-      icon: <Search />, 
-      label: 'Sample Search',
-      hasSubMenu: false,
-      path: '/sample-search',
-      onClick: () => navigate('/sample-search'),
-      roles: ['staff', 'client']
-    },
-    { 
       icon: <Queue />, 
       label: 'Sample Queues',
       hasSubMenu: false,
