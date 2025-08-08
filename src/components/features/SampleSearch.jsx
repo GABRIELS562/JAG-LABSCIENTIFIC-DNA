@@ -1,0 +1,469 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Card,
+  CardContent,
+  Typography,
+  TextField,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Chip,
+  Grid,
+  Alert,
+  CircularProgress,
+  Button,
+  InputAdornment,
+  IconButton,
+  Tooltip,
+  Tabs,
+  Tab,
+  Fab
+} from '@mui/material';
+import {
+  Search as SearchIcon,
+  Refresh as RefreshIcon,
+  Clear as ClearIcon,
+  People as PeopleIcon,
+  Science as ScienceIcon,
+  Assessment as AssessmentIcon,
+  TrendingUp as TrendingUpIcon,
+  Add as AddIcon,
+  List as ListIcon
+} from '@mui/icons-material';
+import api from '../../services/api';
+import { getStatusColor, formatDate } from '../../utils/statusHelpers';
+import PaternityTestForm from '../forms/PaternityTestForm';
+
+export default function SampleSearch() {
+  // Tab state - 0 = View Samples, 1 = Register New
+  const [currentTab, setCurrentTab] = useState(0);
+  
+  // Sample viewing state
+  const [query, setQuery] = useState('');
+  const [samples, setSamples] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [stats, setStats] = useState(null);
+
+  // Load all samples on component mount
+  useEffect(() => {
+    loadAllSamples();
+    loadSampleStats();
+  }, []);
+
+  const loadAllSamples = async () => {
+    try {
+      setLoading(true);
+      // Use the new samples-with-cases endpoint to get grouping info
+      const response = await fetch('http://localhost:3001/api/samples-with-cases');
+      const data = await response.json();
+      if (data.success) {
+        setSamples(data.data || []);
+      } else {
+        setError('Failed to load samples');
+      }
+    } catch (error) {
+      setError('Error loading samples');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadSampleStats = async () => {
+    try {
+      const response = await api.getSampleCounts();
+      if (response.success) {
+        setStats(response.data);
+      }
+    } catch (error) {
+      console.error('Error loading sample stats:', error);
+    }
+  };
+
+  const handleSearch = async (searchQuery) => {
+    setQuery(searchQuery);
+    
+    if (!searchQuery.trim()) {
+      loadAllSamples();
+      return;
+    }
+
+    try {
+      setLoading(true);
+      // Use enhanced search endpoint directly
+      const response = await fetch(`http://localhost:3001/api/samples/search?q=${encodeURIComponent(searchQuery)}`);
+      const data = await response.json();
+      if (data.success) {
+        setSamples(data.data || []);
+      } else {
+        setError('Failed to search samples');
+      }
+    } catch (error) {
+      setError('Error searching samples');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClearSearch = () => {
+    setQuery('');
+    loadAllSamples();
+  };
+
+  const handleRefresh = async () => {
+    await Promise.all([loadAllSamples(), loadSampleStats()]);
+  };
+
+  // Normalize status to one of 4 main categories
+  const normalizeStatus = (status) => {
+    if (!status) return 'Pending';
+    
+    switch (status.toLowerCase()) {
+      case 'pending':
+      case 'sample_collected':
+        return 'Pending';
+      case 'pcr_batched':
+      case 'pcr_ready':
+      case 'pcr_completed':
+        return 'PCR Batched';
+      case 'electro_batched':
+      case 'electro_ready': 
+      case 'electro_completed':
+        return 'Electro Batched';
+      case 'completed':
+      case 'analysis_completed':
+      case 'report_sent':
+        return 'Completed';
+      default:
+        return 'Pending';
+    }
+  };
+
+  // Get color for normalized status
+  const getNormalizedStatusColor = (status) => {
+    switch (status) {
+      case 'Pending': return 'warning';
+      case 'PCR Batched': return 'info';
+      case 'Electro Batched': return 'primary';
+      case 'Completed': return 'success';
+      default: return 'default';
+    }
+  };
+
+  // Group samples by case number for display
+  const groupSamplesByCase = (samples) => {
+    const grouped = {};
+    samples.forEach(sample => {
+      const caseKey = sample.case_number || 'INDIVIDUAL';
+      if (!grouped[caseKey]) {
+        grouped[caseKey] = [];
+      }
+      grouped[caseKey].push(sample);
+    });
+    return grouped;
+  };
+
+  // Status utilities now imported from centralized location
+
+  // Handle successful registration callback
+  const handleRegistrationSuccess = () => {
+    setCurrentTab(0); // Switch back to view samples tab
+    handleRefresh(); // Refresh samples list
+  };
+
+  return (
+    <Box sx={{ p: 3 }}>
+      {/* Header with Tabs */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h4" component="h1">
+          Samples
+        </Typography>
+        <Button
+          variant="outlined"
+          startIcon={<RefreshIcon />}
+          onClick={handleRefresh}
+          disabled={loading}
+        >
+          Refresh
+        </Button>
+      </Box>
+
+      {/* Navigation Tabs */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={currentTab} onChange={(e, newValue) => setCurrentTab(newValue)}>
+          <Tab 
+            icon={<ListIcon />} 
+            label="View Samples" 
+            iconPosition="start"
+            sx={{ textTransform: 'none' }}
+          />
+          <Tab 
+            icon={<AddIcon />} 
+            label="Register New" 
+            iconPosition="start"
+            sx={{ textTransform: 'none' }}
+          />
+        </Tabs>
+      </Box>
+
+      {/* Tab Content */}
+      {currentTab === 1 ? (
+        /* Register New Tab - Show PaternityTestForm */
+        <PaternityTestForm onSuccess={handleRegistrationSuccess} />
+      ) : (
+        /* View Samples Tab - Show existing content */
+        <>
+
+      {/* Error Alert */}
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      {/* Stats Cards */}
+      {stats && (
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #0D488F 0%, #1e4976 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(13, 72, 143, 0.3)'
+              }
+            }}>
+              <PeopleIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.total || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Total Samples
+              </Typography>
+            </Box>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(255, 152, 0, 0.3)'
+              }
+            }}>
+              <AssessmentIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.pending || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Pending
+              </Typography>
+            </Box>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #42a5f5 0%, #1976d2 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(66, 165, 245, 0.3)'
+              }
+            }}>
+              <ScienceIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.processing || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Processing
+              </Typography>
+            </Box>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(22, 163, 74, 0.3)'
+              }
+            }}>
+              <TrendingUpIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.completed || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Completed
+              </Typography>
+            </Box>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* Search Section */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <TextField
+            fullWidth
+            placeholder="Search by Lab Number, Name, Surname, Case Number, ID Number, or Phone Number"
+            value={query}
+            onChange={(e) => handleSearch(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon color="action" />
+                </InputAdornment>
+              ),
+              endAdornment: query && (
+                <InputAdornment position="end">
+                  <Tooltip title="Clear search">
+                    <IconButton onClick={handleClearSearch} edge="end">
+                      <ClearIcon />
+                    </IconButton>
+                  </Tooltip>
+                </InputAdornment>
+              )
+            }}
+          />
+          
+          <Box display="flex" justifyContent="space-between" alignItems="center" mt={2}>
+            <Typography variant="body2" color="text.secondary">
+              {loading ? 'Searching...' : `Found ${samples.length} sample${samples.length !== 1 ? 's' : ''}`}
+              {query && ` matching "${query}"`}
+            </Typography>
+            
+            {loading && <CircularProgress size={20} />}
+          </Box>
+        </CardContent>
+      </Card>
+
+        {/* Results Table with Case Grouping */}
+        <Card>
+          <CardContent>
+            <TableContainer component={Paper} elevation={0} sx={{ overflowX: 'auto' }}>
+              <Table sx={{ minWidth: 650 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell><strong>Lab Number</strong></TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Name</strong></TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><strong>Surname</strong></TableCell>
+                    <TableCell><strong>Relation</strong></TableCell>
+                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}><strong>Case Number</strong></TableCell>
+                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}><strong>Collection Date</strong></TableCell>
+                    <TableCell><strong>Status</strong></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {samples.length === 0 && !loading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                        <Typography variant="body1" color="text.secondary">
+                          {query ? 'No samples found matching your search criteria' : 'No samples available'}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    (() => {
+                      const groupedSamples = groupSamplesByCase(samples);
+                      const rows = [];
+                      
+                      Object.entries(groupedSamples).forEach(([caseNumber, caseSamples]) => {
+                        // Add case header row if multiple samples in case
+                        if (caseSamples.length > 1 && caseNumber !== 'INDIVIDUAL') {
+                          rows.push(
+                            <TableRow key={`case-${caseNumber}`} sx={{ backgroundColor: 'rgba(13, 72, 143, 0.05)' }}>
+                              <TableCell colSpan={7} sx={{ fontWeight: 'bold', color: 'primary.main', fontSize: '0.9rem' }}>
+                                {caseSamples[0]?.test_purpose ? caseSamples[0].test_purpose.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Peace of Mind'} - Kit: {caseNumber} ({caseSamples.length} samples)
+                              </TableCell>
+                            </TableRow>
+                          );
+                        }
+                        
+                        // Add sample rows
+                        caseSamples.forEach((sample, index) => {
+                          const isGrouped = caseSamples.length > 1 && caseNumber !== 'INDIVIDUAL';
+                          rows.push(
+                            <TableRow 
+                              key={sample.id} 
+                              hover 
+                              sx={{ 
+                                backgroundColor: isGrouped ? 'rgba(13, 72, 143, 0.02)' : 'inherit',
+                                borderLeft: isGrouped ? '3px solid #0D488F' : 'none'
+                              }}
+                            >
+                              <TableCell>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  {isGrouped && <Box sx={{ width: 12, height: 2, backgroundColor: 'primary.main', borderRadius: 1 }} />}
+                                  <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                                    {sample.lab_number}
+                                  </Typography>
+                                </Box>
+                              </TableCell>
+                              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{sample.name}</TableCell>
+                              <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{sample.surname}</TableCell>
+                              <TableCell>
+                                <Chip 
+                                  label={sample.relation} 
+                                  size="small" 
+                                  variant={isGrouped ? "filled" : "outlined"}
+                                  color="primary"
+                                />
+                              </TableCell>
+                              <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                                {caseNumber !== 'INDIVIDUAL' ? caseNumber : '-'}
+                              </TableCell>
+                              <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                                {formatDate(sample.collection_date)}
+                              </TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={normalizeStatus(sample.workflow_status || sample.status)}
+                                  size="small"
+                                  color={getNormalizedStatusColor(normalizeStatus(sample.workflow_status || sample.status))}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          );
+                        });
+                      });
+                      
+                      return rows;
+                    })()
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </CardContent>
+        </Card>
+        </>
+      )}
+    </Box>
+  );
+} 

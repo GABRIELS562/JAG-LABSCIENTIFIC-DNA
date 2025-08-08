@@ -39,6 +39,9 @@ import {
 import api from '../../services/api';
 import { getStatusColor, formatDate } from '../../utils/statusHelpers';
 
+// Backend API URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 export default function ClientRegister() {
   const [query, setQuery] = useState('');
   const [samples, setSamples] = useState([]);
@@ -56,16 +59,120 @@ export default function ClientRegister() {
   const loadAllSamples = async () => {
     try {
       setLoading(true);
-      // Use the new samples-with-cases endpoint to get grouping info
-      const response = await fetch('/api/samples-with-cases');
-      const data = await response.json();
-      if (data.success) {
-        setSamples(data.data || []);
-      } else {
-        setError('Failed to load samples');
+      setError(null);
+      console.log('🔄 Loading samples...');
+      
+      // Try multiple endpoints with better error handling
+      let samplesData = [];
+      let success = false;
+      
+      const endpoints = ['/api/samples-with-cases', '/api/samples', '/api/samples/all'];
+      
+      for (const endpoint of endpoints) {
+        try {
+          const fullUrl = `${API_BASE_URL}${endpoint}`;
+          console.log(`🌐 Trying endpoint: ${fullUrl}`);
+          const response = await fetch(fullUrl);
+          
+          // Check if response is ok
+          if (!response.ok) {
+            console.warn(`❌ HTTP ${response.status} for ${endpoint}`);
+            continue;
+          }
+          
+          // Check if response has content
+          const text = await response.text();
+          if (!text.trim()) {
+            console.warn(`⚠️ Empty response from ${endpoint}`);
+            continue;
+          }
+          
+          // Try to parse JSON
+          let data;
+          try {
+            data = JSON.parse(text);
+          } catch (parseError) {
+            console.warn(`⚠️ Invalid JSON from ${endpoint}:`, parseError.message);
+            continue;
+          }
+          
+          // Extract samples data
+          if (data && data.success && Array.isArray(data.data)) {
+            samplesData = data.data;
+            success = true;
+            console.log(`✅ Successfully loaded ${samplesData.length} samples from ${endpoint}`);
+            break;
+          } else if (Array.isArray(data)) {
+            samplesData = data;
+            success = true;
+            console.log(`✅ Successfully loaded ${samplesData.length} samples from ${endpoint} (direct array)`);
+            break;
+          } else {
+            console.warn(`⚠️ Unexpected data format from ${endpoint}:`, data);
+          }
+        } catch (err) {
+          console.warn(`❌ Error with ${endpoint}:`, err.message);
+          continue;
+        }
       }
+      
+      if (success) {
+        setSamples(samplesData);
+        console.log(`📊 Set ${samplesData.length} samples in state`);
+      } else {
+        // If all endpoints fail, provide some mock data for demo purposes
+        console.log('🎭 Loading mock data for demonstration');
+        const mockSamples = [
+          {
+            id: 1,
+            lab_number: '25_001(25_002)M',
+            name: 'John',
+            surname: 'Smith',
+            relation: 'child',
+            case_number: 'BN-001',
+            ref_kit_number: 'BN-001',
+            collection_date: new Date().toISOString().split('T')[0],
+            workflow_status: 'pending',
+            status: 'pending',
+            comments: 'Test sample for system demo'
+          },
+          {
+            id: 2,
+            lab_number: '25_002',
+            name: 'Robert',
+            surname: 'Smith',
+            relation: 'alleged_father',
+            case_number: 'BN-001',
+            ref_kit_number: 'BN-001',
+            collection_date: new Date().toISOString().split('T')[0],
+            workflow_status: 'pending',
+            status: 'pending',
+            comments: 'Father sample for BN-001'
+          },
+          {
+            id: 3,
+            lab_number: '25_003',
+            name: 'Mary',
+            surname: 'Smith',
+            relation: 'mother',
+            case_number: 'BN-001',
+            ref_kit_number: 'BN-001',
+            collection_date: new Date().toISOString().split('T')[0],
+            workflow_status: 'pending',
+            status: 'pending',
+            comments: 'Mother sample for BN-001'
+          }
+        ];
+        
+        setSamples(mockSamples);
+        setError('Connected to demo mode - showing sample data. Backend may be unavailable.');
+        console.log('📊 Using mock data with 3 demo samples');
+      }
+      
     } catch (error) {
-      setError('Error loading samples');
+      console.error('💥 Unexpected error loading samples:', error);
+      setError(`Unexpected error: ${error.message}`);
+      setSamples([]);
     } finally {
       setLoading(false);
     }
@@ -74,11 +181,26 @@ export default function ClientRegister() {
   const loadSampleStats = async () => {
     try {
       const response = await api.getSampleCounts();
-      if (response.success) {
+      if (response && response.success && response.data) {
         setStats(response.data);
+      } else {
+        // Provide default stats if API fails
+        setStats({
+          total: samples.length,
+          pending: samples.filter(s => s.status === 'pending').length,
+          processing: samples.filter(s => s.status === 'processing').length,
+          completed: samples.filter(s => s.status === 'completed').length
+        });
       }
     } catch (error) {
       console.error('Error loading sample stats:', error);
+      // Set default stats based on loaded samples
+      setStats({
+        total: samples.length,
+        pending: 0,
+        processing: 0,
+        completed: 0
+      });
     }
   };
 
@@ -92,16 +214,74 @@ export default function ClientRegister() {
 
     try {
       setLoading(true);
-      // Use enhanced search endpoint directly
-      const response = await fetch(`/api/samples/search?q=${encodeURIComponent(searchQuery)}`);
-      const data = await response.json();
-      if (data.success) {
-        setSamples(data.data || []);
-      } else {
-        setError('Failed to search samples');
+      setError(null);
+      console.log(`🔍 Searching for: "${searchQuery}"`);
+      
+      let samplesData = [];
+      let success = false;
+      
+      // Try search endpoint first
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/samples/search?q=${encodeURIComponent(searchQuery)}`);
+        
+        if (response.ok) {
+          const text = await response.text();
+          if (text.trim()) {
+            const data = JSON.parse(text);
+            if (data && data.success && Array.isArray(data.data)) {
+              samplesData = data.data;
+              success = true;
+              console.log(`✅ Search found ${samplesData.length} samples`);
+            }
+          }
+        }
+      } catch (searchErr) {
+        console.warn('❌ Search endpoint failed:', searchErr.message);
       }
+      
+      // If search failed, try local filtering
+      if (!success) {
+        console.log('🔄 Falling back to local filtering...');
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/samples`);
+          if (response.ok) {
+            const text = await response.text();
+            if (text.trim()) {
+              const data = JSON.parse(text);
+              const allSamples = data.success ? (data.data || []) : (Array.isArray(data) ? data : []);
+              
+              // Simple text-based filtering
+              samplesData = allSamples.filter(sample => {
+                const searchLower = searchQuery.toLowerCase();
+                return (
+                  (sample.lab_number && sample.lab_number.toLowerCase().includes(searchLower)) ||
+                  (sample.name && sample.name.toLowerCase().includes(searchLower)) ||
+                  (sample.surname && sample.surname.toLowerCase().includes(searchLower)) ||
+                  (sample.case_number && sample.case_number.toLowerCase().includes(searchLower)) ||
+                  (sample.ref_kit_number && sample.ref_kit_number.toLowerCase().includes(searchLower))
+                );
+              });
+              
+              success = true;
+              console.log(`✅ Local filter found ${samplesData.length} samples`);
+            }
+          }
+        } catch (filterErr) {
+          console.error('❌ Local filtering failed:', filterErr.message);
+        }
+      }
+      
+      if (success) {
+        setSamples(samplesData);
+      } else {
+        setError('Search failed. Please try again or check your connection.');
+        setSamples([]);
+      }
+      
     } catch (error) {
-      setError('Error searching samples');
+      console.error('💥 Unexpected search error:', error);
+      setError(`Search error: ${error.message}`);
+      setSamples([]);
     } finally {
       setLoading(false);
     }
@@ -192,14 +372,22 @@ export default function ClientRegister() {
   };
 
   // Group samples by case number for display
-  const groupSamplesByCase = (samples) => {
+  const groupSamplesByKit = (samples) => {
     const grouped = {};
     samples.forEach(sample => {
-      let caseKey;
+      let kitKey;
       
-      // Handle new format with explicit case numbers
-      if (sample.case_number && sample.case_id) {
-        caseKey = sample.case_number;
+      // Group by kit number (ref_kit_number) - this is the new BN-#### system
+      if (sample.ref_kit_number) {
+        kitKey = sample.ref_kit_number;
+      }
+      // Handle new format with case numbers that are also kit numbers (BN-####)
+      else if (sample.case_number && sample.case_number.startsWith('BN-')) {
+        kitKey = sample.case_number;
+      }
+      // Handle legacy case numbers 
+      else if (sample.case_number && sample.case_id) {
+        kitKey = sample.case_number;
       }
       // Handle dummy data grouping by paternity test patterns
       else if (sample.case_id === null && sample.case_number === null) {
@@ -233,24 +421,24 @@ export default function ClientRegister() {
           }
           
           if (fatherLabNumber) {
-            caseKey = `PATERNITY_${fatherLabNumber}`;
+            kitKey = `PATERNITY_${fatherLabNumber}`;
           } else {
-            caseKey = `INDIVIDUAL_${sample.id}`;
+            kitKey = `INDIVIDUAL_${sample.id}`;
           }
         } else {
           // Individual sample
-          caseKey = `INDIVIDUAL_${sample.id}`;
+          kitKey = `INDIVIDUAL_${sample.id}`;
         }
       }
       // Fallback for other cases
       else {
-        caseKey = `INDIVIDUAL_${sample.id}`;
+        kitKey = `INDIVIDUAL_${sample.id}`;
       }
       
-      if (!grouped[caseKey]) {
-        grouped[caseKey] = [];
+      if (!grouped[kitKey]) {
+        grouped[kitKey] = [];
       }
-      grouped[caseKey].push(sample);
+      grouped[kitKey].push(sample);
     });
     return grouped;
   };
@@ -484,13 +672,14 @@ export default function ClientRegister() {
                   <TableCell><strong>Relation</strong></TableCell>
                   <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}><strong>Case Number</strong></TableCell>
                   <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}><strong>Collection Date</strong></TableCell>
+                  <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}><strong>Comments</strong></TableCell>
                   <TableCell><strong>Status</strong></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {samples.length === 0 && !loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                    <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
                       <Typography variant="body1" color="text.secondary">
                         {query ? 'No samples found matching your search criteria' : 'No samples available'}
                       </Typography>
@@ -498,45 +687,70 @@ export default function ClientRegister() {
                   </TableRow>
                 ) : (
                   (() => {
-                    const groupedSamples = groupSamplesByCase(samples);
+                    const groupedSamples = groupSamplesByKit(samples);
                     const rows = [];
                     
-                    Object.entries(groupedSamples).forEach(([caseNumber, caseSamples]) => {
+                    Object.entries(groupedSamples).forEach(([kitNumber, kitSamples]) => {
                       // Check the type of grouping
-                      const isRealCase = caseNumber.startsWith('CASE_');
-                      const isPaternityGroup = caseNumber.startsWith('PATERNITY_');
-                      const isIndividualSample = caseNumber.startsWith('INDIVIDUAL_');
+                      const isBNKit = kitNumber.startsWith('BN-');
+                      const isLegacyCase = kitNumber.startsWith('CASE_');
+                      const isPaternityGroup = kitNumber.startsWith('PATERNITY_');
+                      const isIndividualSample = kitNumber.startsWith('INDIVIDUAL_');
                       
-                      // Add case header row for real cases and paternity groups with multiple samples
-                      if ((isRealCase || isPaternityGroup) && caseSamples.length > 1) {
-                        const headerIcon = isRealCase ? '📁' : '🧬';
-                        const headerLabel = isRealCase ? 'Case' : 'Paternity Test';
-                        const displayName = isRealCase ? caseNumber : `Test ${caseNumber.replace('PATERNITY_', '')}`;
+                      // Add kit header row for BN kits, legacy cases and paternity groups with multiple samples  
+                      if ((isBNKit || isLegacyCase || isPaternityGroup) && kitSamples.length > 1) {
+                        // Get test purpose and client type from first sample in group
+                        const firstSample = kitSamples[0];
+                        const testPurpose = firstSample.test_purpose;
+                        const clientType = firstSample.client_type;
+                        const displayKitNumber = firstSample.ref_kit_number || kitNumber;
+                        
+                        // Create meaningful display name based on test purpose and client type
+                        let displayName = 'Unknown Test';
+                        let headerIcon = '🧬';
+                        
+                        if (clientType === 'legal' || clientType === 'lt') {
+                          displayName = 'LT Samples';
+                          headerIcon = '⚖️';
+                        } else if (testPurpose === 'peace_of_mind') {
+                          displayName = 'Peace of Mind';
+                          headerIcon = '🕊️';
+                        } else if (testPurpose === 'legal_proceedings') {
+                          displayName = 'Legal Proceedings';
+                          headerIcon = '⚖️';
+                        } else if (testPurpose === 'immigration') {
+                          displayName = 'Immigration';
+                          headerIcon = '🌍';
+                        } else if (testPurpose === 'inheritance') {
+                          displayName = 'Inheritance';
+                          headerIcon = '🏛️';
+                        } else if (testPurpose === 'custody') {
+                          displayName = 'Custody';
+                          headerIcon = '👨‍👩‍👧‍👦';
+                        }
                         
                         rows.push(
-                          <TableRow key={`case-${caseNumber}`} sx={{ 
-                            backgroundColor: isRealCase ? 'rgba(13, 72, 143, 0.05)' : 'rgba(76, 175, 80, 0.05)' 
+                          <TableRow key={`kit-${kitNumber}`} sx={{ 
+                            backgroundColor: 'rgba(13, 72, 143, 0.05)'
                           }}>
-                            <TableCell colSpan={8} sx={{ fontWeight: 'bold', color: isRealCase ? 'primary.main' : 'success.main', fontSize: '0.9rem' }}>
-                              {headerIcon} {headerLabel}: {displayName} ({caseSamples.length} samples)
-                              {caseSamples[0]?.ref_kit_number && ` - Kit: ${caseSamples[0].ref_kit_number}`}
-                              {caseSamples[0]?.test_purpose && ` - ${caseSamples[0].test_purpose.replace('_', ' ')}`}
+                            <TableCell colSpan={9} sx={{ fontWeight: 'bold', color: 'primary.main', fontSize: '0.9rem' }}>
+                              {headerIcon} {displayName} - Kit: {kitNumber} ({kitSamples.length} samples)
                             </TableCell>
                           </TableRow>
                         );
                       }
                       
                       // Add sample rows
-                      caseSamples.forEach((sample, index) => {
-                        // Apply grouping styles to both real cases and paternity groups
-                        const isGrouped = (isRealCase || isPaternityGroup) && caseSamples.length > 1;
-                        const groupColor = isRealCase ? '#0D488F' : '#4CAF50';
+                      kitSamples.forEach((sample, index) => {
+                        // Apply grouping styles to both BN kits and paternity groups
+                        const isGrouped = (isBNKit || isPaternityGroup) && kitSamples.length > 1;
+                        const groupColor = isBNKit ? '#0D488F' : '#4CAF50';
                         rows.push(
                           <TableRow 
                             key={sample.id} 
                             hover 
                             sx={{ 
-                              backgroundColor: isGrouped ? (isRealCase ? 'rgba(13, 72, 143, 0.02)' : 'rgba(76, 175, 80, 0.02)') : 'inherit',
+                              backgroundColor: isGrouped ? (isBNKit ? 'rgba(13, 72, 143, 0.02)' : 'rgba(76, 175, 80, 0.02)') : 'inherit',
                               borderLeft: isGrouped ? `3px solid ${groupColor}` : 'none'
                             }}
                           >
@@ -558,18 +772,39 @@ export default function ClientRegister() {
                             <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{sample.name}</TableCell>
                             <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{sample.surname}</TableCell>
                             <TableCell>
-                              <Chip 
-                                label={sample.relation} 
-                                size="small" 
-                                variant={isGrouped ? "filled" : "outlined"}
-                                color={isRealCase ? "primary" : "success"}
-                              />
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Chip 
+                                  label={sample.relation} 
+                                  size="small" 
+                                  variant={isGrouped ? "filled" : "outlined"}
+                                  color={isBNKit ? "primary" : "success"}
+                                />
+                                {sample.gender && (
+                                  <Chip 
+                                    label={sample.gender === 'M' ? '♂' : '♀'}
+                                    size="small"
+                                    variant="outlined"
+                                    color={sample.gender === 'M' ? 'primary' : 'secondary'}
+                                    sx={{ minWidth: 'auto', fontSize: '0.75rem' }}
+                                  />
+                                )}
+                              </Box>
                             </TableCell>
                             <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
-                              {isRealCase ? caseNumber : (isPaternityGroup ? `Test ${caseNumber.replace('PATERNITY_', '')}` : '-')}
+                              {isBNKit ? kitNumber : (isPaternityGroup ? `Test ${kitNumber.replace('PATERNITY_', '')}` : '-')}
                             </TableCell>
                             <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                               {formatDate(sample.collection_date)}
+                            </TableCell>
+                            <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>
+                              <Typography variant="body2" sx={{ 
+                                maxWidth: 150, 
+                                overflow: 'hidden', 
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                {sample.comments || '-'}
+                              </Typography>
                             </TableCell>
                             <TableCell>
                               <Chip

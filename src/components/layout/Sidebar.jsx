@@ -84,21 +84,21 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       onClick: () => navigate('/'),
       roles: ['staff', 'client']
     },
-    { 
-      icon: <PersonAdd />, 
+    {
+      icon: <PersonAdd />,
       label: 'Register Client',
       hasSubMenu: false,
       path: '/register-client',
       onClick: () => navigate('/register-client'),
-      roles: ['staff']
+      roles: ['staff', 'client']
     },
     { 
-      icon: <Group />, 
+      icon: <Science />, 
       label: 'Samples',
       hasSubMenu: false,
-      path: '/client-register',
-      onClick: () => navigate('/client-register'),
-      roles: ['staff']
+      path: '/samples',
+      onClick: () => navigate('/samples'),
+      roles: ['staff', 'client']
     },
     { 
       icon: <EditNote />, 

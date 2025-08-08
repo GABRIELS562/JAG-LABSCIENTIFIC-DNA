@@ -4,7 +4,6 @@ import { AppBar, Toolbar, IconButton, useTheme, useMediaQuery, ThemeProvider as 
 import { Menu as MenuIcon } from '@mui/icons-material';
 
 // Import components
-import PaternityTestForm from './components/forms/PaternityTestForm';
 import HomePage from './components/ui/HomePage';
 import ThemeToggle from './components/ui/ThemeToggle';
 import Sidebar from './components/layout/Sidebar';
@@ -14,14 +13,16 @@ import ElectrophoresisBatches from './components/features/ElectrophoresisBatches
 import SampleQueues from './components/features/SampleQueues';
 import Statistics from './components/features/Statistics';
 import QualityControl from './components/features/QualityControl';
-import ClientRegister from './components/features/ClientRegister';
 import PCRPlate from './components/features/PCRPlate';
 import PCRBatches from './components/features/PCRBatches';
+import SampleSearch from './components/features/SampleSearch';
+import ClientRegister from './components/features/ClientRegister';
 import GeneticAnalysis from './components/features/genetic-analysis/GeneticAnalysisRefactored';
 import AnalysisSummary from './components/features/AnalysisSummary';
 import ElectrophoresisLayout from './components/features/ElectrophoresisLayout';
 import Reruns from './components/features/Reruns';
 import ApiTest from './components/debug/ApiTest';
+import PaternityTestForm from './components/forms/PaternityTestForm';
 
 // Import authentication components
 import LoginPage from './components/auth/LoginPage';
@@ -117,16 +118,7 @@ function AppContent() {
                 </ErrorBoundary>
               } 
             />
-            <Route 
-              path="/client-register" 
-              element={
-                <ErrorBoundary fallback="minimal">
-                  <div className={`${containerBackground} min-h-screen`}>
-                    <ClientRegister />
-                  </div>
-                </ErrorBoundary>
-              } 
-            />
+            
             <Route 
               path="/pcr-plate" 
               element={
@@ -233,6 +225,16 @@ function AppContent() {
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
                     <SampleQueues />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/samples" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <ClientRegister />
                   </div>
                 </ErrorBoundary>
               } 

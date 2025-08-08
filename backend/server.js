@@ -165,31 +165,71 @@ function getSampleCounts() {
   }
 }
 
-// Generate next lab number based on the last one
+// Generate next lab number using sequence table for consistency
 function generateLabNumber() {
   try {
-    const stmt = db.prepare('SELECT lab_number FROM samples ORDER BY id DESC LIMIT 1');
-    const result = stmt.get();
+    // Create lab_sequence table if it doesn't exist
+    const createTableStmt = db.prepare(`
+      CREATE TABLE IF NOT EXISTS lab_sequence (
+        id INTEGER PRIMARY KEY,
+        next_lab_number INTEGER NOT NULL,
+        year_prefix TEXT NOT NULL
+      )
+    `);
+    createTableStmt.run();
     
-    if (!result) {
-      return '25_001';
+    // Get or initialize the sequence
+    let sequenceStmt = db.prepare('SELECT next_lab_number, year_prefix FROM lab_sequence WHERE id = 1');
+    let sequence = sequenceStmt.get();
+    
+    if (!sequence) {
+      // Initialize sequence by finding the highest existing lab number
+      const existingStmt = db.prepare('SELECT lab_number FROM samples ORDER BY id DESC LIMIT 100');
+      const results = existingStmt.all();
+      
+      let highestNumber = 420; // Default starting point as requested
+      
+      results.forEach(result => {
+        const labNumber = result.lab_number;
+        // Extract numbers that follow the "25_" pattern
+        const matches = labNumber.match(/25_(\d+)/g);
+        if (matches) {
+          matches.forEach(match => {
+            const number = parseInt(match.replace('25_', ''), 10);
+            if (number > highestNumber) {
+              highestNumber = number;
+            }
+          });
+        }
+      });
+      
+      // Insert initial sequence
+      const initStmt = db.prepare(`
+        INSERT INTO lab_sequence (id, next_lab_number, year_prefix) 
+        VALUES (1, ?, ?)
+      `);
+      initStmt.run(highestNumber + 1, '25');
+      sequence = { next_lab_number: highestNumber + 1, year_prefix: '25' };
     }
     
-    const lastLabNumber = result.lab_number;
-    const parts = lastLabNumber.split('_');
+    const nextNumber = sequence.next_lab_number;
+    const labNumber = `${sequence.year_prefix}_${nextNumber.toString().padStart(3, '0')}`;
     
-    if (parts.length === 2) {
-      const year = parts[0];
-      const number = parseInt(parts[1], 10);
-      const nextNumber = number + 1;
-      return `${year}_${nextNumber.toString().padStart(3, '0')}`;
-    }
+    // Update sequence for next use
+    const updateStmt = db.prepare(`
+      UPDATE lab_sequence SET next_lab_number = ? WHERE id = 1
+    `);
+    updateStmt.run(nextNumber + 1);
     
-    // Fallback
-    return '25_001';
+    logger.info('Generated lab number', { labNumber, nextSequence: nextNumber + 1 });
+    return labNumber;
+    
   } catch (error) {
     logger.error('Error generating lab number', { error: error.message });
-    return '25_001';
+    
+    // Fallback: use timestamp-based number
+    const fallbackNumber = Date.now().toString().slice(-3);
+    return `25_${fallbackNumber}`;
   }
 }
 
@@ -239,9 +279,10 @@ function createSample(sampleData) {
       INSERT INTO samples (
         case_id, lab_number, name, surname, relation, status, phone_number,
         date_of_birth, place_of_birth, nationality, address, email, 
-        id_number, id_type, collection_date, submission_date,
+        id_number, id_type, collection_date, submission_date, sample_type,
+        case_number, kit_batch_number, workflow_status, gender,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     `);
     
     const result = stmt.run(
@@ -249,7 +290,7 @@ function createSample(sampleData) {
       sampleData.lab_number,
       sampleData.name,
       sampleData.surname,
-      sampleData.relation || 'Child',
+      sampleData.relation || 'child',
       sampleData.status || 'pending',
       sampleData.phone_number,
       sampleData.date_of_birth || sampleData.dateOfBirth,
@@ -260,7 +301,12 @@ function createSample(sampleData) {
       sampleData.id_number || sampleData.idNumber,
       sampleData.id_type || sampleData.idType,
       sampleData.collection_date || sampleData.collectionDate,
-      sampleData.submission_date || sampleData.submissionDate
+      sampleData.submission_date || sampleData.submissionDate,
+      sampleData.sample_type || sampleData.sampleType || 'buccal_swab',
+      sampleData.case_number,
+      sampleData.kit_batch_number,
+      sampleData.workflow_status || 'sample_collected',
+      sampleData.gender
     );
     
     return { id: result.lastInsertRowid, ...sampleData };
@@ -333,28 +379,55 @@ app.post("/api/samples", (req, res) => {
   }
 });
 
-// Submit paternity test form
+// Submit paternity test form - NEW BN Kit System
 app.post("/api/submit-test", (req, res) => {
   try {
-    const { childRow, fatherRow, motherRow, clientType, signatures, witness, legalDeclarations, consentType } = req.body;
+    console.log('📝 Received submit-test request');
     
-    // Generate case number
-    const caseNumber = `CASE_${Date.now()}`;
+    const { childrenRows, childRow, fatherRow, motherRow, clientType, signatures, witness, legalDeclarations, consentType, sampleType, numberOfChildren } = req.body;
+    
+    // Generate BN kit number using sequence table
+    let kitNumber;
+    try {
+      const sequenceStmt = db.prepare('SELECT next_bn_number FROM bn_sequence WHERE id = 1');
+      const sequence = sequenceStmt.get();
+      
+      const nextNumber = sequence ? sequence.next_bn_number : 69; // Start from 69 (next after migration)
+      kitNumber = `BN-${nextNumber.toString().padStart(4, '0')}`;
+      
+      // Update sequence for next use
+      const updateStmt = db.prepare(`
+        INSERT OR REPLACE INTO bn_sequence (id, next_bn_number) 
+        VALUES (1, ?)
+      `);
+      updateStmt.run(nextNumber + 1);
+    } catch (error) {
+      console.error('Error generating BN kit number:', error);
+      // Fallback to timestamp-based kit number
+      kitNumber = `BN-${Date.now().toString().slice(-4)}`;
+    }
+    
+    // For now, use kit number as case number (will be replaced with LDS batching later)
+    const caseNumber = kitNumber;
+    
+    // Use childrenRows (new format) or fallback to childRow (legacy)
+    const children = childrenRows || (childRow ? [childRow] : []);
+    const firstChild = children[0];
     
     // Create test case record first
     const testCase = createTestCase({
       case_number: caseNumber,
-      ref_kit_number: childRow?.refKitNumber || `BN-${Date.now()}`,
-      submission_date: childRow?.submissionDate || new Date().toISOString().split('T')[0],
+      ref_kit_number: kitNumber,
+      submission_date: firstChild?.submissionDate || new Date().toISOString().split('T')[0],
       client_type: clientType || 'paternity',
       mother_present: motherRow ? 'YES' : 'NO',
-      email_contact: childRow?.emailContact,
-      phone_contact: childRow?.phoneContact,
-      address_area: childRow?.addressArea,
-      comments: childRow?.comments,
-      test_purpose: childRow?.testPurpose || 'peace_of_mind',
-      sample_type: childRow?.sampleType || 'buccal_swab',
-      authorized_collector: childRow?.authorizedCollector,
+      email_contact: firstChild?.emailContact,
+      phone_contact: firstChild?.phoneContact,
+      address_area: firstChild?.addressArea,
+      comments: firstChild?.comments,
+      test_purpose: firstChild?.testPurpose || 'peace_of_mind',
+      sample_type: firstChild?.sampleType || 'buccal_swab',
+      authorized_collector: firstChild?.authorizedCollector,
       consent_type: consentType || 'paternity',
       has_signatures: signatures ? 'YES' : 'NO',
       has_witness: witness ? 'YES' : 'NO',
@@ -364,38 +437,19 @@ app.post("/api/submit-test", (req, res) => {
     
     // Create samples for each person and link to test case
     const samples = [];
+    let fatherSample = null;
     
-    // Create child sample (from additionalInfo section)
-    if (childRow) {
-      const childSample = createSample({
-        case_id: testCase.id,
-        lab_number: childRow.labNo || generateLabNumber(),
-        name: childRow.name,
-        surname: childRow.surname,
-        relation: 'Child',
-        status: 'pending',
-        phone_number: childRow.phoneNumber || childRow.phoneContact,
-        date_of_birth: childRow.dateOfBirth,
-        place_of_birth: childRow.placeOfBirth,
-        nationality: childRow.nationality,
-        address: childRow.address,
-        email: childRow.email,
-        id_number: childRow.idNumber,
-        id_type: childRow.idType,
-        collection_date: childRow.collectionDate,
-        submission_date: childRow.submissionDate
-      });
-      samples.push(childSample);
-    }
-    
-    // Create father sample
+    // Create father sample first to get his lab number
+    console.log('👨 Processing father:', fatherRow);
     if (fatherRow && fatherRow.name) {
-      const fatherSample = createSample({
+      console.log('👨 Creating father sample');
+      try {
+        fatherSample = createSample({
         case_id: testCase.id,
         lab_number: fatherRow.labNo || generateLabNumber(),
         name: fatherRow.name,
         surname: fatherRow.surname,
-        relation: 'Father',
+        relation: 'alleged_father',
         status: 'pending',
         phone_number: fatherRow.phoneNumber || fatherRow.phoneContact,
         date_of_birth: fatherRow.dateOfBirth,
@@ -405,9 +459,69 @@ app.post("/api/submit-test", (req, res) => {
         email: fatherRow.email,
         id_number: fatherRow.idNumber,
         id_type: fatherRow.idType,
-        collection_date: fatherRow.collectionDate
+        collection_date: fatherRow.collectionDate || new Date().toISOString().split('T')[0],
+        submission_date: fatherRow.submissionDate || new Date().toISOString().split('T')[0],
+        sample_type: fatherRow.sampleType || 'buccal_swab',
+        case_number: caseNumber,
+        kit_batch_number: kitNumber,
+        workflow_status: 'sample_collected'
+        });
+        console.log('👨 Father sample created successfully:', fatherSample.id);
+        samples.push(fatherSample);
+      } catch (fatherError) {
+        console.error('❌ Error creating father sample:', fatherError.message);
+        throw fatherError;
+      }
+    }
+    
+    // Create child samples with father's lab number in brackets
+    console.log('👶 Processing children:', children?.length || 0, children);
+    if (children && children.length > 0) {
+      children.forEach((child, index) => {
+        console.log(`👶 Creating child sample ${index + 1}:`, child);
+        try {
+          let childLabNumber = child.labNo || generateLabNumber();
+          
+          // Format child lab number with father's lab number in brackets if father exists
+          if (fatherSample && fatherSample.lab_number) {
+            // Extract base number from child lab number (e.g., "25_421" -> "421")
+            const childBaseNumber = childLabNumber.split('_')[1];
+            // Determine gender from child data (default to M if not specified)
+            const genderIndicator = (child.gender && child.gender.toLowerCase() === 'f') ? 'F' : 'M';
+            // Format as child(father)M or child(father)F
+            childLabNumber = `25_${childBaseNumber}(${fatherSample.lab_number})${genderIndicator}`;
+          }
+          
+          const childSample = createSample({
+          case_id: testCase.id,
+          lab_number: childLabNumber,
+          name: child.name,
+          surname: child.surname,
+          relation: 'child',
+          status: 'pending',
+          phone_number: child.phoneNumber || child.phoneContact,
+          date_of_birth: child.dateOfBirth,
+          place_of_birth: child.placeOfBirth,
+          nationality: child.nationality,
+          address: child.address,
+          email: child.email,
+          id_number: child.idNumber,
+          id_type: child.idType,
+          collection_date: child.collectionDate || new Date().toISOString().split('T')[0],
+          submission_date: child.submissionDate || new Date().toISOString().split('T')[0],
+          sample_type: child.sampleType || 'buccal_swab',
+          case_number: caseNumber,
+          kit_batch_number: kitNumber,
+          workflow_status: 'sample_collected',
+          gender: (child.gender && child.gender.toLowerCase() === 'f') ? 'F' : 'M'
+          });
+          console.log('👶 Child sample created successfully:', childSample.id, 'with lab number:', childLabNumber);
+          samples.push(childSample);
+        } catch (childError) {
+          console.error('❌ Error creating child sample:', childError.message);
+          throw childError;
+        }
       });
-      samples.push(fatherSample);
     }
     
     // Create mother sample
@@ -417,7 +531,7 @@ app.post("/api/submit-test", (req, res) => {
         lab_number: motherRow.labNo || generateLabNumber(),
         name: motherRow.name,
         surname: motherRow.surname,
-        relation: 'Mother',
+        relation: 'mother',
         status: 'pending',
         phone_number: motherRow.phoneNumber || motherRow.phoneContact,
         date_of_birth: motherRow.dateOfBirth,
@@ -427,7 +541,12 @@ app.post("/api/submit-test", (req, res) => {
         email: motherRow.email,
         id_number: motherRow.idNumber,
         id_type: motherRow.idType,
-        collection_date: motherRow.collectionDate
+        collection_date: motherRow.collectionDate || new Date().toISOString().split('T')[0],
+        submission_date: motherRow.submissionDate || new Date().toISOString().split('T')[0],
+        sample_type: motherRow.sampleType || 'buccal_swab',
+        case_number: caseNumber,
+        kit_batch_number: kitNumber,
+        workflow_status: 'sample_collected'
       });
       samples.push(motherSample);
     }
@@ -541,7 +660,13 @@ app.get("/api/samples/search", (req, res) => {
          OR s.phone_number LIKE ?
          OR tc.case_number LIKE ?
          OR tc.ref_kit_number LIKE ?
-      ORDER BY s.id DESC 
+      ORDER BY s.case_id DESC, 
+        CASE s.relation 
+          WHEN 'Child' THEN 1 
+          WHEN 'Father' THEN 2 
+          WHEN 'Mother' THEN 3 
+          ELSE 4 
+        END ASC
       LIMIT 50
     `);
     
@@ -737,7 +862,13 @@ app.get("/api/samples-with-cases", (req, res) => {
         tc.has_witness
       FROM samples s
       LEFT JOIN test_cases tc ON s.case_id = tc.id
-      ORDER BY s.id DESC
+      ORDER BY s.case_id DESC, 
+        CASE s.relation 
+          WHEN 'Child' THEN 1 
+          WHEN 'Father' THEN 2 
+          WHEN 'Mother' THEN 3 
+          ELSE 4 
+        END ASC
     `);
     
     const samples = stmt.all();

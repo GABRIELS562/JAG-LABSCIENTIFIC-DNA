@@ -430,6 +430,7 @@ class UnifiedDatabaseService {
         CAST(SUBSTR(s.lab_number, INSTR(s.lab_number, '_') + 1) AS INTEGER) ASC,
         CASE s.relation
           WHEN 'Child' THEN 1
+          WHEN 'Father' THEN 2
           WHEN 'Alleged Father' THEN 2
           WHEN 'Mother' THEN 3
           ELSE 4
@@ -602,7 +603,42 @@ class UnifiedDatabaseService {
     `);
   }
 
-  generateSequentialLabNumbers(clientType = 'paternity', count = 1) {
+  // NEW: Generate next BN kit number (BN-0001, BN-0002, etc.)
+  getNextBNKitNumber() {
+    // Get next number from sequence table
+    const sequenceStmt = this.db.prepare('SELECT next_bn_number FROM bn_sequence WHERE id = 1');
+    const sequence = sequenceStmt.get();
+    
+    const nextNumber = sequence ? sequence.next_bn_number : 1;
+    const kitNumber = `BN-${nextNumber.toString().padStart(4, '0')}`;
+    
+    // Update sequence for next use
+    const updateStmt = this.db.prepare(`
+      INSERT OR REPLACE INTO bn_sequence (id, next_bn_number) 
+      VALUES (1, ?)
+    `);
+    updateStmt.run(nextNumber + 1);
+    
+    return kitNumber;
+  }
+
+  // Generate sequential lab numbers with new BN-####-X format
+  generateSequentialLabNumbers(clientType = 'paternity', count = 1, relations = ['C', 'F', 'M']) {
+    // Get next BN number from sequence table
+    const kitNumber = this.getNextBNKitNumber();
+    
+    const numbers = [];
+    for (let i = 0; i < count; i++) {
+      const relation = relations[i] || 'X'; // Default to 'X' if relation not specified
+      const labNumber = `${kitNumber}-${relation}`;
+      numbers.push(labNumber);
+    }
+
+    return numbers;
+  }
+
+  // Legacy method for backward compatibility (now uses BN format)
+  generateSequentialLabNumbers_Legacy(clientType = 'paternity', count = 1) {
     const year = new Date().getFullYear();
     const yearSuffix = year.toString().slice(-2);
     
@@ -859,7 +895,14 @@ class UnifiedDatabaseService {
   }
 
   // Utility methods for standard database operations
-  generateLabNumber(clientType = 'paternity') {
+  // NEW: Generate single lab number with BN format and relation suffix
+  generateLabNumber(clientType = 'paternity', relation = 'C') {
+    const kitNumber = this.getNextBNKitNumber();
+    return `${kitNumber}-${relation}`;
+  }
+
+  // Legacy generateLabNumber for backward compatibility
+  generateLabNumber_Legacy(clientType = 'paternity') {
     const year = new Date().getFullYear();
     const yearSuffix = year.toString().slice(-2);
     
