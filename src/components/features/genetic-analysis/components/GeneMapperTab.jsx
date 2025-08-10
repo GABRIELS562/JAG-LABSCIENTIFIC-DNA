@@ -146,8 +146,16 @@ const GeneMapperTab = ({ isDarkMode, notifications }) => {
           comment = 'HiDi';
           sampleType = 'Sample';
         } else {
-          // Regular sample - format lab number and handle child/father relationships
-          sampleName = sample.lab_number || `Sample_${wellId}`;
+          // Regular sample - format with lab number and surname like "25_407_C_Cupido"
+          const baseSampleName = sample.lab_number || `Sample_${wellId}`;
+          const surname = sample.surname || sample.name || '';
+          
+          // Create full sample name format: lab_number + surname (if available)
+          if (surname && !baseSampleName.includes(surname)) {
+            sampleName = `${baseSampleName}_${surname}`;
+          } else {
+            sampleName = baseSampleName;
+          }
           
           // For child samples, use father's surname in comment for GeneMapper tracking
           if (sample.relation === 'child') {
@@ -168,21 +176,21 @@ const GeneMapperTab = ({ isDarkMode, notifications }) => {
               );
               
               if (fatherSample && fatherSample.samples[0]) {
-                comment = fatherSample.samples[0].surname || fatherSample.samples[0].name || sample.name;
-                console.log(`✅ Found father sample, using surname: ${comment}`);
+                comment = fatherSample.samples[0].surname || fatherSample.samples[0].name || sample.surname;
+                console.log(`✅ Found father sample, using father's surname: ${comment}`);
               } else {
-                // Fallback: use child's name if father not found in batch
-                comment = sample.name || sample.surname || sampleName.split('_')[0];
-                console.log(`⚠️ Father not found in batch, using child name: ${comment}`);
+                // Fallback: use child's surname if father not found in batch
+                comment = sample.surname || sample.name || sampleName.split('_')[0];
+                console.log(`⚠️ Father not found in batch, using child surname: ${comment}`);
               }
             } else {
               // Fallback for child without proper lab number format
-              comment = sample.name || sample.surname || sampleName.split('_')[0];
-              console.log(`⚠️ No father reference found in lab number, using child name: ${comment}`);
+              comment = sample.surname || sample.name || sampleName.split('_')[0];
+              console.log(`⚠️ No father reference found in lab number, using child surname: ${comment}`);
             }
           } else {
-            // For non-child samples (father, mother, etc), use their own name/surname
-            comment = sample.name || sample.surname || sampleName.split('_')[0];
+            // For non-child samples (father, mother, etc), use their own surname
+            comment = sample.surname || sample.name || sampleName.split('_')[0];
           }
           
           sampleType = 'Sample';
