@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Box,
   Grid,
@@ -21,7 +21,11 @@ import {
   Divider,
   FormControlLabel,
   Checkbox,
-  LinearProgress
+  LinearProgress,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import {
   CloudUpload,
@@ -39,6 +43,12 @@ const GeneMapperTab = ({ isDarkMode, notifications }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
   const [processingStatus, setProcessingStatus] = useState('');
+  
+  // New state for batch management
+  const [availableBatches, setAvailableBatches] = useState([]);
+  const [selectedBatch, setSelectedBatch] = useState(null);
+  const [batchesLoading, setBatchesLoading] = useState(false);
+  const [generatedTemplate, setGeneratedTemplate] = useState('');
 
   // Sample GeneMapper input template for 3130xl/3500 analyzers
   const sampleTemplate = `Sample Name,Dye Color,Panel,Size Standard,Well,File Name,Comment
@@ -48,6 +58,150 @@ const GeneMapperTab = ({ isDarkMode, notifications }) => {
 Positive_Control,G5,Identifiler Plus,GeneScan 500 LIZ,A04,Positive_Control.fsa,Positive control
 Negative_Control,G5,Identifiler Plus,GeneScan 500 LIZ,A05,Negative_Control.fsa,Negative control
 Ladder,G5,Identifiler Plus,GeneScan 500 LIZ,A06,Ladder.fsa,Allelic ladder`;
+
+  // Load available electro and rerun batches
+  const loadAvailableBatches = useCallback(async () => {
+    try {
+      setBatchesLoading(true);
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${API_URL}/api/batches`);
+      const data = await response.json();
+      
+      if (data.success) {
+        // Filter for electro batches and rerun batches
+        const batches = (data.data || []).filter(batch => 
+          (batch.batch_number?.includes('ELEC_') || batch.batch_number?.includes('_RR')) &&
+          batch.plate_layout && 
+          Object.keys(batch.plate_layout).length > 0
+        );
+        setAvailableBatches(batches);
+        console.log('📋 Loaded batches for GeneMapper:', batches.length);
+      }
+    } catch (error) {
+      console.error('❌ Error loading batches:', error);
+      notifications.addNotification({
+        type: 'error',
+        message: 'Failed to load available batches'
+      });
+    } finally {
+      setBatchesLoading(false);
+    }
+  }, [notifications]);
+
+  // Load batches on component mount
+  useEffect(() => {
+    loadAvailableBatches();
+  }, [loadAvailableBatches]);
+
+  // Generate GeneMapper template from batch data
+  const generateGeneMapperTemplate = useCallback((batch) => {
+    if (!batch || !batch.plate_layout) {
+      return '';
+    }
+
+    console.log('🧬 Generating template for batch:', batch.batch_number);
+    console.log('📋 Plate layout:', batch.plate_layout);
+
+    // Header section (matching LDS_73 format exactly)
+    const header = [
+      'Container Name\tDescription\tContainerType\tAppType\tOwner\tOperator\t',
+      `${batch.batch_number}\t${batch.batch_number}_10ul_28cycle30m_5s\t96-Well\tRegular\tLAB DNA\t${batch.operator || 'Lab Analyst'}\t`,
+      'AppServer\tAppInstance\t',
+      'GeneMapper\tGeneMapper_1ae27b545c1511deab1400101834f966\t',
+      'Well\tSample Name\tComment\tPriority\tSize Standard\tSnp Set\tUser-Defined 3\tUser-Defined 2\tUser-Defined 1\tPanel\tStudy\tSample Type\tAnalysis Method\tResults Group 1\tInstrument Protocol 1\t'
+    ].join('\n');
+
+    // Process wells and create sample rows
+    const sampleRows = [];
+    const plateLayout = batch.plate_layout;
+
+    // Sort wells by row and column for consistent order
+    const sortedWells = Object.keys(plateLayout).sort((a, b) => {
+      const rowA = a.charAt(0);
+      const rowB = b.charAt(0);
+      const colA = parseInt(a.slice(1));
+      const colB = parseInt(b.slice(1));
+      
+      if (rowA !== rowB) {
+        return rowA.localeCompare(rowB);
+      }
+      return colA - colB;
+    });
+
+    sortedWells.forEach(wellId => {
+      const well = plateLayout[wellId];
+      if (well && well.samples && well.samples.length > 0) {
+        const sample = well.samples[0];
+        let sampleName, comment, sampleType;
+
+        // Format well ID to match template (e.g., A1 -> A01, A12 -> A12)
+        const formattedWellId = wellId.charAt(0) + wellId.slice(1).padStart(2, '0');
+
+        // Determine sample type and format based on sample data
+        if (sample.lab_number === 'ALLELIC_LADDER' || sample.lab_number === 'Ladder') {
+          sampleName = 'Ladder';
+          comment = 'AL';
+          sampleType = 'Allelic Ladder';
+        } else if (sample.lab_number === 'POS_CTRL' || sample.lab_number === 'Positive_Control') {
+          sampleName = 'PC';
+          comment = 'Pos';
+          sampleType = 'Positive Control';
+        } else if (sample.lab_number === 'NEG_CTRL' || sample.lab_number === 'Negative_Control') {
+          sampleName = 'NC';
+          comment = 'Neg';
+          sampleType = 'Negative Control';
+        } else if (sample.lab_number === 'Blank' || sample.name === 'Blank') {
+          sampleName = 'Blank';
+          comment = 'HiDi';
+          sampleType = 'Sample';
+        } else {
+          // Regular sample - format lab number and use name as comment
+          sampleName = sample.lab_number || `Sample_${wellId}`;
+          comment = sample.name || sample.surname || sampleName.split('_')[0];
+          sampleType = 'Sample';
+        }
+
+        // Create the row in the exact format
+        const row = [
+          formattedWellId,                                            // Well
+          sampleName,                                                 // Sample Name
+          comment,                                                    // Comment  
+          '100',                                                      // Priority
+          'CE_G5_IdentifilerDirect_GS500',                           // Size Standard
+          '',                                                         // Snp Set
+          '',                                                         // User-Defined 3
+          '',                                                         // User-Defined 2
+          '',                                                         // User-Defined 1
+          'IdentifilerDirect_GS500_Panels_v1',                      // Panel
+          '',                                                         // Study
+          sampleType,                                                 // Sample Type
+          'IdentifilerDirect_AnalysisMethod_v1',                     // Analysis Method
+          'GMHID',                                                    // Results Group 1
+          'FA_Run_36cm_POP4_5s',                                     // Instrument Protocol 1
+          ''                                                          // Empty final column
+        ].join('\t');
+
+        sampleRows.push(row);
+      }
+    });
+
+    const template = header + '\n' + sampleRows.join('\n') + '\n';
+    console.log('✅ Generated template with', sampleRows.length, 'samples');
+    return template;
+  }, []);
+
+  // Handle batch selection
+  const handleBatchSelection = useCallback((batch) => {
+    setSelectedBatch(batch);
+    const template = generateGeneMapperTemplate(batch);
+    setGeneratedTemplate(template);
+    setInputTemplate(template);
+    
+    notifications.addNotification({
+      type: 'success',
+      message: `Generated GeneMapper template for batch ${batch.batch_number}`
+    });
+  }, [generateGeneMapperTemplate, notifications]);
 
   const handleFileUpload = useCallback((event) => {
     const files = Array.from(event.target.files);
@@ -667,7 +821,28 @@ Ladder,G5,Identifiler Plus,GeneScan 500 LIZ,A06,Ladder.fsa,Allelic ladder`;
     return analysisData;
   };
 
-  const handleDownloadTemplate = () => {
+  // Download generated template from batch data
+  const handleDownloadGeneratedTemplate = () => {
+    if (!generatedTemplate || !selectedBatch) return;
+    
+    const blob = new Blob([generatedTemplate], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedBatch.batch_number}_GeneMapper_Template.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    notifications.addNotification({
+      type: 'success',
+      message: `Template downloaded: ${selectedBatch.batch_number}_GeneMapper_Template.txt`
+    });
+  };
+
+  // Download sample template
+  const handleDownloadSampleTemplate = () => {
     const blob = new Blob([sampleTemplate], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -707,33 +882,101 @@ Ladder,G5,Identifiler Plus,GeneScan 500 LIZ,A06,Ladder.fsa,Allelic ladder`;
 
   return (
     <Grid container spacing={3}>
-      {/* Instructions Card */}
+      {/* Batch Selection Card */}
       <Grid item xs={12}>
         <Card>
           <CardContent>
             <Box display="flex" alignItems="center" mb={2}>
               <Info color="primary" sx={{ mr: 1 }} />
-              <Typography variant="h6">GeneMapper Workflow Instructions</Typography>
+              <Typography variant="h6">Generate GeneMapper Template from Batch</Typography>
             </Box>
             
             <Typography variant="body2" paragraph>
-              1. Upload .fsa files from your Applied Biosystems 3130xl or 3500 genetic analyzer
+              Select an electro batch or rerun batch to automatically generate a GeneMapper template with the correct format.
             </Typography>
+
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} sm={8}>
+                <FormControl fullWidth>
+                  <InputLabel>Select Batch</InputLabel>
+                  <Select
+                    value={selectedBatch?.batch_id || ''}
+                    label="Select Batch"
+                    disabled={batchesLoading}
+                    onChange={(e) => {
+                      const batch = availableBatches.find(b => b.batch_id === e.target.value);
+                      if (batch) handleBatchSelection(batch);
+                    }}
+                  >
+                    {availableBatches.map((batch) => (
+                      <MenuItem key={batch.batch_id} value={batch.batch_id}>
+                        {batch.batch_number} ({Object.keys(batch.plate_layout || {}).length} samples)
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Button
+                  variant="outlined"
+                  startIcon={<Download />}
+                  onClick={handleDownloadGeneratedTemplate}
+                  disabled={!generatedTemplate}
+                  fullWidth
+                >
+                  Download Template
+                </Button>
+              </Grid>
+            </Grid>
+
+            {selectedBatch && (
+              <Box mt={2}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Generated Template Preview for {selectedBatch.batch_number}:
+                </Typography>
+                <TextField
+                  multiline
+                  rows={8}
+                  fullWidth
+                  value={generatedTemplate}
+                  InputProps={{ readOnly: true }}
+                  variant="outlined"
+                  sx={{ fontFamily: 'monospace' }}
+                />
+              </Box>
+            )}
+            
+            {!selectedBatch && (
+              <Box mt={2}>
+                <Typography variant="body2" color="textSecondary">
+                  {batchesLoading ? 'Loading available batches...' : 
+                   availableBatches.length === 0 ? 'No electro or rerun batches found' :
+                   'Select a batch above to generate GeneMapper template'}
+                </Typography>
+              </Box>
+            )}
+          </CardContent>
+        </Card>
+      </Grid>
+
+      {/* Manual Template Card */}
+      <Grid item xs={12}>
+        <Card>
+          <CardContent>
+            <Box display="flex" alignItems="center" mb={2}>
+              <Info color="primary" sx={{ mr: 1 }} />
+              <Typography variant="h6">Manual Template Entry</Typography>
+            </Box>
+            
             <Typography variant="body2" paragraph>
-              2. Files will be automatically processed in the background (similar to Osiris workflow)
-            </Typography>
-            <Typography variant="body2" paragraph>
-              3. Real STR data will be extracted from .fsa files and analyzed
-            </Typography>
-            <Typography variant="body2" paragraph>
-              4. Results will be displayed on the Analysis Summary page with GeneMapper formatting
+              Alternatively, you can manually enter or modify a GeneMapper template below.
             </Typography>
 
             <Box mt={2}>
               <Button
                 variant="outlined"
                 startIcon={<Download />}
-                onClick={handleDownloadTemplate}
+                onClick={handleDownloadSampleTemplate}
                 sx={{ mr: 2 }}
               >
                 Download Sample Template

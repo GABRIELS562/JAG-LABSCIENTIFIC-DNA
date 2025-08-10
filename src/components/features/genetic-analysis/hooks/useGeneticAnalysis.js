@@ -1,21 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNotifications } from '../../../../hooks';
 
-// Custom hook for genetic analysis data and operations
+// Custom hook for genetic analysis data and operations (GeneMapper workflow)
 export function useGeneticAnalysis() {
   const [selectedCase, setSelectedCase] = useState(null);
-  const [osirisStatus, setOsirisStatus] = useState({ 
-    initialized: false, 
-    version: null,
-    lastChecked: null,
-    checking: false 
-  });
   const notifications = useNotifications();
-  
-  // Fail-safe: Track status check attempts to prevent infinite loops
-  const statusCheckAttempts = useRef(0);
-  const maxStatusCheckAttempts = 3;
-  const statusCheckCooldown = useRef(0);
 
   // Manual state management for cases to avoid useApiData dependency issues
   const [cases, setCases] = useState([]);
@@ -43,137 +32,9 @@ export function useGeneticAnalysis() {
     }
   }, []); // No dependencies to ensure stable reference
 
-  // Production-ready Osiris status check with fail-safes
-  const checkOsirisStatus = useCallback(async () => {
-    const now = Date.now();
-    
-    // Fail-safe: Check cooldown period (prevent rapid calls)
-    if (now - statusCheckCooldown.current < 2000) {
-      return;
-    }
-    
-    // Prevent concurrent checks
-    if (osirisStatus.checking) {
-      return;
-    }
-    
-    try {
-      statusCheckCooldown.current = now;
-      
-      setOsirisStatus(prev => ({ ...prev, checking: true, error: null }));
-      
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-      
-      const response = await fetch('/api/genetic-analysis/workspace-status', {
-        method: 'GET',
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        setOsirisStatus({
-          initialized: true,
-          version: 'Osiris 2.16',
-          kitConfiguration: 'IdentifilerPlus',
-          workspace: data.workspace || 'Configured',
-          inputDirectory: data.inputDirectory,
-          outputDirectory: data.outputDirectory,
-          inputFiles: data.inputFiles || 0,
-          outputFiles: data.outputFiles || 0,
-          lastChecked: now,
-          checking: false,
-          error: null
-        });
-        // Reset attempt counter on success
-        statusCheckAttempts.current = 0;
-      } else {
-        throw new Error(data.error || 'Configuration not found');
-      }
-    } catch (error) {
-      let errorMessage = 'Connection failed';
-      
-      if (error.name === 'AbortError') {
-        errorMessage = 'Request timeout - check server connection';
-      } else if (error.message.includes('fetch')) {
-        errorMessage = 'Cannot connect to server';
-      } else {
-        errorMessage = error.message;
-      }
-        
-      setOsirisStatus(prev => ({
-        ...prev,
-        initialized: false,
-        error: errorMessage,
-        lastChecked: now,
-        checking: false
-      }));
-      
-      // Increment attempts only on real failures
-      statusCheckAttempts.current++;
-    }
-  }, [osirisStatus.checking]); // Only depend on checking state
+  // Removed Osiris status check and launch functions
 
-  // Launch Osiris application
-  const launchOsiris = useCallback(async () => {
-    try {
-      setOsirisStatus(prev => ({ ...prev, checking: true, error: null }));
-      
-      const response = await fetch('/api/genetic-analysis/launch-osiris', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({}) // Empty body for basic launch
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        notifications.success('Osiris launched successfully! Please switch to the Osiris window.');
-        
-        // Update status to reflect successful launch
-        setOsirisStatus(prev => ({
-          ...prev,
-          initialized: true,
-          version: 'Osiris 2.16',
-          workspace: data.workspace,
-          inputDirectory: data.inputDirectory,
-          outputDirectory: data.outputDirectory,
-          checking: false,
-          error: null,
-          lastChecked: Date.now()
-        }));
-        
-        return { success: true };
-      } else {
-        throw new Error(data.error || 'Launch failed');
-      }
-    } catch (error) {
-      notifications.error(`Failed to launch Osiris: ${error.message}`);
-      setOsirisStatus(prev => ({
-        ...prev,
-        checking: false,
-        error: `Launch failed: ${error.message}`
-      }));
-      return { success: false, error: error.message };
-    }
-  }, [notifications]);
-
-  // Reset status check limits (for manual retry in production)
-  const resetStatusCheckLimits = useCallback(() => {
-    statusCheckAttempts.current = 0;
-    statusCheckCooldown.current = 0;
-  }, []);
-
-  // Initialize on mount - only once with stable dependencies
+  // Initialize on mount - simplified for GeneMapper workflow
   useEffect(() => {
     let mounted = true;
     
@@ -182,11 +43,6 @@ export function useGeneticAnalysis() {
       
       // Fetch cases once
       await fetchCases();
-      
-      // Check Osiris status once (with built-in fail-safes)
-      if (mounted) {
-        checkOsirisStatus();
-      }
     };
     
     initialize();
@@ -195,7 +51,7 @@ export function useGeneticAnalysis() {
     return () => {
       mounted = false;
     };
-  }, []); // Empty dependency array - fetchCases and checkOsirisStatus are now stable
+  }, []); // Empty dependency array - fetchCases is stable
 
   // Create new case
   const createCase = useCallback(async (caseData) => {
@@ -282,7 +138,6 @@ export function useGeneticAnalysis() {
     // Data
     cases,
     selectedCase,
-    osirisStatus,
     
     // Loading states
     casesLoading,
@@ -294,9 +149,6 @@ export function useGeneticAnalysis() {
     // Actions
     setSelectedCase,
     fetchCases,
-    checkOsirisStatus,
-    launchOsiris,
-    resetStatusCheckLimits,
     createCase,
     uploadFiles,
     startAnalysis
