@@ -75,7 +75,7 @@ const SampleSelectionDialog = ({ open, onClose, samples, batchInfo, onSelectionC
   return (
     <Dialog open={open} onClose={handleCancel} maxWidth="md" fullWidth>
       <DialogTitle>
-        Select Samples for Rerun from {batchInfo?.batch_number}
+        Select Electro-Batched Samples for Rerun
       </DialogTitle>
       <DialogContent>
         <Box sx={{ mb: 2, display: 'flex', gap: 1 }}>
@@ -151,7 +151,7 @@ const Reruns = () => {
   const [plateData, setPlateData] = useState({});
   const [draggedItem, setDraggedItem] = useState(null);
   const [batchNumber, setBatchNumber] = useState('');
-  const [operator, setOperator] = useState('');
+  const [analyst, setAnalyst] = useState('Lab Analyst');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [finalizeDialog, setFinalizeDialog] = useState(false);
   const [controlsToAdd, setControlsToAdd] = useState({
@@ -161,8 +161,6 @@ const Reruns = () => {
   });
   const [selectedControl, setSelectedControl] = useState(null);
   const [wellContextMenu, setWellContextMenu] = useState({ open: false, wellId: null, anchorEl: null });
-  const [loadElectroDialog, setLoadElectroDialog] = useState(false);
-  const [availableElectroBatches, setAvailableElectroBatches] = useState([]);
   const [sampleSelectionDialog, setSampleSelectionDialog] = useState(false);
   const [availableSamples, setAvailableSamples] = useState([]);
   const [selectedBatchForSamples, setSelectedBatchForSamples] = useState(null);
@@ -236,6 +234,21 @@ const Reruns = () => {
   const handleDragStart = (e, item) => {
     setDraggedItem(item);
     e.dataTransfer.effectAllowed = 'move';
+    
+    // Create a custom drag image with better visibility
+    const dragElement = e.currentTarget.cloneNode(true);
+    dragElement.style.opacity = '0.8';
+    dragElement.style.transform = 'rotate(-2deg)';
+    dragElement.style.boxShadow = '0 8px 24px rgba(0,0,0,0.3)';
+    document.body.appendChild(dragElement);
+    e.dataTransfer.setDragImage(dragElement, 75, 20);
+    
+    // Clean up the drag image after a short delay
+    setTimeout(() => {
+      if (document.body.contains(dragElement)) {
+        document.body.removeChild(dragElement);
+      }
+    }, 0);
   };
 
   const handleDragOver = (e) => {
@@ -336,36 +349,38 @@ const Reruns = () => {
       return;
     }
 
-    // Check if the sample is from an electro batch (only for actual samples)
+    // Check if the sample is eligible for rerun (allow samples from our selectedSamples or with proper status)
     if (draggedItem.samples) {
-      // Family group - check all samples
-      const allFromElectroBatch = draggedItem.samples.every(sample => 
+      // Family group - check all samples are eligible for rerun
+      const allEligibleForRerun = draggedItem.samples.every(sample => 
         sample.workflow_status === 'electro_batched' || 
-        (sample.lab_batch_number && sample.lab_batch_number.startsWith('ELEC_')) ||
+        sample.workflow_status === 'completed' || 
+        sample.workflow_status === 'pcr_batched' ||
+        (sample.lab_batch_number && (sample.lab_batch_number.startsWith('ELEC_') || sample.lab_batch_number.startsWith('LDS_'))) ||
         selectedSamples.some(s => s.id === sample.id) // Allow if it's in our selected samples list
       );
       
-      if (!allFromElectroBatch) {
-        console.log('Validation failed for family group:', draggedItem.samples);
+      if (!allEligibleForRerun) {
         setSnackbar({
           open: true,
-          message: 'Only samples from electrophoresis batches can be placed on rerun plates',
+          message: 'Only processed samples can be placed on rerun plates',
           severity: 'error'
         });
         return;
       }
     } else {
-      // Single sample - check if it's from electro batch or loaded from selectedSamples
-      const isFromElectroBatch = 
+      // Single sample - check if it's eligible for rerun
+      const isEligibleForRerun = 
         draggedItem.workflow_status === 'electro_batched' || 
-        (draggedItem.lab_batch_number && draggedItem.lab_batch_number.startsWith('ELEC_')) ||
+        draggedItem.workflow_status === 'completed' || 
+        draggedItem.workflow_status === 'pcr_batched' ||
+        (draggedItem.lab_batch_number && (draggedItem.lab_batch_number.startsWith('ELEC_') || draggedItem.lab_batch_number.startsWith('LDS_'))) ||
         selectedSamples.some(s => s.id === draggedItem.id); // Allow if it's in our selected samples list
       
-      if (!isFromElectroBatch) {
-        console.log('Validation failed for sample:', draggedItem);
+      if (!isEligibleForRerun) {
         setSnackbar({
           open: true,
-          message: 'Only samples from electrophoresis batches can be placed on rerun plates',
+          message: 'Only processed samples can be placed on rerun plates',
           severity: 'error'
         });
         return;
@@ -636,6 +651,11 @@ const Reruns = () => {
   };
 
   const handleFinalizeBatch = async () => {
+    console.log('🔄 Finalize batch clicked!');
+    console.log('📊 Plate data:', plateData);
+    console.log('👨‍⚕️ Analyst:', analyst);
+    console.log('📈 Sample count:', getPlacedSamplesCount());
+    
     try {
       const filledWells = Object.entries(plateData).filter(([_, well]) => well.samples.length > 0);
       
@@ -665,7 +685,7 @@ const Reruns = () => {
 
       const batchData = {
         batchNumber,
-        operator,
+        operator: analyst,
         wells: transformedWells,
         sampleCount: getPlacedSamplesCount(),
         date: new Date().toISOString().split('T')[0],
@@ -688,21 +708,65 @@ const Reruns = () => {
       });
 
       if (response.ok) {
+        // Update rerun count for all samples in the rerun batch
+        const sampleIds = Object.values(plateData)
+          .filter(well => well.samples && well.samples.length > 0)
+          .map(well => well.samples[0].id)
+          .filter(id => id); // Filter out any undefined IDs
+        
+        if (sampleIds.length > 0) {
+          try {
+            // Update rerun count
+            await fetch(`${API_URL}/api/samples/increment-rerun-count`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+              },
+              body: JSON.stringify({ sampleIds })
+            });
+            
+            // Also update workflow status to show these samples are in a rerun batch
+            await fetch(`${API_URL}/api/samples/update-workflow-status`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+              },
+              body: JSON.stringify({ 
+                sampleIds, 
+                status: 'rerun_batched',
+                batchNumber: batchNumber 
+              })
+            });
+          } catch (error) {
+            console.warn('Failed to update rerun tracking:', error);
+          }
+        }
+        
         sessionStorage.removeItem('selectedSamplesForReruns');
         setSelectedSamples([]);
         initializePlate();
         await generateBatchNumber();
         setFinalizeDialog(false);
         
+        // Store batch data for auto-display in rerun batches page
+        const batchDataForStorage = {
+          ...batchData,
+          created_at: new Date().toISOString(),
+          id: Date.now() // Temporary ID for identification
+        };
+        sessionStorage.setItem('newlyCreatedRerunBatch', JSON.stringify(batchDataForStorage));
+        
         setSnackbar({
           open: true,
-          message: `Rerun Batch ${batchNumber} finalized! Redirecting to batch view...`,
+          message: `Rerun Batch ${batchNumber} finalized! Samples marked for rerun. Redirecting to batch view...`,
           severity: 'success'
         });
         
-        // Navigate to batches page after short delay
+        // Navigate to rerun batches page after short delay
         setTimeout(() => {
-          navigate('/pcr-batches');
+          navigate('/rerun-batches');
         }, 2000);
       } else {
         const error = await response.json();
@@ -721,80 +785,68 @@ const Reruns = () => {
     }
   };
 
-  const loadElectroBatches = async () => {
+  const loadElectroBatchedSamples = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/batches`);
+      const response = await fetch(`${API_URL}/api/samples`);
       
       if (response.ok) {
         const data = await response.json();
+        const allSamples = data.success ? (data.data || []) : (Array.isArray(data) ? data : []);
         
-        // Filter for completed electrophoresis batches (those with ELEC_ prefix)
-        const electroBatches = (data.data || []).filter(batch => 
-          batch.batch_number?.startsWith('ELEC_') && batch.status !== 'cancelled'
+        // Filter for samples that have been through electrophoresis (electro_batched status or ELEC_ batch)
+        // For now, include any samples that have been processed or could be rerun
+        const electroBatchedSamples = allSamples.filter(sample => 
+          sample.workflow_status === 'electro_batched' || 
+          sample.workflow_status === 'completed' || // Include completed samples as they may have been through electro
+          sample.workflow_status === 'pcr_batched' || // Include PCR batched samples as they could be rerun
+          (sample.lab_batch_number && sample.lab_batch_number.startsWith('ELEC_')) ||
+          (sample.lab_batch_number && sample.lab_batch_number.startsWith('LDS_')) || // Include LDS batched samples
+          (sample.batch_id !== null && sample.batch_id !== undefined) || // Include any samples with batch_id
+          // For testing: include first 10 samples if no batched samples found
+          (allSamples.filter(s => 
+            s.workflow_status === 'electro_batched' || 
+            s.workflow_status === 'completed' || 
+            s.workflow_status === 'pcr_batched' ||
+            (s.lab_batch_number && (s.lab_batch_number.startsWith('ELEC_') || s.lab_batch_number.startsWith('LDS_'))) ||
+            (s.batch_id !== null && s.batch_id !== undefined)
+          ).length === 0 && allSamples.indexOf(sample) < 10)
         );
         
-        setAvailableElectroBatches(electroBatches);
-        setLoadElectroDialog(true);
+        setAvailableSamples(electroBatchedSamples);
+        setSelectedBatchForSamples({ batch_number: 'Electro-Batched Samples' });
+        setSampleSelectionDialog(true);
+        
+        const hasActualBatchedSamples = allSamples.some(s => 
+          s.workflow_status === 'electro_batched' || 
+          s.workflow_status === 'completed' || 
+          s.workflow_status === 'pcr_batched' ||
+          (s.lab_batch_number && (s.lab_batch_number.startsWith('ELEC_') || s.lab_batch_number.startsWith('LDS_'))) ||
+          (s.batch_id !== null && s.batch_id !== undefined)
+        );
+        
+        setSnackbar({
+          open: true,
+          message: hasActualBatchedSamples 
+            ? `Found ${electroBatchedSamples.length} samples available for rerun`
+            : `No electro-batched samples found. Showing ${electroBatchedSamples.length} samples for testing.`,
+          severity: electroBatchedSamples.length > 0 ? 'info' : 'warning'
+        });
       } else {
         setSnackbar({
           open: true,
-          message: `Failed to load electrophoresis batches: ${response.status}`,
+          message: `Failed to load samples: ${response.status}`,
           severity: 'error'
         });
       }
     } catch (error) {
       setSnackbar({
         open: true,
-        message: 'Error loading electrophoresis batches - check connection',
+        message: 'Error loading samples - check connection',
         severity: 'error'
       });
     }
   };
 
-  const loadSamplesFromElectroBatch = async (batch) => {
-    try {
-      const response = await fetch(`${API_URL}/api/well-assignments/${batch.id}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        const wellAssignments = data.data || [];
-        
-        // Extract samples from well assignments
-        const samples = [];
-        wellAssignments.forEach(assignment => {
-          if (assignment.samples && assignment.samples.length > 0) {
-            samples.push(...assignment.samples);
-          }
-        });
-        
-        // Filter only actual samples (not controls)
-        const actualSamples = samples.filter(sample => 
-          sample.lab_number && 
-          !sample.lab_number.includes('CTRL') && 
-          !sample.lab_number.includes('LADDER')
-        );
-        
-        // Set up for sample selection dialog
-        setAvailableSamples(actualSamples);
-        setSelectedBatchForSamples(batch);
-        setLoadElectroDialog(false);
-        setSampleSelectionDialog(true);
-        
-      } else {
-        setSnackbar({
-          open: true,
-          message: 'Failed to load samples from batch',
-          severity: 'error'
-        });
-      }
-    } catch (error) {
-      setSnackbar({
-        open: true,
-        message: 'Error loading samples from batch',
-        severity: 'error'
-      });
-    }
-  };
 
   const handleSampleSelectionComplete = (selectedSamplesList) => {
     setSelectedSamples([...selectedSamples, ...selectedSamplesList]);
@@ -827,23 +879,39 @@ const Reruns = () => {
         
         {/* Finalize Button */}
         <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-          <Button
-            variant="contained"
-            color="success"
-            onClick={() => setFinalizeDialog(true)}
-            disabled={!operator || getPlacedSamplesCount() === 0}
-            size="large"
-            sx={{ 
-              px: 4, 
-              py: 1.5, 
-              fontSize: '1.1rem',
-              bgcolor: '#ef5350',
-              '&:hover': { bgcolor: '#d32f2f' },
-              '&:disabled': { bgcolor: '#e0e0e0' }
-            }}
+          <Tooltip 
+            title={
+              !analyst?.trim() ? "Please enter analyst name" 
+              : getPlacedSamplesCount() === 0 ? "Please add samples to the plate"
+              : "Ready to finalize batch"
+            }
+            arrow
           >
-            Finalize Batch ({getPlacedSamplesCount()} samples)
-          </Button>
+            <span>
+              <Button
+                variant="contained"
+                color="success"
+                onClick={() => {
+                  console.log('🎯 Main Finalize button clicked - opening dialog');
+                  console.log('✅ Analyst:', analyst);
+                  console.log('✅ Sample count:', getPlacedSamplesCount());
+                  setFinalizeDialog(true);
+                }}
+                disabled={!analyst?.trim() || getPlacedSamplesCount() === 0}
+                size="large"
+                sx={{ 
+                  px: 4, 
+                  py: 1.5, 
+                  fontSize: '1.1rem',
+                  bgcolor: '#ef5350',
+                  '&:hover': { bgcolor: '#d32f2f' },
+                  '&:disabled': { bgcolor: '#e0e0e0', cursor: 'not-allowed' }
+                }}
+              >
+                Finalize Batch ({getPlacedSamplesCount()} samples)
+              </Button>
+            </span>
+          </Tooltip>
         </Box>
         
         <Box sx={{ display: 'flex', mb: 2 }}>
@@ -870,11 +938,24 @@ const Reruns = () => {
                 const well = plateData[wellId];
                 const isHovered = dragHoverWells.includes(wellId);
                 const isValidDrop = draggedItem && (
-                  !draggedItem.samples || 
-                  draggedItem.samples.every(s => 
+                  // Allow controls to be dropped anywhere
+                  draggedItem.relation === 'Control' ||
+                  // Allow samples that are eligible for rerun
+                  (!draggedItem.samples && (
+                    draggedItem.workflow_status === 'electro_batched' || 
+                    draggedItem.workflow_status === 'completed' || 
+                    draggedItem.workflow_status === 'pcr_batched' ||
+                    (draggedItem.lab_batch_number && (draggedItem.lab_batch_number.startsWith('ELEC_') || draggedItem.lab_batch_number.startsWith('LDS_'))) ||
+                    selectedSamples.some(s => s.id === draggedItem.id)
+                  )) ||
+                  // Allow family groups where all samples are eligible
+                  (draggedItem.samples && draggedItem.samples.every(s => 
                     s.workflow_status === 'electro_batched' || 
-                    (s.lab_batch_number && s.lab_batch_number.startsWith('ELEC_'))
-                  )
+                    s.workflow_status === 'completed' || 
+                    s.workflow_status === 'pcr_batched' ||
+                    (s.lab_batch_number && (s.lab_batch_number.startsWith('ELEC_') || s.lab_batch_number.startsWith('LDS_'))) ||
+                    selectedSamples.some(sel => sel.id === s.id)
+                  ))
                 );
 
                 return (
@@ -883,20 +964,24 @@ const Reruns = () => {
                     sx={{
                       width: 40,
                       height: 40,
-                      border: '1px solid #ddd',
+                      border: isHovered ? '2px solid #2196F3' : '1px solid #ddd',
                       borderRadius: 1,
                       backgroundColor: isHovered 
-                        ? (isValidDrop ? '#c8e6c9' : '#ffcdd2')
+                        ? (isValidDrop ? '#e8f5e8' : '#ffebee')
                         : getWellColor(well),
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      cursor: 'pointer',
+                      cursor: isHovered ? 'copy' : (well && well.samples?.length > 0 ? 'pointer' : 'default'),
                       transition: 'all 0.2s ease',
-                      '&:hover': {
+                      transform: isHovered ? 'scale(1.1)' : 'scale(1)',
+                      boxShadow: isHovered 
+                        ? '0 4px 12px rgba(0,0,0,0.15)' 
+                        : (well && well.samples?.length > 0 ? '0 2px 4px rgba(0,0,0,0.1)' : 'none'),
+                      '&:hover': !isHovered ? {
                         transform: 'scale(1.05)',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                      }
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                      } : {}
                     }}
                     onDragOver={handleDragOver}
                     onDragEnter={(e) => handleDragEnter(e, wellId)}
@@ -940,14 +1025,6 @@ const Reruns = () => {
       </Typography>
       
       <Box sx={{ mb: 2 }}>
-        <Button
-          variant="outlined"
-          onClick={loadElectroBatches}
-          startIcon={<ElectricBolt />}
-          sx={{ mr: 1 }}
-        >
-          Load from Electro Batch
-        </Button>
         <Button
           variant="contained"
           onClick={handleAutoFill}
@@ -1074,9 +1151,20 @@ const Reruns = () => {
       
       <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
         {selectedSamples.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
-            No samples selected. Load samples from an electrophoresis batch.
-          </Typography>
+          <Box sx={{ 
+            textAlign: 'center', 
+            py: 4, 
+            border: '2px dashed #e0e0e0', 
+            borderRadius: 2,
+            bgcolor: '#fafafa'
+          }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              No samples loaded for rerun
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Click "Load Samples for Rerun" above to get started
+            </Typography>
+          </Box>
         ) : (
           selectedSamples.map(sample => (
             <Card
@@ -1087,9 +1175,16 @@ const Reruns = () => {
                 bgcolor: '#ffffff',
                 border: '1px solid #e0e0e0',
                 borderLeft: '4px solid #ef5350',
+                transition: 'all 0.2s ease',
                 '&:hover': { 
-                  bgcolor: '#f5f5f5',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                  bgcolor: '#f8f8f8',
+                  boxShadow: '0 4px 12px rgba(239, 83, 80, 0.2)',
+                  transform: 'translateY(-2px)',
+                  borderLeft: '4px solid #d32f2f'
+                },
+                '&:active': {
+                  cursor: 'grabbing',
+                  transform: 'scale(0.98)'
                 },
                 position: 'relative'
               }}
@@ -1157,16 +1252,35 @@ const Reruns = () => {
               bgcolor: '#ef5350',
               '&:hover': { bgcolor: '#d32f2f' }
             }}
-            onClick={() => setLoadElectroDialog(true)}
+            onClick={loadElectroBatchedSamples}
           >
-            Load Electro Batches
+            Load Samples for Rerun
           </Button>
+          
+          {/* Status Indicators */}
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            <Chip 
+              label={`Samples: ${getPlacedSamplesCount()}`}
+              color={getPlacedSamplesCount() > 0 ? 'success' : 'default'}
+              size="small"
+            />
+            <Chip 
+              label={`Analyst: ${analyst || 'Not Set'}`}
+              color={analyst?.trim() ? 'success' : 'warning'}
+              size="small"
+            />
+          </Box>
           <Button
             variant="outlined"
             startIcon={<Refresh />}
             onClick={() => {
-              setPlateData({});
+              initializePlate();
               setSelectedSamples([]);
+              setSnackbar({
+                open: true,
+                message: 'Plate and samples cleared',
+                severity: 'info'
+              });
             }}
           >
             Clear All
@@ -1195,24 +1309,29 @@ const Reruns = () => {
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
-                  label="Operator"
-                  value={operator}
-                  onChange={(e) => setOperator(e.target.value)}
+                  label="Analyst Name"
+                  value={analyst}
+                  onChange={(e) => setAnalyst(e.target.value)}
                   required
+                  placeholder="Enter analyst name"
+                  helperText="Required for batch finalization"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '&:hover fieldset': {
+                        borderColor: '#ef5350',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#ef5350',
+                      },
+                    },
+                    '& .MuiInputLabel-root.Mui-focused': {
+                      color: '#ef5350',
+                    }
+                  }}
                 />
               </Grid>
               <Grid item xs={12} md={4}>
                 <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Button
-                    variant="contained"
-                    sx={{ 
-                      bgcolor: '#ef5350',
-                      '&:hover': { bgcolor: '#d32f2f' }
-                    }}
-                    onClick={() => setLoadElectroDialog(true)}
-                  >
-                    Load Electro Batches
-                  </Button>
                   <Button
                     variant="outlined"
                     onClick={() => {
@@ -1226,6 +1345,14 @@ const Reruns = () => {
                   >
                     Clear Plate
                   </Button>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => setFinalizeDialog(true)}
+                    disabled={getPlacedSamplesCount() === 0 || !analyst.trim()}
+                  >
+                    Finalize Batch
+                  </Button>
                 </Box>
               </Grid>
             </Grid>
@@ -1234,7 +1361,7 @@ const Reruns = () => {
               <Typography variant="body2" color="text.secondary">
                 Samples on plate: {getPlacedSamplesCount()} | 
                 Batch: {batchNumber} | 
-                Operator: {operator || 'Not set'}
+                Analyst: {analyst || 'Not set'}
               </Typography>
             </Box>
           </Paper>
@@ -1245,42 +1372,6 @@ const Reruns = () => {
         </Grid>
       </Grid>
 
-      {/* Load Electro Batch Dialog */}
-      <Dialog open={loadElectroDialog} onClose={() => setLoadElectroDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Load Samples from Electrophoresis Batch</DialogTitle>
-        <DialogContent>
-          <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
-            {availableElectroBatches.length === 0 ? (
-              <Typography>No electrophoresis batches available</Typography>
-            ) : (
-              availableElectroBatches.map(batch => (
-                <Card
-                  key={batch.id}
-                  sx={{
-                    mb: 2,
-                    cursor: 'pointer',
-                    '&:hover': { bgcolor: '#f5f5f5' }
-                  }}
-                  onClick={() => loadSamplesFromElectroBatch(batch)}
-                >
-                  <CardContent>
-                    <Typography variant="h6">{batch.batch_number}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Operator: {batch.operator} | Date: {batch.pcr_date || batch.electro_date}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Samples: {batch.total_samples}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setLoadElectroDialog(false)}>Cancel</Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Sample Selection Dialog */}
       <SampleSelectionDialog 
@@ -1300,14 +1391,21 @@ const Reruns = () => {
           </Typography>
           <Typography variant="body2" color="text.secondary">
             Batch: {batchNumber}<br />
-            Operator: {operator}<br />
+            Analyst: {analyst}<br />
             Samples: {getPlacedSamplesCount()}<br />
             Date: {new Date().toLocaleDateString()}
           </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setFinalizeDialog(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleFinalizeBatch} sx={{ bgcolor: '#e91e63' }}>
+          <Button 
+            variant="contained" 
+            onClick={() => {
+              console.log('🎯 Dialog Finalize button clicked!');
+              handleFinalizeBatch();
+            }} 
+            sx={{ bgcolor: '#e91e63' }}
+          >
             Finalize
           </Button>
         </DialogActions>

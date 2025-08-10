@@ -49,7 +49,40 @@ const ElectrophoresisBatches = () => {
 
   useEffect(() => {
     fetchElectrophoresisBatches();
+    checkForNewBatch();
   }, []);
+
+  const checkForNewBatch = () => {
+    // Check if there's a newly created batch from Electrophoresis Layout
+    const newBatchData = sessionStorage.getItem('newlyCreatedElectroBatch');
+    if (newBatchData) {
+      try {
+        const batchData = JSON.parse(newBatchData);
+        
+        // Format the batch data to match expected structure
+        const formattedBatchData = {
+          ...batchData,
+          plate_layout: batchData.wells, // Electro batches expects plate_layout
+          batch_number: batchData.batchNumber,
+          sample_count: batchData.sampleCount,
+          date_created: batchData.created_at
+        };
+        
+        // Auto-open the newly created batch
+        setSelectedBatch(formattedBatchData);
+        setBatchDetails(formattedBatchData);
+        setDialogOpen(true);
+        
+        // Clear the session storage after processing
+        sessionStorage.removeItem('newlyCreatedElectroBatch');
+        
+        // Refresh the batches list to include the new batch
+        fetchElectrophoresisBatches();
+      } catch (error) {
+        console.warn('Failed to process newly created electro batch:', error);
+      }
+    }
+  };
 
   const fetchElectrophoresisBatches = async () => {
     try {
@@ -163,31 +196,55 @@ const ElectrophoresisBatches = () => {
                 let tooltipTitle = '';
 
                 if (hasContent) {
+                  const sample = well.samples?.[0];
                   switch (well.type) {
                     case 'sample':
-                      bgColor = '#ffb74d';
+                      bgColor = '#e0f2f1'; // Light teal for electrophoresis samples
                       textColor = '#000';
-                      content = well.label || (well.samples?.[0]?.lab_number) || 'Sample';
-                      tooltipTitle = well.samples?.[0] ? 
-                        `${well.samples[0].lab_number}\n${well.samples[0].name || 'Sample'}` : 
-                        'Sample';
+                      content = sample?.lab_number || 'Sample';
+                      tooltipTitle = sample ? `${sample.lab_number}\\n${sample.name || 'Unknown'}` : 'Sample';
                       break;
+                    case 'control':
+                      // Check control type based on lab_number
+                      if (sample?.lab_number === 'NEG_CTRL') {
+                        bgColor = '#ffcdd2'; // Light red for negative control
+                        textColor = '#000';
+                        content = 'NEG';
+                        tooltipTitle = 'Negative Control';
+                      } else if (sample?.lab_number === 'POS_CTRL') {
+                        bgColor = '#c8e6c9'; // Light green for positive control
+                        textColor = '#000';
+                        content = 'POS';
+                        tooltipTitle = 'Positive Control';
+                      } else if (sample?.lab_number === 'ALLELIC_LADDER') {
+                        bgColor = '#e1bee7'; // Light purple for allelic ladder
+                        textColor = '#000';
+                        content = 'LADDER';
+                        tooltipTitle = 'Allelic Ladder';
+                      } else {
+                        bgColor = '#81c784';
+                        textColor = '#000';
+                        content = sample?.lab_number || 'Control';
+                        tooltipTitle = sample ? `${sample.lab_number}\\n${sample.name || 'Control'}` : 'Control';
+                      }
+                      break;
+                    // Legacy control type handling
                     case 'Allelic Ladder':
-                      bgColor = '#90caf9';
+                      bgColor = '#e1bee7';
                       textColor = '#000';
-                      content = 'AL';
+                      content = 'LADDER';
                       tooltipTitle = 'Allelic Ladder';
                       break;
                     case 'Positive Control':
-                      bgColor = '#81c784';
+                      bgColor = '#c8e6c9';
                       textColor = '#000';
-                      content = 'PC';
+                      content = 'POS';
                       tooltipTitle = 'Positive Control';
                       break;
                     case 'Negative Control':
-                      bgColor = '#ef5350';
-                      textColor = '#fff';
-                      content = 'NC';
+                      bgColor = '#ffcdd2';
+                      textColor = '#000';
+                      content = 'NEG';
                       tooltipTitle = 'Negative Control';
                       break;
                     default:
@@ -241,7 +298,7 @@ const ElectrophoresisBatches = () => {
     const plateLayout = batchDetails.plate_layout || {};
     const sampleWells = Object.values(plateLayout).filter(well => well.type === 'sample');
     const controlWells = Object.values(plateLayout).filter(well => 
-      ['Allelic Ladder', 'Positive Control', 'Negative Control'].includes(well.type)
+      well.type === 'control' || ['Allelic Ladder', 'Positive Control', 'Negative Control'].includes(well.type)
     );
 
     return (
@@ -257,7 +314,7 @@ const ElectrophoresisBatches = () => {
                 <Typography variant="body2" fontWeight="medium">{batchDetails.batch_number}</Typography>
               </Box>
               <Box display="flex" justifyContent="space-between">
-                <Typography variant="body2" color="textSecondary">Operator:</Typography>
+                <Typography variant="body2" color="textSecondary">Analyst:</Typography>
                 <Typography variant="body2" fontWeight="medium">{batchDetails.operator || 'N/A'}</Typography>
               </Box>
               <Box display="flex" justifyContent="space-between">
@@ -360,7 +417,7 @@ const ElectrophoresisBatches = () => {
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                         <Person sx={{ fontSize: 16, color: '#666' }} />
                         <Typography variant="body2" color="textSecondary">
-                          Operator: {batch.operator || 'N/A'}
+                          Analyst: {batch.operator || 'N/A'}
                         </Typography>
                       </Box>
                     </Grid>

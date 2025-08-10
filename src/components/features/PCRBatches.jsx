@@ -408,7 +408,7 @@ const PCRBatches = () => {
                   <Box sx={{ mb: 2 }}>
                     <Typography variant="body2" color="textSecondary" gutterBottom>
                       <Person sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
-                      Operator: {batch.operator || 'N/A'}
+                      Analyst: {batch.operator || 'N/A'}
                     </Typography>
                     
                     <Typography variant="body2" color="textSecondary" gutterBottom>
@@ -475,7 +475,7 @@ const PCRBatches = () => {
             <Grid container spacing={2}>
               <Grid item xs={6}>
                 <Typography variant="body2" color="textSecondary">
-                  <strong>Operator:</strong> {batchDetails?.operator || 'N/A'}
+                  <strong>Analyst:</strong> {batchDetails?.operator || 'N/A'}
                 </Typography>
               </Grid>
               <Grid item xs={6}>

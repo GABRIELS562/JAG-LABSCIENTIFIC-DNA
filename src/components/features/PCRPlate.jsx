@@ -59,7 +59,7 @@ const PCRPlate = () => {
   const [plateData, setPlateData] = useState({});
   const [draggedItem, setDraggedItem] = useState(null);
   const [batchNumber, setBatchNumber] = useState('');
-  const [operator, setOperator] = useState('');
+  const [analyst, setAnalyst] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [finalizeDialog, setFinalizeDialog] = useState(false);
   const [controlsToAdd, setControlsToAdd] = useState({
@@ -167,6 +167,21 @@ const PCRPlate = () => {
   const handleDragStart = (e, item) => {
     setDraggedItem(item);
     e.dataTransfer.effectAllowed = 'move';
+    
+    // Create a custom drag image with better visibility
+    const dragElement = e.currentTarget.cloneNode(true);
+    dragElement.style.opacity = '0.8';
+    dragElement.style.transform = 'rotate(-2deg)';
+    dragElement.style.boxShadow = '0 8px 24px rgba(0,0,0,0.3)';
+    document.body.appendChild(dragElement);
+    e.dataTransfer.setDragImage(dragElement, 75, 20);
+    
+    // Clean up the drag image after a short delay
+    setTimeout(() => {
+      if (document.body.contains(dragElement)) {
+        document.body.removeChild(dragElement);
+      }
+    }, 0);
   };
 
   const handleDragEnd = (e) => {
@@ -228,7 +243,7 @@ const PCRPlate = () => {
     if (plateData[wellId].samples.length > 0) {
       setSnackbar({
         open: true,
-        message: 'Well is already occupied. Clear it first.',
+        message: `⚠️ Well ${wellId} is already occupied by ${plateData[wellId].samples[0].lab_number}. Clear it first.`,
         severity: 'warning'
       });
       return;
@@ -337,7 +352,7 @@ const PCRPlate = () => {
         if (usedColumns.length > 1) {
           setSnackbar({
             open: true,
-            message: `Samples placed across columns ${usedColumns.join(', ')} (filling around existing wells)`,
+            message: `ℹ️ Samples placed across columns ${usedColumns.join(', ')} (filling around existing wells)`,
             severity: 'info'
           });
         }
@@ -347,7 +362,7 @@ const PCRPlate = () => {
       if (!availableWells) {
         setSnackbar({
           open: true,
-          message: `No space available for ${samplesCount} consecutive samples. Please clear some wells.`,
+          message: `❌ No space available for ${samplesCount} consecutive samples starting at ${wellId}. Please clear some wells or try another location.`,
           severity: 'error'
         });
         return;
@@ -374,7 +389,7 @@ const PCRPlate = () => {
       
       setSnackbar({
         open: true,
-        message: `Placed ${samplesCount} samples from case ${draggedItem.caseNumber} vertically starting at ${wellId}`,
+        message: `✅ Placed ${samplesCount} samples from case ${draggedItem.caseNumber} for PCR starting at ${wellId}`,
         severity: 'success'
       });
     } else {
@@ -389,7 +404,7 @@ const PCRPlate = () => {
       
       setSnackbar({
         open: true,
-        message: `Placed sample ${draggedItem.lab_number} in well ${wellId}`,
+        message: `✅ Placed sample ${draggedItem.lab_number} in well ${wellId}`,
         severity: 'success'
       });
     }
@@ -666,7 +681,7 @@ const PCRPlate = () => {
 
       const batchData = {
         batchNumber,
-        operator,
+        analyst,
         wells: transformedWells,
         sampleCount: getPlacedSamplesCount(),
         date: new Date().toISOString().split('T')[0],
@@ -677,7 +692,7 @@ const PCRPlate = () => {
       console.log('🔍 PCR Plate - Starting batch finalization');
       console.log('📊 Batch data:', {
         batchNumber,
-        operator,
+        analyst,
         sampleCount: getPlacedSamplesCount(),
         wellCount: Object.keys(transformedWells).length,
         date: batchData.date
@@ -793,7 +808,7 @@ const PCRPlate = () => {
     // Create export data similar to GenerateBatch component
     const headerRows = [
       'Container Name\tDescription\tContainerType\tAppType\tOwner\tOperator',
-      `pcr batch\t${batchNumber}_10ul_28cycle30m_5s\t96-Well\tRegular\tLAB DNA\t${operator}`,
+      `pcr batch\t${batchNumber}_10ul_28cycle30m_5s\t96-Well\tRegular\tLAB DNA\t${analyst}`,
       'AppServer\tAppInstance',
       'GeneMapper\tGeneMapper_1ae27b545c1511deab1400101834f966',
       'Well\tSample Name\tComment\tPriority\tSize Standard\tSnp Set\tUser-Defined 3\tUser-Defined 2\tUser-Defined 1\tPanel\tStudy\tSample Type\tAnalysis Method\tResults Group 1\tInstrument Protocol 1'
@@ -1162,6 +1177,15 @@ const PCRPlate = () => {
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: selectedControl ? 'crosshair' : 'pointer',
+                        boxShadow: isHovered ? 
+                          (isValidDrop ? '0 0 12px rgba(76, 175, 80, 0.6), 0 0 24px rgba(76, 175, 80, 0.3)' : '0 0 12px rgba(244, 67, 54, 0.6), 0 0 24px rgba(244, 67, 54, 0.3)') : 
+                          'none',
+                        animation: isHovered ? 'pulse 1.5s ease-in-out infinite' : 'none',
+                        '@keyframes pulse': {
+                          '0%': { transform: 'scale(1)' },
+                          '50%': { transform: 'scale(1.05)' },
+                          '100%': { transform: 'scale(1)' }
+                        },
                         '&:hover': {
                           borderColor: selectedControl ? (selectedControl === 'negative' ? '#f44336' : selectedControl === 'positive' ? '#4caf50' : '#ff9800') : '#1e4976',
                           transform: 'scale(1.1)',
@@ -1233,10 +1257,10 @@ const PCRPlate = () => {
             <Typography variant="body2">• Clear the current plate layout</Typography>
           </Stack>
           <TextField
-            label="Operator Name"
-            value={operator}
-            onChange={(e) => setOperator(e.target.value)}
-            placeholder="Enter operator name"
+            label="Analyst Name"
+            value={analyst}
+            onChange={(e) => setAnalyst(e.target.value)}
+            placeholder="Enter analyst name"
             variant="outlined"
             fullWidth
             sx={{ 
@@ -1267,7 +1291,7 @@ const PCRPlate = () => {
             variant="contained" 
             color="success"
             autoFocus
-            disabled={!operator.trim()}
+            disabled={!analyst.trim()}
           >
             Finalize Batch
           </Button>

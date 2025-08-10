@@ -98,25 +98,28 @@ function getSamplesWithPagination(page = 1, limit = 50, filters = {}) {
       }
     }
     if (filters.search) {
-      conditions.push('(lab_number LIKE ? OR name LIKE ? OR surname LIKE ?)');
+      conditions.push('(s.lab_number LIKE ? OR s.name LIKE ? OR s.surname LIKE ? OR s.case_number LIKE ? OR tc.ref_kit_number LIKE ? OR tc.test_purpose LIKE ? OR s.notes LIKE ? OR s.additional_notes LIKE ?)');
       const searchTerm = `%${filters.search}%`;
-      params.push(searchTerm, searchTerm, searchTerm);
+      params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
     }
     
     if (conditions.length > 0) {
       whereClause = 'WHERE ' + conditions.join(' AND ');
     }
     
-    const countQuery = `SELECT COUNT(*) as total FROM samples ${whereClause}`;
+    const countQuery = `SELECT COUNT(*) as total FROM samples s LEFT JOIN test_cases tc ON s.case_id = tc.id ${whereClause}`;
     const total = db.prepare(countQuery).get(...params).total;
     
     const dataQuery = `
       SELECT 
-        id, lab_number, name, surname, relation, status, 
-        collection_date, workflow_status, case_number, batch_id, lab_batch_number
-      FROM samples 
+        s.id, s.lab_number, s.name, s.surname, s.relation, s.status, s.gender,
+        s.collection_date, s.workflow_status, s.case_number, s.batch_id, s.lab_batch_number,
+        s.phone_number, s.email, s.id_number, s.notes, s.additional_notes, s.rerun_count,
+        tc.test_purpose, tc.ref_kit_number, tc.client_type
+      FROM samples s
+      LEFT JOIN test_cases tc ON s.case_id = tc.id
       ${whereClause}
-      ORDER BY lab_number ASC 
+      ORDER BY s.lab_number ASC 
       LIMIT ? OFFSET ?
     `;
     
@@ -359,7 +362,7 @@ app.get("/api/samples/all", (req, res) => {
     const stmt = db.prepare(`
       SELECT 
         id, lab_number, name, surname, relation, status, 
-        collection_date, workflow_status, case_number
+        collection_date, workflow_status, case_number, rerun_count
       FROM samples 
       ORDER BY id DESC
     `);
@@ -376,6 +379,98 @@ app.post("/api/samples", (req, res) => {
     ResponseHandler.success(res, newSample, 'Sample created successfully', 201);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to create sample', error);
+  }
+});
+
+// Increment rerun count for samples
+app.post("/api/samples/increment-rerun-count", (req, res) => {
+  try {
+    const { sampleIds } = req.body;
+    
+    if (!Array.isArray(sampleIds) || sampleIds.length === 0) {
+      return ResponseHandler.error(res, 'Sample IDs array is required', null, 400);
+    }
+    
+    // First check if rerun_count column exists, if not add it
+    try {
+      db.exec(`ALTER TABLE samples ADD COLUMN rerun_count INTEGER DEFAULT 0`);
+    } catch (alterError) {
+      // Column likely already exists, ignore error
+    }
+    
+    const transaction = db.transaction(() => {
+      const updateStmt = db.prepare(`
+        UPDATE samples 
+        SET rerun_count = COALESCE(rerun_count, 0) + 1, 
+            updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+      `);
+      
+      let updatedCount = 0;
+      sampleIds.forEach(sampleId => {
+        const result = updateStmt.run(sampleId);
+        if (result.changes > 0) {
+          updatedCount++;
+        }
+      });
+      
+      return updatedCount;
+    });
+    
+    const updatedCount = transaction();
+    ResponseHandler.success(res, { 
+      updatedCount, 
+      message: `Updated rerun count for ${updatedCount} samples` 
+    });
+    
+  } catch (error) {
+    console.error('Error incrementing rerun count:', error);
+    ResponseHandler.error(res, 'Failed to increment rerun count', error);
+  }
+});
+
+// Update workflow status for samples
+app.post("/api/samples/update-workflow-status", (req, res) => {
+  try {
+    const { sampleIds, workflowStatus, batchNumber } = req.body;
+    
+    if (!Array.isArray(sampleIds) || sampleIds.length === 0) {
+      return ResponseHandler.error(res, 'Sample IDs array is required', null, 400);
+    }
+    
+    if (!workflowStatus) {
+      return ResponseHandler.error(res, 'Workflow status is required', null, 400);
+    }
+    
+    const transaction = db.transaction(() => {
+      const updateStmt = db.prepare(`
+        UPDATE samples 
+        SET workflow_status = ?, 
+            lab_batch_number = COALESCE(?, lab_batch_number),
+            updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+      `);
+      
+      let updatedCount = 0;
+      sampleIds.forEach(sampleId => {
+        const result = updateStmt.run(workflowStatus, batchNumber, sampleId);
+        if (result.changes > 0) {
+          updatedCount++;
+        }
+      });
+      
+      return updatedCount;
+    });
+    
+    const updatedCount = transaction();
+    ResponseHandler.success(res, { 
+      updatedCount, 
+      message: `Updated workflow status to '${workflowStatus}' for ${updatedCount} samples` 
+    });
+    
+  } catch (error) {
+    console.error('Error updating workflow status:', error);
+    ResponseHandler.error(res, 'Failed to update workflow status', error);
   }
 });
 
@@ -579,6 +674,43 @@ app.get("/api/samples/queue-counts", (req, res) => {
     ResponseHandler.success(res, counts);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to get queue counts', error);
+  }
+});
+
+// Update workflow status for multiple samples
+app.put("/api/samples/workflow-status", (req, res) => {
+  try {
+    const { sampleIds, workflowStatus } = req.body;
+    
+    if (!Array.isArray(sampleIds) || sampleIds.length === 0) {
+      return ResponseHandler.error(res, 'Sample IDs are required and must be an array');
+    }
+    
+    if (!workflowStatus) {
+      return ResponseHandler.error(res, 'Workflow status is required');
+    }
+    
+    // Update workflow status for all provided sample IDs
+    const placeholders = sampleIds.map(() => '?').join(',');
+    const stmt = db.prepare(`
+      UPDATE samples 
+      SET workflow_status = ?, updated_at = datetime('now') 
+      WHERE id IN (${placeholders})
+    `);
+    
+    const result = stmt.run(workflowStatus, ...sampleIds);
+    
+    console.log(`✅ Updated ${result.changes} samples to workflow status: ${workflowStatus}`);
+    
+    ResponseHandler.success(res, {
+      updatedCount: result.changes,
+      workflowStatus,
+      sampleIds
+    }, `Successfully updated ${result.changes} samples to ${workflowStatus}`);
+    
+  } catch (error) {
+    logger.error('Error updating workflow status', { error: error.message });
+    ResponseHandler.error(res, 'Failed to update workflow status', error);
   }
 });
 
@@ -969,6 +1101,83 @@ app.get("/", (req, res) => {
       api: "/api"
     }
   });
+});
+
+// Rerun functionality endpoints
+app.post("/api/samples/increment-rerun-count", (req, res) => {
+  const transaction = db.transaction(() => {
+    const { sampleIds } = req.body;
+    
+    if (!sampleIds || !Array.isArray(sampleIds)) {
+      throw new Error('sampleIds array is required');
+    }
+
+    // Ensure rerun_count column exists
+    try {
+      db.prepare(`ALTER TABLE samples ADD COLUMN rerun_count INTEGER DEFAULT 0`).run();
+    } catch (error) {
+      // Column might already exist
+    }
+
+    const updateStmt = db.prepare(`
+      UPDATE samples 
+      SET rerun_count = COALESCE(rerun_count, 0) + 1, 
+          updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `);
+
+    let updatedCount = 0;
+    sampleIds.forEach(sampleId => {
+      const result = updateStmt.run(sampleId);
+      if (result.changes > 0) {
+        updatedCount++;
+      }
+    });
+
+    return { updatedCount };
+  });
+
+  try {
+    const result = transaction();
+    ResponseHandler.success(res, result, 'Rerun count incremented successfully');
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to increment rerun count', 500, 'INCREMENT_ERROR', { message: error.message });
+  }
+});
+
+app.post("/api/samples/update-workflow-status", (req, res) => {
+  const transaction = db.transaction(() => {
+    const { sampleIds, status, batchNumber } = req.body;
+    
+    if (!sampleIds || !Array.isArray(sampleIds) || !status) {
+      throw new Error('sampleIds array and status are required');
+    }
+
+    const updateStmt = db.prepare(`
+      UPDATE samples 
+      SET workflow_status = ?, 
+          lab_batch_number = COALESCE(?, lab_batch_number),
+          updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `);
+
+    let updatedCount = 0;
+    sampleIds.forEach(sampleId => {
+      const result = updateStmt.run(status, batchNumber, sampleId);
+      if (result.changes > 0) {
+        updatedCount++;
+      }
+    });
+
+    return { updatedCount, status, batchNumber };
+  });
+
+  try {
+    const result = transaction();
+    ResponseHandler.success(res, result, 'Workflow status updated successfully');
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to update workflow status', 500, 'UPDATE_ERROR', { message: error.message });
+  }
 });
 
 // Handle 404 errors

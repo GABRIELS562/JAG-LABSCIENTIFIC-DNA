@@ -250,15 +250,35 @@ export default function ClientRegister() {
               const data = JSON.parse(text);
               const allSamples = data.success ? (data.data || []) : (Array.isArray(data) ? data : []);
               
-              // Simple text-based filtering
+              // Comprehensive text-based filtering
               samplesData = allSamples.filter(sample => {
                 const searchLower = searchQuery.toLowerCase();
                 return (
+                  // Lab number search
                   (sample.lab_number && sample.lab_number.toLowerCase().includes(searchLower)) ||
+                  // Name and surname search
                   (sample.name && sample.name.toLowerCase().includes(searchLower)) ||
                   (sample.surname && sample.surname.toLowerCase().includes(searchLower)) ||
+                  // Combined full name search
+                  (sample.name && sample.surname && `${sample.name} ${sample.surname}`.toLowerCase().includes(searchLower)) ||
+                  // Case and kit number search
                   (sample.case_number && sample.case_number.toLowerCase().includes(searchLower)) ||
-                  (sample.ref_kit_number && sample.ref_kit_number.toLowerCase().includes(searchLower))
+                  (sample.ref_kit_number && sample.ref_kit_number.toLowerCase().includes(searchLower)) ||
+                  (sample.kit_batch_number && sample.kit_batch_number.toLowerCase().includes(searchLower)) ||
+                  // Contact information search
+                  (sample.phone_number && sample.phone_number.toLowerCase().includes(searchLower)) ||
+                  (sample.email && sample.email.toLowerCase().includes(searchLower)) ||
+                  // ID and relation search
+                  (sample.id_number && sample.id_number.toLowerCase().includes(searchLower)) ||
+                  (sample.relation && sample.relation.toLowerCase().includes(searchLower)) ||
+                  // Status and comments search
+                  (sample.workflow_status && sample.workflow_status.toLowerCase().includes(searchLower)) ||
+                  (sample.status && sample.status.toLowerCase().includes(searchLower)) ||
+                  (sample.comments && sample.comments.toLowerCase().includes(searchLower)) ||
+                  (sample.notes && sample.notes.toLowerCase().includes(searchLower)) ||
+                  (sample.additional_notes && sample.additional_notes.toLowerCase().includes(searchLower)) ||
+                  // Test purpose search (important for finding urgent samples)
+                  (sample.test_purpose && sample.test_purpose.toLowerCase().includes(searchLower))
                 );
               });
               
@@ -327,9 +347,10 @@ export default function ClientRegister() {
       return;
     }
     
-    // Store selected samples in localStorage for PCR Plate page
+    // Store selected samples in sessionStorage for PCR Plate page
     const selectedSampleData = samples.filter(s => selectedSamples.has(s.id));
-    localStorage.setItem('selectedSamplesForPCR', JSON.stringify(selectedSampleData));
+    sessionStorage.setItem('selectedSamplesForBatch', JSON.stringify(selectedSampleData));
+    console.log('📋 Selected samples for PCR batch:', selectedSampleData);
     
     // Navigate to PCR Plate page
     window.location.href = '/pcr-plate';
@@ -351,6 +372,8 @@ export default function ClientRegister() {
       case 'electro_ready': 
       case 'electro_completed':
         return 'Electro Batched';
+      case 'rerun_batched':
+        return 'Rerun Batched';
       case 'completed':
       case 'analysis_completed':
       case 'report_sent':
@@ -366,6 +389,7 @@ export default function ClientRegister() {
       case 'Pending': return 'warning';
       case 'PCR Batched': return 'info';
       case 'Electro Batched': return 'primary';
+      case 'Rerun Batched': return 'error';
       case 'Completed': return 'success';
       default: return 'default';
     }
@@ -606,7 +630,7 @@ export default function ClientRegister() {
         <CardContent>
           <TextField
             fullWidth
-            placeholder="Search by Lab Number, Name, Surname, Case Number, ID Number, or Phone Number"
+            placeholder="Search by Lab Number, BN Number, Name, Surname, Case Number, Phone, Email, ID Number, Status, or 'urgent'"
             value={query}
             onChange={(e) => handleSearch(e.target.value)}
             InputProps={{
@@ -742,16 +766,33 @@ export default function ClientRegister() {
                       
                       // Add sample rows
                       kitSamples.forEach((sample, index) => {
-                        // Apply grouping styles to both BN kits and paternity groups
+                        // Apply grouping styles and urgent highlighting
                         const isGrouped = (isBNKit || isPaternityGroup) && kitSamples.length > 1;
                         const groupColor = isBNKit ? '#0D488F' : '#4CAF50';
+                        const isUrgent = sample.test_purpose === 'legal_proceedings' || sample.test_purpose === 'urgent' || 
+                                       sample.comments?.toLowerCase().includes('urgent') ||
+                                       sample.notes?.toLowerCase().includes('urgent') ||
+                                       sample.additional_notes?.toLowerCase().includes('urgent');
+                        
+                        let backgroundColor = 'inherit';
+                        let borderLeft = 'none';
+                        
+                        if (isUrgent) {
+                          backgroundColor = 'rgba(255, 87, 34, 0.08)';
+                          borderLeft = '4px solid #FF5722';
+                        } else if (isGrouped) {
+                          backgroundColor = isBNKit ? 'rgba(13, 72, 143, 0.02)' : 'rgba(76, 175, 80, 0.02)';
+                          borderLeft = `3px solid ${groupColor}`;
+                        }
+                        
                         rows.push(
                           <TableRow 
                             key={sample.id} 
                             hover 
                             sx={{ 
-                              backgroundColor: isGrouped ? (isBNKit ? 'rgba(13, 72, 143, 0.02)' : 'rgba(76, 175, 80, 0.02)') : 'inherit',
-                              borderLeft: isGrouped ? `3px solid ${groupColor}` : 'none'
+                              backgroundColor,
+                              borderLeft,
+                              fontWeight: isUrgent ? 'bold' : 'normal'
                             }}
                           >
                             <TableCell padding="checkbox">
@@ -759,12 +800,17 @@ export default function ClientRegister() {
                                 checked={selectedSamples.has(sample.id)}
                                 onChange={() => handleSampleSelect(sample.id)}
                                 color="primary"
+                                disabled={sample.workflow_status === 'pcr_batched' || sample.workflow_status === 'electro_batched' || sample.workflow_status === 'completed'}
                               />
                             </TableCell>
                             <TableCell>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                {isUrgent && <Chip label="URGENT" size="small" color="error" sx={{ mr: 1 }} />}
                                 {isGrouped && <Box sx={{ width: 12, height: 2, backgroundColor: groupColor, borderRadius: 1 }} />}
-                                <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                                <Typography variant="body2" sx={{ 
+                                  fontWeight: isUrgent ? 'bold' : 'bold', 
+                                  color: isUrgent ? 'error.main' : 'primary.main'
+                                }}>
                                   {sample.lab_number}
                                 </Typography>
                               </Box>
@@ -807,11 +853,31 @@ export default function ClientRegister() {
                               </Typography>
                             </TableCell>
                             <TableCell>
-                              <Chip
-                                label={normalizeStatus(sample.workflow_status || sample.status)}
-                                size="small"
-                                color={getNormalizedStatusColor(normalizeStatus(sample.workflow_status || sample.status))}
-                              />
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Chip
+                                  label={normalizeStatus(sample.workflow_status || sample.status)}
+                                  size="small"
+                                  color={getNormalizedStatusColor(normalizeStatus(sample.workflow_status || sample.status))}
+                                />
+                                {(sample.workflow_status === 'pcr_batched' || sample.workflow_status === 'electro_batched' || sample.workflow_status === 'rerun_batched' || sample.workflow_status === 'completed') && (
+                                  <Chip
+                                    label={sample.workflow_status === 'rerun_batched' ? 'RERUN BATCH' : 'BATCHED'}
+                                    size="small"
+                                    variant="outlined"
+                                    color={sample.workflow_status === 'rerun_batched' ? 'error' : 'info'}
+                                    sx={{ fontSize: '0.7rem' }}
+                                  />
+                                )}
+                                {sample.rerun_count > 0 && (
+                                  <Chip
+                                    label={`RERUN (${sample.rerun_count})`}
+                                    size="small"
+                                    variant="outlined"
+                                    color="warning"
+                                    sx={{ fontSize: '0.7rem' }}
+                                  />
+                                )}
+                              </Box>
                             </TableCell>
                           </TableRow>
                         );

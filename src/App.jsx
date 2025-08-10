@@ -10,6 +10,7 @@ import Sidebar from './components/layout/Sidebar';
 import Reports from './components/features/Reports';
 import LabResults from './components/features/LabResults';
 import ElectrophoresisBatches from './components/features/ElectrophoresisBatches';
+import RerunBatches from './components/features/RerunBatches';
 import SampleQueues from './components/features/SampleQueues';
 import Statistics from './components/features/Statistics';
 import QualityControl from './components/features/QualityControl';
@@ -144,7 +145,17 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <ElectrophoresisLayout />
+                    <ElectrophoresisBatches />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/rerun-batches" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <RerunBatches />
                   </div>
                 </ErrorBoundary>
               } 

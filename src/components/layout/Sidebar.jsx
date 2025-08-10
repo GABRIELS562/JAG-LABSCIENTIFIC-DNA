@@ -141,6 +141,14 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       roles: ['staff']
     },
     { 
+      icon: <Replay />, 
+      label: 'LDS Reruns Batches',
+      hasSubMenu: false,
+      path: '/rerun-batches',
+      onClick: () => navigate('/rerun-batches'),
+      roles: ['staff']
+    },
+    { 
       icon: <Science />, 
       label: 'Genetic Analysis Setup',
       hasSubMenu: false,

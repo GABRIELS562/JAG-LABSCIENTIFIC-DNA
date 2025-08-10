@@ -46,12 +46,13 @@ const ElectrophoresisLayout = () => {
   const [plateData, setPlateData] = useState({});
   const [draggedItem, setDraggedItem] = useState(null);
   const [batchNumber, setBatchNumber] = useState('');
-  const [operator, setOperator] = useState('');
+  const [analyst, setAnalyst] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [finalizeDialog, setFinalizeDialog] = useState(false);
   const [controlsToAdd, setControlsToAdd] = useState({
     negativeControl: false,
-    positiveControl: false
+    positiveControl: false,
+    allelicLadder: false
   });
   const [selectedControl, setSelectedControl] = useState(null);
   const [wellContextMenu, setWellContextMenu] = useState({ open: false, wellId: null, anchorEl: null });
@@ -152,6 +153,21 @@ const ElectrophoresisLayout = () => {
   const handleDragStart = (e, item) => {
     setDraggedItem(item);
     e.dataTransfer.effectAllowed = 'move';
+    
+    // Create a custom drag image with better visibility
+    const dragElement = e.currentTarget.cloneNode(true);
+    dragElement.style.opacity = '0.8';
+    dragElement.style.transform = 'rotate(-2deg)';
+    dragElement.style.boxShadow = '0 8px 24px rgba(0,0,0,0.3)';
+    document.body.appendChild(dragElement);
+    e.dataTransfer.setDragImage(dragElement, 75, 20);
+    
+    // Clean up the drag image after a short delay
+    setTimeout(() => {
+      if (document.body.contains(dragElement)) {
+        document.body.removeChild(dragElement);
+      }
+    }, 0);
   };
 
   const handleDragEnd = (e) => {
@@ -212,7 +228,7 @@ const ElectrophoresisLayout = () => {
     if (plateData[wellId].samples.length > 0) {
       setSnackbar({
         open: true,
-        message: 'Well is already occupied. Clear it first.',
+        message: `⚠️ Well ${wellId} is already occupied by ${plateData[wellId].samples[0].lab_number}. Clear it first.`,
         severity: 'warning'
       });
       return;
@@ -252,7 +268,7 @@ const ElectrophoresisLayout = () => {
       if (!availableWells) {
         setSnackbar({
           open: true,
-          message: `No space available for ${samplesCount} consecutive samples. Please clear some wells.`,
+          message: `❌ No space available for ${samplesCount} consecutive samples starting at ${wellId}. Please clear some wells or try another location.`,
           severity: 'error'
         });
         return;
@@ -277,7 +293,7 @@ const ElectrophoresisLayout = () => {
       
       setSnackbar({
         open: true,
-        message: `Placed ${samplesCount} samples from case ${draggedItem.caseNumber} vertically starting at ${wellId}`,
+        message: `✅ Placed ${samplesCount} samples from case ${draggedItem.caseNumber} for electrophoresis starting at ${wellId}`,
         severity: 'success'
       });
     } else {
@@ -298,7 +314,7 @@ const ElectrophoresisLayout = () => {
       
       setSnackbar({
         open: true,
-        message: `Placed ${itemDescription} in well ${wellId}`,
+        message: `✅ Placed ${itemDescription} in well ${wellId}`,
         severity: 'success'
       });
     }
@@ -373,7 +389,7 @@ const ElectrophoresisLayout = () => {
     }
 
     // Add controls in the next available column
-    if (controlsToAdd.negativeControl || controlsToAdd.positiveControl) {
+    if (controlsToAdd.negativeControl || controlsToAdd.positiveControl || controlsToAdd.allelicLadder) {
       const nextColIndex = Math.ceil(selectedSamples.length / 8); // Next available column
       const controlCol = cols[nextColIndex] || cols[11]; // Use last column if needed
       let controlRowIndex = 0;
@@ -414,13 +430,31 @@ const ElectrophoresisLayout = () => {
         controlRowIndex++;
       }
 
+      if (controlsToAdd.allelicLadder) {
+        const allelicLadderWell = `${rows[controlRowIndex]}${controlCol}`;
+        if (newPlateData[allelicLadderWell] && newPlateData[allelicLadderWell].type === 'empty') {
+          newPlateData[allelicLadderWell] = {
+            id: allelicLadderWell,
+            type: 'control',
+            samples: [{
+              id: 'allelic_ladder',
+              lab_number: 'ALLELIC_LADDER',
+              name: 'Allelic',
+              surname: 'Ladder',
+              relation: 'Control'
+            }]
+          };
+        }
+        controlRowIndex++;
+      }
+
     }
 
     setPlateData(newPlateData);
     
     setSnackbar({
       open: true,
-      message: `Auto-filled ${selectedSamples.length} samples vertically (A1→H1, then A2→H2...)${controlsToAdd.negativeControl || controlsToAdd.positiveControl ? ' with controls' : ''}`,
+      message: `Auto-filled ${selectedSamples.length} samples vertically (A1→H1, then A2→H2...)${controlsToAdd.negativeControl || controlsToAdd.positiveControl || controlsToAdd.allelicLadder ? ' with controls' : ''}`,
       severity: 'success'
     });
   };
@@ -441,6 +475,8 @@ const ElectrophoresisLayout = () => {
             return isDarkMode ? '#c62828' : '#ffcdd2'; // Light red for negative control (darker in dark mode)
           } else if (sample.lab_number === 'POS_CTRL') {
             return isDarkMode ? '#2e7d32' : '#c8e6c9'; // Light green for positive control (darker in dark mode)
+          } else if (sample.lab_number === 'ALLELIC_LADDER') {
+            return isDarkMode ? '#7b1fa2' : '#e1bee7'; // Light purple for allelic ladder (darker in dark mode)
           }
         }
         return isDarkMode ? '#66bb6a' : '#81c784'; // Default green for controls (darker in dark mode)
@@ -488,7 +524,7 @@ const ElectrophoresisLayout = () => {
 
       const batchData = {
         batchNumber,
-        operator,
+        operator: analyst,
         wells: transformedWells,
         sampleCount: getPlacedSamplesCount(),
         date: new Date().toISOString().split('T')[0],
@@ -522,6 +558,13 @@ const ElectrophoresisLayout = () => {
           message: `Electrophoresis Batch ${batchNumber} finalized! Redirecting to batch view...`,
           severity: 'success'
         });
+        
+        // Store the newly created batch data for the batches page to display
+        sessionStorage.setItem('newlyCreatedElectroBatch', JSON.stringify({
+          ...batchData,
+          created_at: new Date().toISOString(),
+          status: 'active'
+        }));
         
         // Navigate to electrophoresis batches page after short delay
         setTimeout(() => {
@@ -766,7 +809,7 @@ const ElectrophoresisLayout = () => {
   const exportPlateLayout = () => {
     const headerRows = [
       'Container Name\tDescription\tContainerType\tAppType\tOwner\tOperator',
-      `electrophoresis batch\t${batchNumber}_electro_run\t96-Well\tRegular\tLAB DNA\t${operator}`,
+      `electrophoresis batch\t${batchNumber}_electro_run\t96-Well\tRegular\tLAB DNA\t${analyst}`,
       'AppServer\tAppInstance',
       'ElectrophoresisAnalyzer\tElectrophoresis_1ae27b545c1511deab1400101834f966',
       'Well\tSample Name\tComment\tPriority\tSize Standard\tSnp Set\tUser-Defined 3\tUser-Defined 2\tUser-Defined 1\tPanel\tStudy\tSample Type\tAnalysis Method\tResults Group 1\tInstrument Protocol 1'
@@ -1032,6 +1075,42 @@ const ElectrophoresisLayout = () => {
               </CardContent>
             </Card>
 
+            {/* Allelic Ladder */}
+            <Card
+              sx={{ 
+                mb: 0.75, 
+                cursor: 'grab',
+                bgcolor: '#f3e5f5',
+                '&:hover': { bgcolor: '#e1bee7' },
+                border: '1px solid #9c27b0'
+              }}
+              draggable
+              onDragStart={(e) => handleDragStart(e, {
+                id: 'allelic_ladder_drag',
+                lab_number: 'ALLELIC_LADDER',
+                name: 'Allelic',
+                surname: 'Ladder',
+                relation: 'Control',
+                controlType: 'allelic_ladder'
+              })}
+              onDragEnd={handleDragEnd}
+            >
+              <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', minHeight: 24 }}>
+                  <DragIndicator sx={{ mr: 0.5, color: '#9c27b0', fontSize: 16 }} />
+                  <Chip 
+                    label="ALLELIC_LADDER" 
+                    size="small" 
+                    variant="outlined" 
+                    sx={{ height: 18, fontSize: '0.65rem', borderColor: '#9c27b0' }}
+                  />
+                  <Typography variant="caption" sx={{ ml: 0.5, fontSize: '0.7rem' }}>
+                    Allelic Ladder
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+
 
             <Divider sx={{ my: 2 }} />
             
@@ -1064,6 +1143,18 @@ const ElectrophoresisLayout = () => {
                     />
                   }
                   label="Include Positive Control"
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={controlsToAdd.allelicLadder}
+                      onChange={(e) => setControlsToAdd(prev => ({
+                        ...prev,
+                        allelicLadder: e.target.checked
+                      }))}
+                    />
+                  }
+                  label="Include Allelic Ladder"
                 />
               </Box>
             </Box>
@@ -1150,8 +1241,14 @@ const ElectrophoresisLayout = () => {
                         justifyContent: 'center',
                         cursor: 'pointer',
                         boxShadow: isHovered ? 
-                          (isValidDrop ? '0 0 12px rgba(76, 175, 80, 0.6)' : '0 0 12px rgba(244, 67, 54, 0.6)') : 
+                          (isValidDrop ? '0 0 12px rgba(76, 175, 80, 0.6), 0 0 24px rgba(76, 175, 80, 0.3)' : '0 0 12px rgba(244, 67, 54, 0.6), 0 0 24px rgba(244, 67, 54, 0.3)') : 
                           'none',
+                        animation: isHovered ? 'pulse 1.5s ease-in-out infinite' : 'none',
+                        '@keyframes pulse': {
+                          '0%': { transform: 'scale(1)' },
+                          '50%': { transform: 'scale(1.05)' },
+                          '100%': { transform: 'scale(1)' }
+                        },
                         '&:hover': {
                           borderColor: '#1e4976',
                           transform: 'scale(1.1)',
@@ -1236,7 +1333,7 @@ const ElectrophoresisLayout = () => {
                         {batch.batch_number}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        Operator: {batch.operator || 'N/A'}
+                        Analyst: {batch.operator || 'N/A'}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         Samples: {batch.total_samples || 0}
@@ -1270,10 +1367,10 @@ const ElectrophoresisLayout = () => {
             <Typography variant="body2">• Clear the current plate layout</Typography>
           </Stack>
           <TextField
-            label="Operator Name"
-            value={operator}
-            onChange={(e) => setOperator(e.target.value)}
-            placeholder="Enter operator name"
+            label="Analyst Name"
+            value={analyst}
+            onChange={(e) => setAnalyst(e.target.value)}
+            placeholder="Enter analyst name"
             variant="outlined"
             fullWidth
             sx={{ mb: 2 }}
@@ -1291,7 +1388,7 @@ const ElectrophoresisLayout = () => {
             variant="contained" 
             color="success"
             autoFocus
-            disabled={!operator.trim()}
+            disabled={!analyst.trim()}
           >
             Finalize Batch
           </Button>
