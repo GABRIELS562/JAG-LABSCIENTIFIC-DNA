@@ -39,7 +39,6 @@ import {
 const GeneMapperTab = ({ isDarkMode, notifications }) => {
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [analysisResults, setAnalysisResults] = useState(null);
-  const [inputTemplate, setInputTemplate] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
   const [processingStatus, setProcessingStatus] = useState('');
@@ -50,14 +49,6 @@ const GeneMapperTab = ({ isDarkMode, notifications }) => {
   const [batchesLoading, setBatchesLoading] = useState(false);
   const [generatedTemplate, setGeneratedTemplate] = useState('');
 
-  // Sample GeneMapper input template for 3130xl/3500 analyzers
-  const sampleTemplate = `Sample Name,Dye Color,Panel,Size Standard,Well,File Name,Comment
-25_001_Child_ID,G5,Identifiler Plus,GeneScan 500 LIZ,A01,25_001_Child_ID.fsa,Child sample
-25_002_Father_ID,G5,Identifiler Plus,GeneScan 500 LIZ,A02,25_002_Father_ID.fsa,Alleged father sample
-25_003_Mother_ID,G5,Identifiler Plus,GeneScan 500 LIZ,A03,25_003_Mother_ID.fsa,Mother sample
-Positive_Control,G5,Identifiler Plus,GeneScan 500 LIZ,A04,Positive_Control.fsa,Positive control
-Negative_Control,G5,Identifiler Plus,GeneScan 500 LIZ,A05,Negative_Control.fsa,Negative control
-Ladder,G5,Identifiler Plus,GeneScan 500 LIZ,A06,Ladder.fsa,Allelic ladder`;
 
   // Load available electro and rerun batches
   const loadAvailableBatches = useCallback(async () => {
@@ -195,7 +186,6 @@ Ladder,G5,Identifiler Plus,GeneScan 500 LIZ,A06,Ladder.fsa,Allelic ladder`;
     setSelectedBatch(batch);
     const template = generateGeneMapperTemplate(batch);
     setGeneratedTemplate(template);
-    setInputTemplate(template);
     
     notifications.addNotification({
       type: 'success',
@@ -841,18 +831,6 @@ Ladder,G5,Identifiler Plus,GeneScan 500 LIZ,A06,Ladder.fsa,Allelic ladder`;
     });
   };
 
-  // Download sample template
-  const handleDownloadSampleTemplate = () => {
-    const blob = new Blob([sampleTemplate], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'genemapper_sample_template.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
 
   const handleSTRInclusionChange = (locusIndex, include) => {
     setAnalysisResults(prev => {
@@ -882,20 +860,20 @@ Ladder,G5,Identifiler Plus,GeneScan 500 LIZ,A06,Ladder.fsa,Allelic ladder`;
 
   return (
     <Grid container spacing={3}>
-      {/* Batch Selection Card */}
+      {/* GeneMapper Template Generation */}
       <Grid item xs={12}>
         <Card>
           <CardContent>
             <Box display="flex" alignItems="center" mb={2}>
               <Info color="primary" sx={{ mr: 1 }} />
-              <Typography variant="h6">Generate GeneMapper Template from Batch</Typography>
+              <Typography variant="h6">GeneMapper Template Generator</Typography>
             </Box>
             
             <Typography variant="body2" paragraph>
-              Select an electro batch or rerun batch to automatically generate a GeneMapper template with the correct format.
+              Select an electro batch or rerun batch to automatically generate a GeneMapper template ready for import.
             </Typography>
 
-            <Grid container spacing={2} alignItems="center">
+            <Grid container spacing={2} alignItems="center" sx={{ mb: 3 }}>
               <Grid item xs={12} sm={8}>
                 <FormControl fullWidth>
                   <InputLabel>Select Batch</InputLabel>
@@ -918,11 +896,13 @@ Ladder,G5,Identifiler Plus,GeneScan 500 LIZ,A06,Ladder.fsa,Allelic ladder`;
               </Grid>
               <Grid item xs={12} sm={4}>
                 <Button
-                  variant="outlined"
+                  variant="contained"
+                  color="primary"
                   startIcon={<Download />}
                   onClick={handleDownloadGeneratedTemplate}
                   disabled={!generatedTemplate}
                   fullWidth
+                  size="large"
                 >
                   Download Template
                 </Button>
@@ -930,68 +910,83 @@ Ladder,G5,Identifiler Plus,GeneScan 500 LIZ,A06,Ladder.fsa,Allelic ladder`;
             </Grid>
 
             {selectedBatch && (
-              <Box mt={2}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Generated Template Preview for {selectedBatch.batch_number}:
-                </Typography>
-                <TextField
-                  multiline
-                  rows={8}
-                  fullWidth
-                  value={generatedTemplate}
-                  InputProps={{ readOnly: true }}
-                  variant="outlined"
-                  sx={{ fontFamily: 'monospace' }}
-                />
+              <Box>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                  <Typography variant="h6" color="primary">
+                    📋 Template for {selectedBatch.batch_number}
+                  </Typography>
+                  <Chip 
+                    label={`${Object.keys(selectedBatch.plate_layout || {}).length} samples`} 
+                    color="info" 
+                    size="small" 
+                  />
+                </Box>
+                
+                <Paper 
+                  sx={{ 
+                    p: 2, 
+                    backgroundColor: isDarkMode ? 'grey.900' : 'grey.50',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    maxHeight: '400px',
+                    overflow: 'auto'
+                  }}
+                >
+                  <Typography 
+                    variant="body2" 
+                    component="pre" 
+                    sx={{ 
+                      fontFamily: 'Monaco, "Courier New", monospace',
+                      fontSize: '12px',
+                      lineHeight: 1.4,
+                      margin: 0,
+                      whiteSpace: 'pre',
+                      wordBreak: 'keep-all',
+                      overflow: 'visible'
+                    }}
+                  >
+                    {generatedTemplate}
+                  </Typography>
+                </Paper>
+                
+                <Box mt={2} display="flex" justifyContent="center">
+                  <Button
+                    variant="outlined"
+                    startIcon={<Download />}
+                    onClick={handleDownloadGeneratedTemplate}
+                    size="large"
+                  >
+                    Download {selectedBatch.batch_number}_GeneMapper_Template.txt
+                  </Button>
+                </Box>
               </Box>
             )}
             
             {!selectedBatch && (
-              <Box mt={2}>
+              <Box 
+                display="flex" 
+                flexDirection="column" 
+                alignItems="center" 
+                justifyContent="center" 
+                py={4}
+                sx={{ 
+                  backgroundColor: isDarkMode ? 'grey.900' : 'grey.50',
+                  borderRadius: 1,
+                  border: '2px dashed',
+                  borderColor: 'divider'
+                }}
+              >
+                <Typography variant="h6" color="textSecondary" gutterBottom>
+                  {batchesLoading ? '🔄 Loading available batches...' : 
+                   availableBatches.length === 0 ? '📋 No electro or rerun batches found' :
+                   '📋 Select a batch to generate template'}
+                </Typography>
                 <Typography variant="body2" color="textSecondary">
-                  {batchesLoading ? 'Loading available batches...' : 
-                   availableBatches.length === 0 ? 'No electro or rerun batches found' :
-                   'Select a batch above to generate GeneMapper template'}
+                  {!batchesLoading && availableBatches.length > 0 && 
+                    'Choose from the dropdown above to generate your GeneMapper template'}
                 </Typography>
               </Box>
             )}
-          </CardContent>
-        </Card>
-      </Grid>
-
-      {/* Manual Template Card */}
-      <Grid item xs={12}>
-        <Card>
-          <CardContent>
-            <Box display="flex" alignItems="center" mb={2}>
-              <Info color="primary" sx={{ mr: 1 }} />
-              <Typography variant="h6">Manual Template Entry</Typography>
-            </Box>
-            
-            <Typography variant="body2" paragraph>
-              Alternatively, you can manually enter or modify a GeneMapper template below.
-            </Typography>
-
-            <Box mt={2}>
-              <Button
-                variant="outlined"
-                startIcon={<Download />}
-                onClick={handleDownloadSampleTemplate}
-                sx={{ mr: 2 }}
-              >
-                Download Sample Template
-              </Button>
-              
-              <TextField
-                multiline
-                rows={6}
-                fullWidth
-                value={inputTemplate || sampleTemplate}
-                onChange={(e) => setInputTemplate(e.target.value)}
-                placeholder="Sample sheet template for GeneMapper"
-                sx={{ mt: 2 }}
-              />
-            </Box>
           </CardContent>
         </Card>
       </Grid>
