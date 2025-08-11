@@ -55,34 +55,69 @@ const GeneMapperTab = ({ isDarkMode, notifications }) => {
     try {
       setBatchesLoading(true);
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      console.log('🔄 Loading batches from:', `${API_URL}/api/batches`);
+      
       const response = await fetch(`${API_URL}/api/batches`);
       const data = await response.json();
       
+      console.log('📊 API Response:', {
+        success: data.success,
+        dataCount: data.data?.length || 0,
+        sampleBatches: data.data?.slice(0, 3).map(b => ({
+          batch_number: b.batch_number,
+          hasPlateLayout: !!b.plate_layout,
+          wellCount: b.plate_layout ? Object.keys(b.plate_layout).length : 0
+        })) || []
+      });
+      
       if (data.success) {
         // Filter for electro batches and rerun batches
-        const batches = (data.data || []).filter(batch => 
-          (batch.batch_number?.includes('ELEC_') || batch.batch_number?.includes('_RR')) &&
-          batch.plate_layout && 
-          Object.keys(batch.plate_layout).length > 0
-        );
-        setAvailableBatches(batches);
-        console.log('📋 Loaded batches for GeneMapper:', batches.length);
+        const allBatches = data.data || [];
+        const filteredBatches = allBatches.filter(batch => {
+          const hasCorrectName = batch.batch_number?.includes('ELEC_') || batch.batch_number?.includes('_RR');
+          const hasPlateLayout = batch.plate_layout && Object.keys(batch.plate_layout).length > 0;
+          
+          console.log(`🔍 Checking batch ${batch.batch_number}:`, {
+            hasCorrectName,
+            hasPlateLayout,
+            wellCount: batch.plate_layout ? Object.keys(batch.plate_layout).length : 0
+          });
+          
+          return hasCorrectName && hasPlateLayout;
+        });
+        
+        console.log('✅ Filtered batches:', filteredBatches.map(b => ({
+          batch_number: b.batch_number,
+          wellCount: Object.keys(b.plate_layout).length
+        })));
+        
+        setAvailableBatches(filteredBatches);
+        
+        if (filteredBatches.length === 0) {
+          notifications?.addNotification?.({
+            type: 'warning',
+            message: `No electro or rerun batches found with samples. Total batches: ${allBatches.length}`
+          });
+        }
+      } else {
+        throw new Error(data.error || 'API returned success: false');
       }
     } catch (error) {
       console.error('❌ Error loading batches:', error);
       notifications.addNotification({
         type: 'error',
-        message: 'Failed to load available batches'
+        message: `Failed to load available batches: ${error.message}`
       });
+      setAvailableBatches([]);
     } finally {
       setBatchesLoading(false);
     }
-  }, [notifications]);
+  }, []); // Remove notifications dependency to prevent re-renders
 
   // Load batches on component mount
   useEffect(() => {
     loadAvailableBatches();
-  }, [loadAvailableBatches]);
+  }, []); // Empty dependency array for one-time load
 
   // Generate GeneMapper template from batch data
   const generateGeneMapperTemplate = useCallback((batch) => {
