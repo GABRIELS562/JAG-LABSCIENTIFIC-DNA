@@ -54,10 +54,11 @@ const GeneMapperTab = ({ isDarkMode, notifications }) => {
   const loadAvailableBatches = useCallback(async () => {
     try {
       setBatchesLoading(true);
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-      console.log('🔄 Loading batches from:', `${API_URL}/api/batches`);
+      // Use relative path to leverage Vite proxy
+      const apiUrl = '/api/batches';
+      console.log('🔄 Loading batches from:', apiUrl);
       
-      const response = await fetch(`${API_URL}/api/batches`);
+      const response = await fetch(apiUrl);
       const data = await response.json();
       
       console.log('📊 API Response:', {
