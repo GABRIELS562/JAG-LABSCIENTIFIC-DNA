@@ -36,7 +36,8 @@ import {
   Refresh
 } from '@mui/icons-material';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Use relative paths to leverage Vite proxy
+const API_BASE = '';
 
 const PCRPlate = () => {
   const navigate = useNavigate();
@@ -86,7 +87,7 @@ const PCRPlate = () => {
   const generateBatchNumber = async () => {
     try {
       // Try to get the next batch number from the server
-      const response = await fetch(`${API_URL}/api/batches`);
+      const response = await fetch('/api/batches');
       if (response.ok) {
         const data = await response.json();
         const existingBatches = data.data || [];
@@ -698,7 +699,7 @@ const PCRPlate = () => {
         date: batchData.date
       });
       console.log('🧪 Wells data:', transformedWells);
-      console.log('📡 API URL:', `${API_URL}/api/generate-batch`);
+      console.log('📡 API URL:', '/api/generate-batch');
 
       // Call the API to generate the batch
       const authToken = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
@@ -712,7 +713,7 @@ const PCRPlate = () => {
       }
       
       console.log('📤 Sending request to backend...');
-      const response = await fetch(`${API_URL}/api/generate-batch`, {
+      const response = await fetch('/api/generate-batch', {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(batchData)
@@ -732,7 +733,7 @@ const PCRPlate = () => {
           
         if (sampleIds.length > 0) {
           try {
-            await fetch(`${API_URL}/api/samples/workflow-status`, {
+            await fetch('/api/samples/workflow-status', {
               method: 'PUT',
               headers: {
                 'Content-Type': 'application/json'
