@@ -58,7 +58,7 @@ class UnifiedApiClient {
     if (useCache && (!options.method || options.method === 'GET')) {
       const cachedData = this.getCachedData(cacheKey);
       if (cachedData) {
-        console.log('🔄 Using cached data for:', url);
+        console.log('[CACHE] Using cached data for:', url);
         return { json: () => Promise.resolve(cachedData) };
       }
     }
@@ -69,7 +69,7 @@ class UnifiedApiClient {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-        console.log(`🌐 Fetching (attempt ${attempt + 1}):`, fullUrl);
+        console.log(`[HTTP] Fetching (attempt ${attempt + 1}):`, fullUrl);
 
         const response = await fetch(fullUrl, {
           ...options,
@@ -81,7 +81,7 @@ class UnifiedApiClient {
         });
 
         clearTimeout(timeoutId);
-        console.log('📡 Response status:', response.status, 'for', url);
+        console.log('[HTTP] Response status:', response.status, 'for', url);
 
         // If we get here, connection is working
         if (!this.isOnline) {
@@ -101,12 +101,12 @@ class UnifiedApiClient {
       } catch (error) {
         // Handle different types of errors
         if (error.name === 'AbortError') {
-          console.warn(`⏱️ Request timeout on attempt ${attempt + 1}:`, url);
+          console.warn(`[TIMEOUT] Request timeout on attempt ${attempt + 1}:`, url);
         } else if (error.name === 'TypeError' || error.message.includes('fetch')) {
-          console.warn(`🔌 Network error on attempt ${attempt + 1}:`, error.message);
+          console.warn(`[NETWORK] Error on attempt ${attempt + 1}:`, error.message);
           this.notifyConnectionChange(false);
         } else {
-          console.warn(`❌ API error on attempt ${attempt + 1}:`, error.message);
+          console.warn(`[ERROR] API error on attempt ${attempt + 1}:`, error.message);
         }
 
         // If this was the last attempt, throw a properly formatted error
@@ -134,7 +134,7 @@ class UnifiedApiClient {
       const response = await this.enhancedFetch(url, options, useCache);
       const data = await response.json();
       
-      console.log('✅ Success for:', url, 'Data:', data.success ? 'OK' : 'FAIL');
+      console.log('[SUCCESS] API call for:', url, 'Data:', data.success ? 'OK' : 'FAIL');
       
       // Cache successful GET responses
       if (useCache && data.success && (!options.method || options.method === 'GET')) {
@@ -144,7 +144,7 @@ class UnifiedApiClient {
 
       return data;
     } catch (error) {
-      console.error('❌ API Error for:', url, 'Error:', error.message);
+      console.error('[ERROR] API call failed for:', url, 'Error:', error.message);
       
       // Log error using centralized error handler
       errorHandler.logError(error, `API Call: ${url}`);

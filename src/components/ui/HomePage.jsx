@@ -164,8 +164,8 @@ const HomePage = ({ isDarkMode }) => {
             disabled={refreshing}
             size={isMobile ? 'large' : 'medium'}
             sx={{ 
-              bgcolor: '#1e4976',
-              '&:hover': { bgcolor: '#2c5a8e' },
+              bgcolor: '#1e3a5f',
+              '&:hover': { bgcolor: '#152a47' },
               minHeight: isMobile ? 48 : 'auto',
               px: isMobile ? 3 : 'auto'
             }}
@@ -180,13 +180,13 @@ const HomePage = ({ isDarkMode }) => {
               <Box sx={{ 
                 textAlign: 'center', 
                 p: 3, 
-                background: 'linear-gradient(135deg, #0D488F 0%, #1e4976 100%)',
+                background: '#1e3a5f',
                 color: 'white',
                 borderRadius: 2, 
                 cursor: 'pointer',
                 '&:hover': {
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 20px rgba(13, 72, 143, 0.3)'
+                  opacity: 0.95,
+                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
                 },
                 transition: 'all 0.3s ease'
               }} onClick={() => navigate('/client-register')}>
@@ -203,13 +203,13 @@ const HomePage = ({ isDarkMode }) => {
               <Box sx={{ 
                 textAlign: 'center', 
                 p: 3, 
-                background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+                background: '#d97706',
                 color: 'white',
                 borderRadius: 2, 
                 cursor: 'pointer',
                 '&:hover': {
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 20px rgba(255, 152, 0, 0.3)'
+                  opacity: 0.95,
+                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
                 },
                 transition: 'all 0.3s ease'
               }} onClick={() => navigate('/client-register')}>
@@ -226,13 +226,13 @@ const HomePage = ({ isDarkMode }) => {
               <Box sx={{ 
                 textAlign: 'center', 
                 p: 3, 
-                background: 'linear-gradient(135deg, #42a5f5 0%, #1976d2 100%)',
+                background: '#3b82f6',
                 color: 'white',
                 borderRadius: 2, 
                 cursor: 'pointer',
                 '&:hover': {
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 20px rgba(66, 165, 245, 0.3)'
+                  opacity: 0.95,
+                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
                 },
                 transition: 'all 0.3s ease'
               }} onClick={() => navigate('/pcr-plate')}>
@@ -249,13 +249,13 @@ const HomePage = ({ isDarkMode }) => {
               <Box sx={{ 
                 textAlign: 'center', 
                 p: 3, 
-                background: 'linear-gradient(135deg, #8EC74F 0%, #6BA23A 100%)',
+                background: '#48a868',
                 color: 'white',
                 borderRadius: 2, 
                 cursor: 'pointer',
                 '&:hover': {
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 20px rgba(142, 199, 79, 0.3)'
+                  opacity: 0.95,
+                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
                 },
                 transition: 'all 0.3s ease'
               }} onClick={() => navigate('/statistics')}>
@@ -279,11 +279,11 @@ const HomePage = ({ isDarkMode }) => {
           sx={{ 
             mb: 3, 
             textAlign: 'center', 
-            color: isDarkMode ? 'white' : '#0D488F',
+            color: isDarkMode ? 'white' : '#1e3a5f',
             fontWeight: 'bold'
           }}
         >
-          🔬 Laboratory Applications
+          Laboratory Applications
         </Typography>
         <Grid container spacing={3} justifyContent="center">
           {applicationButtons.map((button, index) => (
@@ -316,11 +316,11 @@ const HomePage = ({ isDarkMode }) => {
                       display: 'inline-flex',
                       p: 2,
                       borderRadius: '50%',
-                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(13,72,143,0.1)'
+                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(30,58,95,0.1)'
                     }}
                   >
                     {React.cloneElement(button.icon, { 
-                      sx: { fontSize: 32, color: button.color } 
+                      sx: { fontSize: 28, color: button.color } 
                     })}
                   </Box>
                   <Typography 
@@ -328,7 +328,7 @@ const HomePage = ({ isDarkMode }) => {
                     sx={{ 
                       mb: 1, 
                       fontWeight: 'bold',
-                      color: isDarkMode ? 'white' : '#1e4976' 
+                      color: isDarkMode ? 'white' : '#1e3a5f' 
                     }}
                   >
                     {button.title}
@@ -349,88 +349,72 @@ const HomePage = ({ isDarkMode }) => {
         </Grid>
       </Box>
 
-      {/* DNA Video Background Section */}
-      <Box sx={{ mb: 6, textAlign: 'center' }}>
+      {/* System Information Section */}
+      <Box sx={{ mb: 6 }}>
         <Typography 
           variant="h4" 
           sx={{ 
             mb: 3, 
-            color: isDarkMode ? 'white' : '#0D488F',
+            textAlign: 'center',
+            color: isDarkMode ? 'white' : '#1e3a5f',
             fontWeight: 'bold'
           }}
         >
-          🧬 LabDNA Scientific
+          System Overview
         </Typography>
-        <Box 
-          sx={{ 
-            display: 'flex', 
-            justifyContent: 'center',
-            mb: 4,
-            position: 'relative',
-            overflow: 'hidden',
-            borderRadius: '12px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-            backgroundColor: '#000',
-            '& video': {
-              backfaceVisibility: 'hidden',
-              transform: 'translateZ(0)',
-              willChange: 'transform'
-            }
-          }}
-        >
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            preload="auto"
-            style={{
-              width: '100%',
-              height: '600px',
-              objectFit: 'contain',
-              filter: isDarkMode ? 'brightness(0.8)' : 'none',
-              transition: 'filter 0.3s ease-in-out'
-            }}
-          >
-            <source src="/dna-smooth-loop.webm" type="video/webm" />
-            <source src="/dna-smooth-loop.mp4" type="video/mp4" />
-            {/* Fallback image for browsers that don't support video */}
-            <img
-              src="/dna-closely.jpg"
-              alt="DNA Double Helix - Genetic Testing and Analysis"
-              style={{
-                width: '100%',
-                height: '600px',
-                objectFit: 'contain'
-              }}
-            />
-          </video>
-          {/* Overlay text for better readability */}
-          <Box
-            sx={{
-              position: 'absolute',
-              bottom: 16,
-              left: 16,
-              right: 16,
-              background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)',
-              color: 'white',
-              padding: 2,
-              borderRadius: '8px',
-              backdropFilter: 'blur(4px)'
-            }}
-          >
-            <Typography 
-              variant="h6" 
-              sx={{ 
-                fontStyle: 'italic',
-                fontWeight: 'bold',
-                textShadow: '2px 2px 4px rgba(0,0,0,0.8)'
-              }}
-            >
-              Advanced DNA analysis and genetic testing for accurate paternity determination
-            </Typography>
-          </Box>
-        </Box>
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={4}>
+            <Card sx={{ 
+              height: '100%',
+              backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white',
+              borderLeft: '4px solid #1e3a5f'
+            }}>
+              <CardContent>
+                <Typography variant="h6" sx={{ color: '#1e3a5f', mb: 1 }}>
+                  Laboratory Information
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  ISO 17025 compliant LIMS for paternity testing and genetic analysis.
+                  Integrated with GeneMapper ID for accurate STR analysis.
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Card sx={{ 
+              height: '100%',
+              backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white',
+              borderLeft: '4px solid #2d6987'
+            }}>
+              <CardContent>
+                <Typography variant="h6" sx={{ color: '#2d6987', mb: 1 }}>
+                  Quality Assurance
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Complete chain of custody tracking, audit trails, and quality control 
+                  management for regulatory compliance.
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Card sx={{ 
+              height: '100%',
+              backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white',
+              borderLeft: '4px solid #48a868'
+            }}>
+              <CardContent>
+                <Typography variant="h6" sx={{ color: '#48a868', mb: 1 }}>
+                  Workflow Management
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Streamlined sample processing from collection through analysis,
+                  with automated batch management and report generation.
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
       </Box>
 
       {/* Database Access Section */}
@@ -440,11 +424,11 @@ const HomePage = ({ isDarkMode }) => {
           sx={{ 
             mb: 3, 
             textAlign: 'center', 
-            color: isDarkMode ? 'white' : '#0D488F',
+            color: isDarkMode ? 'white' : '#1e3a5f',
             fontWeight: 'bold'
           }}
         >
-          🗄️ Database Access
+          Database Access
         </Typography>
         <Grid container spacing={3}>
           {databaseButtons.map((button, index) => (
@@ -477,11 +461,11 @@ const HomePage = ({ isDarkMode }) => {
                       display: 'inline-flex',
                       p: 2,
                       borderRadius: '50%',
-                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(13,72,143,0.1)'
+                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(30,58,95,0.1)'
                     }}
                   >
                     {React.cloneElement(button.icon, { 
-                      sx: { fontSize: 32, color: button.color } 
+                      sx: { fontSize: 28, color: button.color } 
                     })}
                   </Box>
                   <Typography 
@@ -489,7 +473,7 @@ const HomePage = ({ isDarkMode }) => {
                     sx={{ 
                       mb: 1, 
                       fontWeight: 'bold',
-                      color: isDarkMode ? 'white' : '#1e4976' 
+                      color: isDarkMode ? 'white' : '#1e3a5f' 
                     }}
                   >
                     {button.title}

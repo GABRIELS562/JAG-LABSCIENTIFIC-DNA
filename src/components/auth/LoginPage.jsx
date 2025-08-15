@@ -169,7 +169,7 @@ export default function LoginPage() {
         }}>
           <ScienceIcon sx={{ fontSize: 60, mb: 2 }} />
           <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', mb: 1 }}>
-            🧬 LabDNA LIMS
+            LabDNA LIMS
           </Typography>
           <Typography variant="subtitle1" sx={{ opacity: 0.9 }}>
             Laboratory Information Management System

@@ -60,7 +60,7 @@ export default function ClientRegister() {
     try {
       setLoading(true);
       setError(null);
-      console.log('🔄 Loading samples...');
+      console.log('[INFO] Loading samples...');
       
       // Try multiple endpoints with better error handling
       let samplesData = [];
@@ -71,7 +71,7 @@ export default function ClientRegister() {
       for (const endpoint of endpoints) {
         try {
           const fullUrl = `${API_BASE_URL}${endpoint}`;
-          console.log(`🌐 Trying endpoint: ${fullUrl}`);
+          console.log(`[API] Trying endpoint: ${fullUrl}`);
           const response = await fetch(fullUrl);
           
           // Check if response is ok
@@ -100,12 +100,12 @@ export default function ClientRegister() {
           if (data && data.success && Array.isArray(data.data)) {
             samplesData = data.data;
             success = true;
-            console.log(`✅ Successfully loaded ${samplesData.length} samples from ${endpoint}`);
+            console.log(`[SUCCESS] Loaded ${samplesData.length} samples from ${endpoint}`);
             break;
           } else if (Array.isArray(data)) {
             samplesData = data;
             success = true;
-            console.log(`✅ Successfully loaded ${samplesData.length} samples from ${endpoint} (direct array)`);
+            console.log(`[SUCCESS] Loaded ${samplesData.length} samples from ${endpoint} (direct array)`);
             break;
           } else {
             console.warn(`⚠️ Unexpected data format from ${endpoint}:`, data);
@@ -231,7 +231,7 @@ export default function ClientRegister() {
             if (data && data.success && Array.isArray(data.data)) {
               samplesData = data.data;
               success = true;
-              console.log(`✅ Search found ${samplesData.length} samples`);
+              console.log(`[SUCCESS] Search found ${samplesData.length} samples`);
             }
           }
         }
@@ -241,7 +241,7 @@ export default function ClientRegister() {
       
       // If search failed, try local filtering
       if (!success) {
-        console.log('🔄 Falling back to local filtering...');
+        console.log('[INFO] Falling back to local filtering...');
         try {
           const response = await fetch(`${API_BASE_URL}/api/samples`);
           if (response.ok) {
@@ -283,7 +283,7 @@ export default function ClientRegister() {
               });
               
               success = true;
-              console.log(`✅ Local filter found ${samplesData.length} samples`);
+              console.log(`[SUCCESS] Local filter found ${samplesData.length} samples`);
             }
           }
         } catch (filterErr) {

@@ -698,8 +698,8 @@ const PCRPlate = () => {
         wellCount: Object.keys(transformedWells).length,
         date: batchData.date
       });
-      console.log('🧪 Wells data:', transformedWells);
-      console.log('📡 API URL:', '/api/generate-batch');
+      console.log('[DEBUG] Wells data:', transformedWells);
+      console.log('[API] URL:', '/api/generate-batch');
 
       // Call the API to generate the batch
       const authToken = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
