@@ -204,6 +204,16 @@
             "date": 1754843217682,
             "name": "/Users/user/LABSCIENTIFIC-LIMS/backend/logs/application-2025-08-10.log",
             "hash": "6ef595ab232e88bc2ee24dda41d53248e054bfb699691a2a51463282f47ad309"
+        },
+        {
+            "date": 1754985874709,
+            "name": "/Users/user/LABSCIENTIFIC-LIMS/backend/logs/application-2025-08-12.log",
+            "hash": "e18bc52b83215e2b5f1331be8a9beed56387ce5c42f5239d7dd33e4a2bedbd47"
+        },
+        {
+            "date": 1755058503746,
+            "name": "/Users/user/LABSCIENTIFIC-LIMS/backend/logs/application-2025-08-13.log",
+            "hash": "b351f7249ddb126e3d041f464341537d219f3b7980b7ee1832844f3217a370c4"
         }
     ],
     "hashType": "sha256"

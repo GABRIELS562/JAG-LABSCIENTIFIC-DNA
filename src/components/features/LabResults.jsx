@@ -31,7 +31,10 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Divider
+  Divider,
+  Tabs,
+  Tab,
+  styled
 } from '@mui/material';
 import {
   Science as ScienceIcon,
@@ -46,7 +49,10 @@ import {
   Error as ErrorIcon,
   Info as InfoIcon,
   Timeline as TimelineIcon,
-  Storage as DataIcon
+  Storage as DataIcon,
+  Upload as UploadIcon,
+  Analytics as AnalyticsIcon,
+  GetApp as GetAppIcon
 } from '@mui/icons-material';
 import api from '../../services/api';
 
@@ -59,6 +65,13 @@ export default function LabResults() {
   const [selectedSample, setSelectedSample] = useState('all');
   const [viewDialog, setViewDialog] = useState({ open: false, data: null });
   const [stats, setStats] = useState(null);
+  
+  // GeneMapper parser states
+  const [geneMapperData, setGeneMapperData] = useState(null);
+  const [transformedData, setTransformedData] = useState(null);
+  const [paternityReport, setPaternityReport] = useState(null);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [parserTab, setParserTab] = useState(0);
 
   useEffect(() => {
     loadAnalysisData();
@@ -230,6 +243,236 @@ export default function LabResults() {
       default:
         return <InfoIcon color="disabled" />;
     }
+  };
+
+  // GeneMapper data processing functions
+  const parseGeneMapperFile = async (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const text = e.target.result;
+          const lines = text.split('\n').filter(line => line.trim());
+          const data = [];
+          
+          // Skip header line and process data
+          for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line) {
+              const columns = line.split('\t');
+              if (columns.length >= 7) {
+                data.push({
+                  sample: columns[0],
+                  marker: columns[1],
+                  dye: columns[2],
+                  allele1: columns[3],
+                  allele2: columns[4],
+                  height1: columns[5],
+                  height2: columns[6],
+                  area1: columns[7] || '',
+                  area2: columns[8] || ''
+                });
+              }
+            }
+          }
+          resolve(data);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsText(file);
+    });
+  };
+
+  const transformGeneMapperData = (rawData) => {
+    // Group by sample
+    const sampleGroups = {};
+    
+    rawData.forEach(row => {
+      if (!sampleGroups[row.sample]) {
+        sampleGroups[row.sample] = [];
+      }
+      sampleGroups[row.sample].push(row);
+    });
+
+    // Sort markers alphabetically for each sample
+    Object.keys(sampleGroups).forEach(sample => {
+      sampleGroups[sample].sort((a, b) => a.marker.localeCompare(b.marker));
+    });
+
+    return sampleGroups;
+  };
+
+  const generatePaternityReport = (transformedData) => {
+    const sampleNames = Object.keys(transformedData);
+    
+    // Find child and father samples
+    const childSample = sampleNames.find(name => 
+      name.toLowerCase().includes('child') || 
+      name.toLowerCase().includes('ch') ||
+      name.match(/\d+[CF]$/)
+    );
+    
+    const fatherSample = sampleNames.find(name => 
+      name.toLowerCase().includes('father') || 
+      name.toLowerCase().includes('af') ||
+      name.toLowerCase().includes('dad') ||
+      name.match(/\d+[AF]$/)
+    );
+
+    if (!childSample || !fatherSample) {
+      return {
+        error: 'Could not identify child and father samples automatically',
+        samples: sampleNames
+      };
+    }
+
+    const childData = transformedData[childSample];
+    const fatherData = transformedData[fatherSample];
+
+    // Calculate paternity analysis
+    const analysis = [];
+    let totalPI = 1;
+    let matchingLoci = 0;
+    let totalLoci = 0;
+
+    // Get common markers
+    const childMarkers = new Set(childData.map(d => d.marker));
+    const fatherMarkers = new Set(fatherData.map(d => d.marker));
+    const commonMarkers = [...childMarkers].filter(m => fatherMarkers.has(m)).sort();
+
+    commonMarkers.forEach(marker => {
+      const childAlleles = childData.find(d => d.marker === marker);
+      const fatherAlleles = fatherData.find(d => d.marker === marker);
+      
+      if (childAlleles && fatherAlleles) {
+        totalLoci++;
+        
+        const childSet = new Set([childAlleles.allele1, childAlleles.allele2].filter(a => a && a !== ''));
+        const fatherSet = new Set([fatherAlleles.allele1, fatherAlleles.allele2].filter(a => a && a !== ''));
+        
+        // Check for allele sharing
+        const sharedAlleles = [...childSet].filter(allele => fatherSet.has(allele));
+        const isCompatible = sharedAlleles.length > 0;
+        
+        if (isCompatible) {
+          matchingLoci++;
+        }
+
+        // Simple PI calculation (would need population frequencies for accuracy)
+        let pi = isCompatible ? 2.0 : 0.01;
+        totalPI *= pi;
+
+        analysis.push({
+          marker,
+          childAlleles: Array.from(childSet).join('/'),
+          fatherAlleles: Array.from(fatherSet).join('/'),
+          sharedAlleles: sharedAlleles.join('/') || 'None',
+          compatible: isCompatible,
+          pi: pi
+        });
+      }
+    });
+
+    const cpi = totalPI;
+    const probabilityOfPaternity = (cpi / (cpi + 1)) * 100;
+
+    let conclusion = '';
+    if (probabilityOfPaternity >= 99.9) {
+      conclusion = 'The alleged father is not excluded as the biological father';
+    } else if (probabilityOfPaternity < 0.1) {
+      conclusion = 'The alleged father is excluded as the biological father';
+    } else {
+      conclusion = 'Results are inconclusive';
+    }
+
+    return {
+      childSample,
+      fatherSample,
+      analysis,
+      summary: {
+        totalLoci,
+        matchingLoci,
+        exclusions: totalLoci - matchingLoci,
+        cpi: cpi.toExponential(2),
+        probabilityOfPaternity: probabilityOfPaternity.toFixed(2),
+        conclusion
+      }
+    };
+  };
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setUploadLoading(true);
+    try {
+      const rawData = await parseGeneMapperFile(file);
+      setGeneMapperData(rawData);
+      
+      const transformed = transformGeneMapperData(rawData);
+      setTransformedData(transformed);
+      
+      const report = generatePaternityReport(transformed);
+      setPaternityReport(report);
+      
+      setParserTab(1); // Switch to results tab
+    } catch (error) {
+      setError('Error parsing GeneMapper file: ' + error.message);
+    } finally {
+      setUploadLoading(false);
+    }
+  };
+
+  const downloadTransformedData = () => {
+    if (!transformedData) return;
+    
+    let csvContent = 'Sample,Marker,Allele1,Allele2,Height1,Height2\n';
+    
+    Object.entries(transformedData).forEach(([sample, data]) => {
+      data.forEach(row => {
+        csvContent += `${sample},${row.marker},${row.allele1},${row.allele2},${row.height1},${row.height2}\n`;
+      });
+    });
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'transformed_genemapper_data.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadPaternityReport = () => {
+    if (!paternityReport) return;
+    
+    let reportContent = `PATERNITY ANALYSIS REPORT\n`;
+    reportContent += `Generated: ${new Date().toLocaleString()}\n\n`;
+    reportContent += `Child Sample: ${paternityReport.childSample}\n`;
+    reportContent += `Father Sample: ${paternityReport.fatherSample}\n\n`;
+    reportContent += `SUMMARY:\n`;
+    reportContent += `Total Loci: ${paternityReport.summary.totalLoci}\n`;
+    reportContent += `Matching Loci: ${paternityReport.summary.matchingLoci}\n`;
+    reportContent += `Exclusions: ${paternityReport.summary.exclusions}\n`;
+    reportContent += `Combined Paternity Index: ${paternityReport.summary.cpi}\n`;
+    reportContent += `Probability of Paternity: ${paternityReport.summary.probabilityOfPaternity}%\n`;
+    reportContent += `Conclusion: ${paternityReport.summary.conclusion}\n\n`;
+    reportContent += `DETAILED ANALYSIS:\n`;
+    reportContent += `Marker\tChild\tFather\tShared\tCompatible\tPI\n`;
+    
+    paternityReport.analysis.forEach(row => {
+      reportContent += `${row.marker}\t${row.childAlleles}\t${row.fatherAlleles}\t${row.sharedAlleles}\t${row.compatible ? 'Yes' : 'No'}\t${row.pi}\n`;
+    });
+    
+    const blob = new Blob([reportContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'paternity_report.txt';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -407,6 +650,254 @@ export default function LabResults() {
           </Grid>
         </Grid>
       )}
+
+      {/* GeneMapper Results Parser */}
+      <Accordion sx={{ mb: 3 }}>
+        <AccordionSummary
+          expandIcon={<ExpandMoreIcon />}
+          aria-controls="genemapper-content"
+          id="genemapper-header"
+        >
+          <Box display="flex" alignItems="center" gap={2}>
+            <AnalyticsIcon color="primary" />
+            <Typography variant="h6">
+              GeneMapper Results Parser & Analyzer
+            </Typography>
+          </Box>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Box sx={{ width: '100%' }}>
+            <Tabs 
+              value={parserTab} 
+              onChange={(e, newValue) => setParserTab(newValue)}
+              aria-label="GeneMapper parser tabs"
+            >
+              <Tab label="Upload Data" />
+              <Tab label="Results" disabled={!geneMapperData} />
+              <Tab label="Paternity Report" disabled={!paternityReport} />
+            </Tabs>
+            
+            {/* Upload Tab */}
+            {parserTab === 0 && (
+              <Box sx={{ mt: 3 }}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      Upload GeneMapper Allele Report
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                      Upload a tab-delimited file from GeneMapper containing allele report data. 
+                      The file should include columns for Sample, Marker, Dye, Allele1, Allele2, Height1, Height2.
+                    </Typography>
+                    
+                    <Box sx={{ 
+                      border: '2px dashed #ccc', 
+                      borderRadius: 2, 
+                      p: 4, 
+                      textAlign: 'center',
+                      backgroundColor: '#fafafa'
+                    }}>
+                      <input
+                        accept=".txt,.tsv,.csv"
+                        style={{ display: 'none' }}
+                        id="genemapper-file-input"
+                        type="file"
+                        onChange={handleFileUpload}
+                        disabled={uploadLoading}
+                      />
+                      <label htmlFor="genemapper-file-input">
+                        <Button
+                          variant="contained"
+                          component="span"
+                          startIcon={uploadLoading ? <CircularProgress size={20} /> : <UploadIcon />}
+                          disabled={uploadLoading}
+                          size="large"
+                        >
+                          {uploadLoading ? 'Processing...' : 'Select GeneMapper File'}
+                        </Button>
+                      </label>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                        Supported formats: .txt, .tsv, .csv
+                      </Typography>
+                    </Box>
+
+                    {geneMapperData && (
+                      <Alert severity="success" sx={{ mt: 3 }}>
+                        Successfully parsed {geneMapperData.length} data rows from GeneMapper file.
+                      </Alert>
+                    )}
+                  </CardContent>
+                </Card>
+              </Box>
+            )}
+
+            {/* Results Tab */}
+            {parserTab === 1 && transformedData && (
+              <Box sx={{ mt: 3 }}>
+                <Card>
+                  <CardContent>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+                      <Typography variant="h6">
+                        Transformed Data by Sample
+                      </Typography>
+                      <Button
+                        variant="outlined"
+                        startIcon={<GetAppIcon />}
+                        onClick={downloadTransformedData}
+                      >
+                        Download CSV
+                      </Button>
+                    </Box>
+
+                    {Object.entries(transformedData).map(([sample, data]) => (
+                      <Accordion key={sample} sx={{ mb: 2 }}>
+                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                          <Typography variant="subtitle1" fontWeight="bold">
+                            {sample} ({data.length} markers)
+                          </Typography>
+                        </AccordionSummary>
+                        <AccordionDetails>
+                          <TableContainer>
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>Marker</TableCell>
+                                  <TableCell>Dye</TableCell>
+                                  <TableCell>Allele 1</TableCell>
+                                  <TableCell>Allele 2</TableCell>
+                                  <TableCell>Height 1</TableCell>
+                                  <TableCell>Height 2</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {data.map((row, index) => (
+                                  <TableRow key={index}>
+                                    <TableCell fontWeight="bold">{row.marker}</TableCell>
+                                    <TableCell>{row.dye}</TableCell>
+                                    <TableCell>{row.allele1}</TableCell>
+                                    <TableCell>{row.allele2}</TableCell>
+                                    <TableCell>{row.height1}</TableCell>
+                                    <TableCell>{row.height2}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
+                        </AccordionDetails>
+                      </Accordion>
+                    ))}
+                  </CardContent>
+                </Card>
+              </Box>
+            )}
+
+            {/* Paternity Report Tab */}
+            {parserTab === 2 && paternityReport && (
+              <Box sx={{ mt: 3 }}>
+                <Card>
+                  <CardContent>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+                      <Typography variant="h6">
+                        Paternity Analysis Report
+                      </Typography>
+                      <Button
+                        variant="outlined"
+                        startIcon={<GetAppIcon />}
+                        onClick={downloadPaternityReport}
+                      >
+                        Download Report
+                      </Button>
+                    </Box>
+
+                    {paternityReport.error ? (
+                      <Alert severity="warning" sx={{ mb: 3 }}>
+                        {paternityReport.error}
+                        <Typography variant="body2" sx={{ mt: 1 }}>
+                          Available samples: {paternityReport.samples?.join(', ')}
+                        </Typography>
+                      </Alert>
+                    ) : (
+                      <>
+                        {/* Summary */}
+                        <Box sx={{ mb: 3, p: 3, bgcolor: 'grey.50', borderRadius: 2 }}>
+                          <Typography variant="h6" gutterBottom>Summary</Typography>
+                          <Grid container spacing={2}>
+                            <Grid item xs={6} md={3}>
+                              <Typography variant="body2" color="text.secondary">Child Sample</Typography>
+                              <Typography variant="body1" fontWeight="bold">{paternityReport.childSample}</Typography>
+                            </Grid>
+                            <Grid item xs={6} md={3}>
+                              <Typography variant="body2" color="text.secondary">Father Sample</Typography>
+                              <Typography variant="body1" fontWeight="bold">{paternityReport.fatherSample}</Typography>
+                            </Grid>
+                            <Grid item xs={6} md={3}>
+                              <Typography variant="body2" color="text.secondary">Probability of Paternity</Typography>
+                              <Typography variant="h5" color="primary" fontWeight="bold">
+                                {paternityReport.summary.probabilityOfPaternity}%
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={6} md={3}>
+                              <Typography variant="body2" color="text.secondary">Combined PI</Typography>
+                              <Typography variant="body1" fontWeight="bold">{paternityReport.summary.cpi}</Typography>
+                            </Grid>
+                          </Grid>
+                          
+                          <Alert 
+                            severity={
+                              parseFloat(paternityReport.summary.probabilityOfPaternity) >= 99.9 ? 'success' :
+                              parseFloat(paternityReport.summary.probabilityOfPaternity) < 0.1 ? 'error' : 'warning'
+                            } 
+                            sx={{ mt: 2 }}
+                          >
+                            <Typography variant="body1" fontWeight="bold">
+                              {paternityReport.summary.conclusion}
+                            </Typography>
+                          </Alert>
+                        </Box>
+
+                        {/* Detailed Analysis */}
+                        <Typography variant="h6" gutterBottom>Detailed Marker Analysis</Typography>
+                        <TableContainer>
+                          <Table>
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>Marker</TableCell>
+                                <TableCell>Child Alleles</TableCell>
+                                <TableCell>Father Alleles</TableCell>
+                                <TableCell>Shared Alleles</TableCell>
+                                <TableCell>Compatible</TableCell>
+                                <TableCell>PI</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {paternityReport.analysis.map((row, index) => (
+                                <TableRow key={index}>
+                                  <TableCell fontWeight="bold">{row.marker}</TableCell>
+                                  <TableCell>{row.childAlleles}</TableCell>
+                                  <TableCell>{row.fatherAlleles}</TableCell>
+                                  <TableCell>{row.sharedAlleles}</TableCell>
+                                  <TableCell>
+                                    <Chip
+                                      label={row.compatible ? 'Yes' : 'No'}
+                                      color={row.compatible ? 'success' : 'error'}
+                                      size="small"
+                                    />
+                                  </TableCell>
+                                  <TableCell>{row.pi}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </Box>
+            )}
+          </Box>
+        </AccordionDetails>
+      </Accordion>
 
       {/* Filters */}
       <Card sx={{ mb: 3 }}>
