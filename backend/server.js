@@ -10,6 +10,7 @@ const { globalErrorHandler } = require("./middleware/errorHandler");
 const { sanitizeInput } = require("./middleware/validation");
 const { requestLogger, logger } = require("./utils/logger");
 const { ResponseHandler } = require("./utils/responseHandler");
+const { auditTrail, CRITICAL_ACTIONS } = require("./middleware/auditTrail");
 // Removed unused middleware imports
 
 // Import routes
@@ -18,6 +19,7 @@ const authRoutes = require("./routes/auth");
 const dbViewerRoutes = require("./routes/database-viewer");
 const geneticAnalysisRoutes = require("./routes/genetic-analysis");
 const reportsRoutes = require("./routes/reports");
+const iso17025Routes = require("./routes/iso17025");
 // Removed monitoring routes import
 
 // Load environment variables from root
@@ -326,6 +328,7 @@ try {
   // app.use("/api/db", dbViewerRoutes);
   app.use("/api/genetic-analysis", geneticAnalysisRoutes);
   app.use("/api/reports", reportsRoutes);
+  app.use("/api/iso17025", iso17025Routes);
   // app.use("/monitoring", monitoringRoutes);
 } catch (error) {
   logger.warn('Some routes not available, using fallback endpoints', { error: error.message });
