@@ -7,8 +7,6 @@ const Database = require('better-sqlite3');
 const fs = require('fs');
 const path = require('path');
 
-console.log('[ISO 17025] Initializing compliance features...');
-
 // Database paths
 const mainDbPath = path.join(__dirname, '../database/ashley_lims.db');
 const schemaPath = path.join(__dirname, '../database/iso17025-schema.sql');
@@ -16,16 +14,10 @@ const schemaPath = path.join(__dirname, '../database/iso17025-schema.sql');
 try {
   // Connect to main database
   const db = new Database(mainDbPath);
-  console.log('[ISO 17025] Connected to main database');
-  
   // Read ISO 17025 schema
   const schema = fs.readFileSync(schemaPath, 'utf8');
-  console.log('[ISO 17025] Loading compliance schema...');
-  
   // Execute schema
   db.exec(schema);
-  console.log('[ISO 17025] Compliance tables created successfully');
-  
   // Add initial quality documents
   const insertDoc = db.prepare(`
     INSERT OR IGNORE INTO quality_documents (
@@ -53,8 +45,6 @@ try {
   initialDocs.forEach(doc => {
     insertDoc.run(...doc);
   });
-  console.log(`[ISO 17025] Added ${initialDocs.length} initial quality documents`);
-  
   // Add enhanced equipment tracking table (keeps existing simple table intact)
   db.exec(`
     CREATE TABLE IF NOT EXISTS equipment_details (
@@ -116,8 +106,6 @@ try {
   details.forEach(det => {
     insertDetails.run(...det);
   });
-  console.log(`[ISO 17025] Added ${equipment.length} equipment records with enhanced details`);
-  
   // Add calibration schedule for critical equipment
   const insertCalibration = db.prepare(`
     INSERT OR IGNORE INTO calibrations (
@@ -139,8 +127,6 @@ try {
   calibrations.forEach(cal => {
     insertCalibration.run(...cal);
   });
-  console.log(`[ISO 17025] Added ${calibrations.length} calibration records`);
-  
   // Create measurement uncertainty records
   const insertUncertainty = db.prepare(`
     INSERT OR IGNORE INTO measurement_uncertainties (
@@ -164,16 +150,12 @@ try {
   uncertainties.forEach(unc => {
     insertUncertainty.run(...unc);
   });
-  console.log(`[ISO 17025] Added ${uncertainties.length} measurement uncertainty records`);
-  
   // Add indexes for performance
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_samples_workflow ON samples(workflow_status);
     CREATE INDEX IF NOT EXISTS idx_samples_case ON samples(case_id);
     CREATE INDEX IF NOT EXISTS idx_batches_status ON batches(status);
   `);
-  console.log('[ISO 17025] Performance indexes created');
-  
   // Get statistics
   const stats = {
     documents: db.prepare('SELECT COUNT(*) as count FROM quality_documents').get().count,
@@ -183,15 +165,6 @@ try {
     uncertainties: db.prepare('SELECT COUNT(*) as count FROM measurement_uncertainties').get().count
   };
   
-  console.log('\n[ISO 17025] ✅ Initialization Complete!');
-  console.log('==========================================');
-  console.log(`Quality Documents: ${stats.documents}`);
-  console.log(`Equipment Records: ${stats.equipment}`);
-  console.log(`Equipment Details: ${stats.equipment_details}`);
-  console.log(`Calibration Records: ${stats.calibrations}`);
-  console.log(`Measurement Uncertainties: ${stats.uncertainties}`);
-  console.log('==========================================');
-  
   db.close();
   
 } catch (error) {
@@ -199,8 +172,3 @@ try {
   process.exit(1);
 }
 
-console.log('\n[ISO 17025] Next steps:');
-console.log('1. Review and customize the quality documents');
-console.log('2. Add your specific equipment and calibration schedules');
-console.log('3. Configure user permissions for document control');
-console.log('4. Schedule internal audits and management reviews');

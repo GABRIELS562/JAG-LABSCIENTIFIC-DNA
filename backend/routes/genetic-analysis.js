@@ -3,9 +3,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs").promises;
 const FSAProcessor = require("../services/fsaProcessor");
-const OsirisIntegration = require("../services/osirisIntegration");
 const ReportGenerator = require("../services/reportGenerator");
-const OsirisResultsParser = require("../services/osirisResultsParser");
 // Removed genetic auth middleware for portfolio simplicity
 // const GeneticUserService = require("../services/geneticUserService");
 const db = require("../services/database");
@@ -13,75 +11,8 @@ const db = require("../services/database");
 
 const router = express.Router();
 const fsaProcessor = new FSAProcessor();
-let osiris = null; // Initialize only when needed
 const reportGenerator = new ReportGenerator();
-// const auth = new GeneticAuthMiddleware(); // Removed for portfolio simplicity
-// const userService = new GeneticUserService(db.db); // Removed for portfolio
 
-// Enhanced Osiris Launcher with automatic directory configuration
-const OsirisLauncher = require('../services/osirisLauncher');
-const osirisLauncher = new OsirisLauncher();
-
-// Initialize results parser (already imported at top)
-const resultsParser = new OsirisResultsParser();
-
-// Start monitoring Osiris output for new results
-resultsParser.startMonitoring().catch(error => {
-  console.error('Failed to start Osiris monitoring:', error);
-});
-
-// Function to launch native Osiris application with auto-configuration
-const launchOsiris = async (filePath = null, caseId = null) => {
-  try {
-    console.log('🚀 Launching Osiris with enhanced auto-configuration...');
-    
-    const options = {};
-    if (filePath) {
-      options.inputFiles = [filePath];
-    }
-    
-    // Use the enhanced launcher with automatic directory setup
-    const result = await osirisLauncher.launchWithAutoConfig(caseId);
-    
-    if (result.success) {
-      return {
-        success: true,
-        message: 'Osiris GUI launched with automatic directory configuration',
-        workspace: result.workspace,
-        inputDir: result.inputDir,
-        outputDir: result.outputDir,
-        instructions: result.instructions,
-        autoConfigured: result.autoConfigured || false,
-        method: 'enhanced_launcher_with_auto_config'
-      };
-    } else {
-      throw new Error(result.error);
-    }
-    
-  } catch (error) {
-    console.error('❌ Enhanced launch failed, trying fallback method...');
-    
-    // Fallback to basic launch
-    try {
-      const basicResult = await osirisLauncher.launchOsiris({ inputFiles: filePath ? [filePath] : [] });
-      return {
-        success: basicResult.success,
-        message: basicResult.message + ' (fallback method)',
-        workspace: basicResult.workspace,
-        inputDir: basicResult.inputDir,
-        outputDir: basicResult.outputDir,
-        instructions: basicResult.instructions,
-        method: 'fallback_basic_launch',
-        fallbackReason: error.message
-      };
-    } catch (fallbackError) {
-      return {
-        success: false,
-        error: `Both enhanced and fallback launch failed. Enhanced: ${error.message}, Fallback: ${fallbackError.message}`
-      };
-    }
-  }
-};
 
 // Configure multer for FSA file uploads
 const storage = multer.diskStorage({
@@ -157,70 +88,6 @@ const upload = multer({
 //   auth.requireRole('lab_director'),
 //   async (req, res) => { ... });
 
-// Track initialization status to prevent loops
-let osirisInitialized = false;
-let initializationError = null;
-
-/**
- * Initialize Osiris workspace
- */
-router.post(
-  "/initialize-osiris",
-  /* auth.authenticate(), auth.requireRole('lab_director'), */ async (
-    req,
-    res,
-  ) => {
-    try {
-      if (osirisInitialized) {
-        return res.json({
-          success: true,
-          message: 'Osiris already initialized',
-          osirisVersion: '2.16'
-        });
-      }
-
-      if (initializationError) {
-        return res.status(500).json({
-          success: false,
-          error: `Previous initialization failed: ${initializationError}`,
-          requiresManualCheck: true
-        });
-      }
-
-      // Launch enhanced Osiris GUI with auto-configuration
-      const result = await launchOsiris();
-      if (result.success) {
-        osirisInitialized = true;
-        res.json({
-          success: true,
-          message: result.message,
-          osirisVersion: '2.16',
-          type: 'enhanced_native_gui',
-          workspace: result.workspace,
-          inputDirectory: result.inputDir,
-          outputDirectory: result.outputDir,
-          instructions: result.instructions,
-          autoConfigured: result.autoConfigured,
-          method: result.method
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          error: result.error,
-          message: 'Failed to launch Osiris GUI with auto-configuration'
-        });
-      }
-    } catch (error) {
-      initializationError = error.message;
-      console.error('Osiris initialization failed:', error.message);
-      res.status(500).json({
-        success: false,
-        error: error.message,
-        requiresManualCheck: true
-      });
-    }
-  },
-);
 
 /**
  * Test enhanced STR analyzer with single FSA file
@@ -239,22 +106,18 @@ router.post(
         });
       }
 
-      // const OsirisEnhancedSTRAnalyzer = require("../services/osirisEnhancedSTRAnalyzer");
-      // const strAnalyzer = new OsirisEnhancedSTRAnalyzer();
-
-      // STR Analyzer disabled for server stability
+      // Client uses GeneMapper software for FSA analysis
       return res.status(501).json({
         success: false,
-        error: 'STR analysis temporarily disabled for server stability',
-        message: 'Please use native Osiris 2.16 application for FSA analysis'
+        error: 'FSA analysis is performed using GeneMapper software',
+        message: 'Please use GeneMapper for FSA file analysis'
       });
 
       // Clean up uploaded file
       try {
         await fs.unlink(req.file.path);
       } catch (unlinkError) {
-        console.warn(`Failed to cleanup test file: ${unlinkError.message}`);
-      }
+        }
 
       // Test export functionality if analysis was successful
       let exportResults = null;
@@ -281,10 +144,7 @@ router.post(
         try {
           await fs.unlink(req.file.path);
         } catch (unlinkError) {
-          console.warn(
-            `Failed to cleanup file on error: ${unlinkError.message}`,
-          );
-        }
+          }
       }
 
       res.status(500).json({
@@ -375,10 +235,8 @@ router.post(
         // Process the real FSA file
         let processResult;
         try {
-          console.log(`🧬 Processing FSA file: ${file.originalname}`);
           processResult = await fsaProcessor.processFSAFile(file.path);
-          console.log(`✅ Successfully processed ${file.originalname}`);
-        } catch (processingError) {
+          } catch (processingError) {
           console.error(`❌ Error processing FSA file ${file.originalname}:`, processingError.message);
           
           // Fallback to demo data if processing fails, but mark it clearly
@@ -455,8 +313,7 @@ router.post(
             }
           }
 
-          console.log(`✅ Stored sample data for ${sample.originalName} in database`);
-        } catch (dbError) {
+          } catch (dbError) {
           console.error(`❌ Failed to store sample ${sample.originalName} in database:`, dbError.message);
         }
       }
@@ -498,8 +355,7 @@ router.post(
             .run(...updateValues, caseId);
         }
       } catch (dbError) {
-        console.warn("Failed to update case status:", dbError.message);
-      }
+        }
 
       res.json({
         success: true,
@@ -517,11 +373,7 @@ router.post(
           try {
             await fs.unlink(file.path);
           } catch (unlinkError) {
-            console.warn(
-              `Failed to cleanup file ${file.path}:`,
-              unlinkError.message,
-            );
-          }
+            }
         }
       }
 
@@ -582,8 +434,7 @@ router.post(
           )
           .run(caseId);
       } catch (dbError) {
-        console.warn("Failed to update case analysis status:", dbError.message);
-      }
+        }
 
       res.json({
         success: true,
@@ -679,8 +530,7 @@ router.get(
           SELECT * FROM genetic_samples WHERE case_id = ?
         `).all(caseId);
         
-        console.log(`Found ${dbSamples.length} samples for case ${caseId}`);
-        console.log('Database samples:', dbSamples.map(s => ({ id: s.sample_id, type: s.sample_type })));
+        ));
 
         for (const sample of dbSamples) {
           samples.push({
@@ -704,12 +554,11 @@ router.get(
           });
 
           // Debug: log profile data
-          console.log(`STR profile for ${sample.sample_id}:`, profile, `(${Object.keys(profile).length} loci)`);
+          .length} loci)`);
           
           // If no database profile exists, create a fallback
           if (Object.keys(profile).length === 0) {
-            console.warn(`No STR profile data found for ${sample.sample_id}`);
-          }
+            }
 
           strProfiles[sample.sample_id] = profile;
         }
@@ -797,120 +646,11 @@ router.get(
   },
 );
 
-/**
- * Get Osiris analysis queue status
- */
-router.get("/queue-status", async (req, res) => {
-  try {
-    const queue = db.db
-      .prepare(
-        `
-      SELECT * FROM osiris_analysis_queue 
-      ORDER BY priority DESC, submitted_date ASC
-    `,
-      )
-      .all();
-
-    res.json({
-      success: true,
-      queue,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-/**
- * Launch Osiris GUI with specific files and auto-configuration
- */
-router.post("/launch-osiris", async (req, res) => {
-  try {
-    const { filePath, caseId } = req.body;
-    
-    const result = await launchOsiris(filePath, caseId);
-    
-    if (result.success) {
-      res.json({
-        success: true,
-        message: result.message,
-        caseId: caseId || null,
-        filePath: filePath || null,
-        workspace: result.workspace,
-        inputDirectory: result.inputDir,
-        outputDirectory: result.outputDir,
-        instructions: result.instructions,
-        autoConfigured: result.autoConfigured,
-        method: result.method
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        error: result.error
-      });
-    }
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-/**
- * Get Osiris workspace status and configuration
- */
-router.get("/workspace-status", async (req, res) => {
-  try {
-    const status = await osirisLauncher.getWorkspaceStatus();
-    
-    if (status.success) {
-      res.json({
-        success: true,
-        workspace: status.workspace,
-        inputDirectory: status.inputDir,
-        outputDirectory: status.outputDir,
-        inputFiles: status.inputFiles,
-        outputFiles: status.outputFiles,
-        isConfigured: status.isConfigured,
-        instructions: osirisLauncher.getUsageInstructions()
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        error: status.error
-      });
-    }
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
 
 // GET /api/genetic-analysis/results - Get analysis results (hybrid: real data or mock)
 router.get("/results", async (req, res) => {
   try {
-    console.log('📊 Fetching analysis results...');
-    
-    // First try to get results from Osiris processing
-    try {
-      const osirisResults = await resultsParser.getLatestResults();
-      if (osirisResults && !osirisResults.isEmpty) {
-        console.log('✅ Using Osiris processed results');
-        return res.json({
-          success: true,
-          source: 'Osiris Analysis',
-          isRealData: true,
-          ...osirisResults
-        });
-      }
-    } catch (osirisError) {
-      console.log('ℹ️ No Osiris results found, checking database...');
-    }
+    // Client uses GeneMapper for analysis - check database for results
 
     // Fallback: Generate results from stored sample data
     const samples = db.db.prepare(`
@@ -924,8 +664,6 @@ router.get("/results", async (req, res) => {
     `).all();
 
     if (samples.length > 0) {
-      console.log(`✅ Found ${samples.length} processed samples in database`);
-      
       // Get STR data for paternity analysis
       const strData = {};
       const sampleNames = samples.map(s => s.sample_id);
@@ -998,8 +736,6 @@ router.get("/results", async (req, res) => {
 // GET /api/genetic-analysis/genemapper-results - Get GeneMapper results
 router.get("/genemapper-results", async (req, res) => {
   try {
-    console.log('📊 Fetching GeneMapper analysis results...');
-    
     // Try to get the most recent GeneMapper results from database
     const recentResults = db.db.prepare(`
       SELECT s.*, COUNT(str.locus) as loci_detected 
@@ -1014,8 +750,6 @@ router.get("/genemapper-results", async (req, res) => {
     `).all();
 
     if (recentResults.length > 0) {
-      console.log(`✅ Found ${recentResults.length} GeneMapper samples in database`);
-      
       // Convert database results to GeneMapper format
       const analysisData = {
         analysisId: `GM-DB-${Date.now()}`,
@@ -1068,8 +802,6 @@ router.get("/genemapper-results", async (req, res) => {
 // POST /api/genetic-analysis/genemapper-results - Store GeneMapper results
 router.post("/genemapper-results", async (req, res) => {
   try {
-    console.log('💾 Storing GeneMapper analysis results...');
-    
     const resultsData = req.body;
     
     // Store in a simple results cache table (you could create a dedicated table)
@@ -1084,14 +816,11 @@ router.post("/genemapper-results", async (req, res) => {
         JSON.stringify(resultsData)
       );
       
-      console.log('✅ GeneMapper results stored successfully');
-      
       res.json({
         success: true,
         message: 'GeneMapper results stored successfully'
       });
     } catch (dbError) {
-      console.warn('Database storage failed, results available in session only');
       res.json({
         success: true,
         message: 'Results processed (session only)',
@@ -1142,7 +871,7 @@ router.post(
           total_loci: 17,
           conclusion: caseData.conclusion || "inclusion",
           quality_score: 85.0,
-          osiris_compliant: true,
+          genemapper_compatible: true,
           software_version: "2.16",
         };
       }
@@ -1443,131 +1172,5 @@ router.get("/cases/:caseId/reports", async (req, res) => {
   }
 });
 
-/**
- * Background function to perform Osiris analysis (disabled to prevent PostgreSQL issues)
- */
-/*
-async function performOsirisAnalysis(caseData, dbClient) {
-  let client = dbClient;
-  let shouldReleaseClient = false;
-
-  if (!client) {
-    client = await pool.connect();
-    shouldReleaseClient = true;
-  }
-
-  try {
-    // Update queue status to running
-    await client.query(
-      `UPDATE osiris_analysis_queue 
-       SET status = 'running', started_date = CURRENT_TIMESTAMP 
-       WHERE case_id = $1`,
-      [caseData.caseId],
-    );
-
-    // Perform Osiris analysis
-    const analysisResult = await osiris.analyzePaternityCase(caseData);
-
-    if (analysisResult.success) {
-      // Save results to database
-      await client.query("BEGIN");
-
-      const resultQuery = await client.query(
-        `INSERT INTO genetic_analysis_results 
-         (case_id, paternity_probability, exclusion_probability, matching_loci, 
-          total_loci, conclusion, osiris_output_path, quality_score) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-        [
-          caseData.caseId,
-          analysisResult.paternityStats.paternityProbability,
-          analysisResult.paternityStats.exclusionProbability,
-          analysisResult.paternityStats.matchingLoci,
-          analysisResult.paternityStats.totalLoci,
-          analysisResult.paternityStats.conclusion,
-          analysisResult.outputPath,
-          85.0,
-        ],
-      );
-
-      const resultId = resultQuery.rows[0].id;
-
-      // Save loci comparisons
-      for (const [locus, comparison] of Object.entries(
-        analysisResult.paternityStats.lociComparison,
-      )) {
-        await client.query(
-          `INSERT INTO loci_comparisons 
-           (result_id, locus, child_allele_1, child_allele_2, 
-            father_allele_1, father_allele_2, mother_allele_1, mother_allele_2, match_status) 
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-          [
-            resultId,
-            locus,
-            comparison.child[0],
-            comparison.child[1],
-            comparison.father[0],
-            comparison.father[1],
-            comparison.mother ? comparison.mother[0] : null,
-            comparison.mother ? comparison.mother[1] : null,
-            comparison.match,
-          ],
-        );
-      }
-
-      // Update case status
-      await client.query(
-        "UPDATE genetic_cases SET status = $1, updated_date = CURRENT_TIMESTAMP WHERE case_id = $2",
-        ["analysis_complete", caseData.caseId],
-      );
-
-      // Update queue status
-      await client.query(
-        `UPDATE osiris_analysis_queue 
-         SET status = 'completed', completed_date = CURRENT_TIMESTAMP 
-         WHERE case_id = $1`,
-        [caseData.caseId],
-      );
-
-      await client.query("COMMIT");
-
-      console.log(
-        `Analysis completed successfully for case: ${caseData.caseId}`,
-      );
-    } else {
-      // Handle analysis failure
-      await client.query(
-        `UPDATE osiris_analysis_queue 
-         SET status = 'failed', error_message = $1, completed_date = CURRENT_TIMESTAMP 
-         WHERE case_id = $2`,
-        [analysisResult.error, caseData.caseId],
-      );
-
-      console.error(
-        `Analysis failed for case ${caseData.caseId}:`,
-        analysisResult.error,
-      );
-    }
-  } catch (error) {
-    if (client) {
-      await client.query("ROLLBACK");
-      await client.query(
-        `UPDATE osiris_analysis_queue 
-         SET status = 'failed', error_message = $1, completed_date = CURRENT_TIMESTAMP 
-         WHERE case_id = $2`,
-        [error.message, caseData.caseId],
-      );
-    }
-
-    console.error(
-      `Critical error in analysis for case ${caseData.caseId}:`,
-      error.message,
-    );
-  } finally {
-    if (shouldReleaseClient && client) {
-      client.release();
-    }
-  }
-}
-*/
 
 module.exports = router;

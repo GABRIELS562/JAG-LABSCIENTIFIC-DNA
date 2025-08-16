@@ -61,16 +61,12 @@ async function getTestData() {
 
 async function testSubmission() {
   try {
-    console.log('🧪 Testing form submission...');
-    
     const testData = await getTestData();
-    console.log('📤 Sending data:', JSON.stringify(testData, null, 2));
+    );
     
     // Check samples before submission
     const beforeResponse = await fetch('http://localhost:3001/api/samples/counts');
     const beforeCounts = await beforeResponse.json();
-    console.log('📊 Samples before:', beforeCounts.data.total);
-
     const response = await fetch('http://localhost:3001/api/submit-test', {
       method: 'POST',
       headers: {
@@ -79,30 +75,19 @@ async function testSubmission() {
       body: JSON.stringify(testData),
     });
 
-    console.log('📡 Response status:', response.status);
-
     const data = await response.json();
-    console.log('📥 Response data:', JSON.stringify(data, null, 2));
+    );
 
     if (data.success) {
-      console.log('✅ Form submission test PASSED');
-      console.log(`🎯 Created case: ${data.data.caseNumber}`);
-      console.log(`🧪 Created ${data.data.samples.length} samples`);
-      
       // Check samples after submission
       const afterResponse = await fetch('http://localhost:3001/api/samples/counts');
       const afterCounts = await afterResponse.json();
-      console.log('📊 Samples after:', afterCounts.data.total);
-      console.log('📈 New samples added:', afterCounts.data.total - beforeCounts.data.total);
-      
       // List the created samples
       data.data.samples.forEach((sample, index) => {
-        console.log(`   ${index + 1}. ${sample.lab_number}: ${sample.name} ${sample.surname} (${sample.relation})`);
+        `);
       });
     } else {
-      console.log('❌ Form submission test FAILED');
-      console.log('Error:', data.error);
-    }
+      }
 
   } catch (error) {
     console.error('💥 Test failed with error:', error.message);

@@ -67,7 +67,7 @@ import {
 export default function Statistics() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const isDarkMode = theme.palette.mode === 'dark';
+  const isDarkMode = theme?.palette?.mode === 'dark' || false;
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);

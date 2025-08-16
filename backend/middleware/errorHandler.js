@@ -1,3 +1,44 @@
+const fs = require('fs');
+const path = require('path');
+
+// Ensure log directory exists
+const logDir = path.join(__dirname, '../logs');
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir, { recursive: true });
+}
+
+// Log functions
+function logError(error, req = null) {
+  const timestamp = new Date().toISOString();
+  const errorEntry = {
+    timestamp,
+    message: error.message,
+    code: error.errorCode || error.code,
+    path: req?.path,
+    method: req?.method,
+    user: req?.user?.username,
+    ip: req?.ip
+  };
+  
+  const logLine = JSON.stringify(errorEntry) + '\n';
+  fs.appendFileSync(path.join(logDir, 'errors.log'), logLine);
+}
+
+function logActivity(action, details, req = null) {
+  const timestamp = new Date().toISOString();
+  const activityEntry = {
+    timestamp,
+    action,
+    details,
+    user: req?.user?.username || 'anonymous',
+    role: req?.user?.role,
+    ip: req?.ip
+  };
+  
+  const logLine = JSON.stringify(activityEntry) + '\n';
+  fs.appendFileSync(path.join(logDir, 'activity.log'), logLine);
+}
+
 class AppError extends Error {
   constructor(message, statusCode, errorCode = null) {
     super(message);
@@ -91,6 +132,9 @@ const globalErrorHandler = (err, req, res, next) => {
   err.statusCode = err.statusCode || 500;
   err.status = err.status || 'error';
 
+  // Log the error
+  logError(err, req);
+
   if (process.env.NODE_ENV === 'development') {
     sendErrorDev(err, res);
   } else {
@@ -111,6 +155,31 @@ const catchAsync = (fn) => {
   };
 };
 
+// Audit trail middleware
+const auditTrail = (action, entity) => {
+  return (req, res, next) => {
+    logActivity(action, {
+      entity,
+      entityId: req.params.id || req.body.id,
+      data: req.body
+    }, req);
+    next();
+  };
+};
+
+// Critical actions for audit
+const CRITICAL_ACTIONS = {
+  SAMPLE_CREATE: 'SAMPLE_CREATE',
+  SAMPLE_UPDATE: 'SAMPLE_UPDATE',
+  SAMPLE_DELETE: 'SAMPLE_DELETE',
+  BATCH_CREATE: 'BATCH_CREATE',
+  BATCH_COMPLETE: 'BATCH_COMPLETE',
+  ANALYSIS_CREATE: 'ANALYSIS_CREATE',
+  REPORT_GENERATE: 'REPORT_GENERATE',
+  USER_LOGIN: 'USER_LOGIN',
+  USER_LOGOUT: 'USER_LOGOUT'
+};
+
 module.exports = {
   AppError,
   ValidationError,
@@ -118,5 +187,9 @@ module.exports = {
   NotFoundError,
   ConflictError,
   globalErrorHandler,
-  catchAsync
+  catchAsync,
+  logError,
+  logActivity,
+  auditTrail,
+  CRITICAL_ACTIONS
 };

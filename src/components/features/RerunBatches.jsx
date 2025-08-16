@@ -79,8 +79,7 @@ const RerunBatches = () => {
         // Refresh the batches list to include the new batch
         fetchRerunBatches();
       } catch (error) {
-        console.warn('Failed to process newly created rerun batch:', error);
-      }
+        }
     }
   };
 
@@ -95,8 +94,6 @@ const RerunBatches = () => {
         const rerunBatches = (data.data || []).filter(batch => 
           batch.batch_number?.includes('_RR') || batch.batch_type === 'rerun'
         );
-        console.log('🔄 Found rerun batches:', rerunBatches.length);
-        console.log('📋 Rerun batches data:', rerunBatches);
         setBatches(rerunBatches);
       }
     } catch (error) {
@@ -133,14 +130,7 @@ const RerunBatches = () => {
   };
 
   const renderPlateLayout = () => {
-    console.log('🧪 Rendering plate layout for batch:', batchDetails?.batch_number);
-    console.log('📋 Plate layout data:', batchDetails?.plate_layout);
-    
     if (!batchDetails?.plate_layout || detailsLoading) {
-      console.log('⚠️ No plate layout or still loading:', { 
-        hasLayout: !!batchDetails?.plate_layout, 
-        loading: detailsLoading 
-      });
       return (
         <Box display="flex" justifyContent="center" p={3}>
           {detailsLoading ? <CircularProgress /> : <Typography>No plate layout available</Typography>}
@@ -151,8 +141,8 @@ const RerunBatches = () => {
     const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
     const cols = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0'));
     
-    console.log('🔍 Available wells in plate layout:', Object.keys(batchDetails.plate_layout));
-    console.log('🔍 Expected well format (first few):', rows.slice(0,2).flatMap(row => cols.slice(0,3).map(col => `${row}${col}`)));
+    );
+    :', rows.slice(0,2).flatMap(row => cols.slice(0,3).map(col => `${row}${col}`)));
 
     return (
       <Box sx={{ overflowX: 'auto' }}>

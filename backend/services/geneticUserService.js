@@ -94,8 +94,7 @@ class GeneticUserService {
       // Create default admin user if none exists
       this.createDefaultAdminUser();
 
-      console.log("Genetic user management tables initialized");
-    } catch (error) {
+      } catch (error) {
       console.error("Failed to setup user tables:", error);
     }
   }
@@ -137,8 +136,7 @@ class GeneticUserService {
           1,
         );
 
-      console.log("Default admin user created: admin / LabDNA@Admin2024!");
-    }
+      }
   }
 
   /**

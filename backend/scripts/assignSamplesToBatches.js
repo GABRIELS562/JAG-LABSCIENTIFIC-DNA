@@ -1,14 +1,11 @@
 const db = require('../services/database');
 
 function assignSamplesToBatches() {
-  console.log('🧪 Assigning samples to LDS batches...');
-  
   try {
     // Get all LDS batches
     const ldsBatches = db.db.prepare("SELECT * FROM batches WHERE batch_number LIKE 'LDS_%' AND status = 'active'").all();
     
     if (ldsBatches.length === 0) {
-      console.log('No LDS batches found');
       return;
     }
     
@@ -16,11 +13,8 @@ function assignSamplesToBatches() {
     const availableSamples = db.db.prepare("SELECT * FROM samples WHERE batch_id IS NULL ORDER BY case_number ASC, lab_number ASC").all();
     
     if (availableSamples.length === 0) {
-      console.log('No available samples to assign');
       return;
     }
-    
-    console.log(`Found ${ldsBatches.length} LDS batches and ${availableSamples.length} available samples`);
     
     let sampleIndex = 0;
     
@@ -30,7 +24,6 @@ function assignSamplesToBatches() {
       const batchSamples = availableSamples.slice(sampleIndex, sampleIndex + samplesPerBatch);
       
       if (batchSamples.length === 0) {
-        console.log(`No more samples available for batch ${batch.batch_number}`);
         break;
       }
       
@@ -45,15 +38,12 @@ function assignSamplesToBatches() {
       const updateBatchStmt = db.db.prepare("UPDATE batches SET total_samples = ? WHERE id = ?");
       updateBatchStmt.run(batchSamples.length, batch.id);
       
-      console.log(`✅ Assigned ${batchSamples.length} samples to batch ${batch.batch_number}`);
-      console.log(`   Samples: ${batchSamples.map(s => s.lab_number).join(', ')}`);
+      .join(', ')}`);
       
       sampleIndex += samplesPerBatch;
     }
     
-    console.log('🎉 Sample assignment completed!');
-    
-  } catch (error) {
+    } catch (error) {
     console.error('❌ Error assigning samples to batches:', error);
     throw error;
   }

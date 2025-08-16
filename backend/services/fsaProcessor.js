@@ -15,8 +15,6 @@ class FSAProcessor {
    */
   async processFSAFile(filePath) {
     try {
-      console.log(`Processing FSA file: ${filePath}`);
-      
       // Validate file exists and has correct extension
       await this.validateFile(filePath);
       

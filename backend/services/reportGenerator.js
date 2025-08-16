@@ -67,8 +67,6 @@ class ReportGenerator {
         stream.on('error', reject);
       });
 
-      console.log(`Enhanced report generated successfully: ${fileName}`);
-      
       return {
         success: true,
         fileName,
@@ -130,8 +128,6 @@ class ReportGenerator {
         stream.on('error', reject);
       });
 
-      console.log(`Report generated successfully: ${fileName}`);
-      
       return {
         success: true,
         fileName,

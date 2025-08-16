@@ -785,8 +785,6 @@ class SwaggerDocumentation {
     return `
       (response) => {
         // Log response for debugging
-        console.log('API Response:', response.status, response.url);
-        
         return response;
       }
     `;

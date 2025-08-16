@@ -53,8 +53,7 @@ const HomePage = ({ isDarkMode }) => {
         setSampleCounts(response.data);
       }
     } catch (error) {
-      console.warn('Failed to fetch sample counts:', error);
-    }
+      }
   };
 
   const refreshDatabase = async () => {

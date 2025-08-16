@@ -93,8 +93,7 @@ const PCRBatches = () => {
         // Refresh the batches list to include the new batch
         fetchBatches();
       } catch (error) {
-        console.warn('Failed to process newly created batch:', error);
-      }
+        }
     }
   };
 

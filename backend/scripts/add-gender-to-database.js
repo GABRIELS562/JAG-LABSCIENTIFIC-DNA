@@ -7,12 +7,9 @@ const path = require('path');
 const dbPath = path.join(__dirname, '..', 'database', 'ashley_lims.db');
 const db = new Database(dbPath);
 
-console.log('🚻 Adding Gender Column to Database and Randomizing Children');
-console.log('=' .repeat(60));
+);
 
 function addGenderColumn() {
-  console.log('🔧 Adding gender column to samples table...');
-  
   try {
     // Check if gender column already exists
     const columns = db.prepare('PRAGMA table_info(samples)').all();
@@ -21,10 +18,8 @@ function addGenderColumn() {
     if (!hasGenderColumn) {
       // Add gender column
       db.prepare('ALTER TABLE samples ADD COLUMN gender TEXT').run();
-      console.log('   ✅ Gender column added to samples table');
-    } else {
-      console.log('   ✅ Gender column already exists');
-    }
+      } else {
+      }
   } catch (error) {
     console.error('❌ Error adding gender column:', error.message);
     throw error;
@@ -32,13 +27,9 @@ function addGenderColumn() {
 }
 
 function updateGenderForAllSamples() {
-  console.log('👨👩 Updating gender for all samples...');
-  
   try {
     // Get all samples
     const allSamples = db.prepare('SELECT id, relation, lab_number FROM samples').all();
-    console.log(`   📊 Found ${allSamples.length} samples to update`);
-    
     const updateStmt = db.prepare('UPDATE samples SET gender = ? WHERE id = ?');
     
     let maleCount = 0;
@@ -77,20 +68,13 @@ function updateGenderForAllSamples() {
     
     updateTransaction();
     
-    console.log('   ✅ Gender assignment completed:');
-    console.log(`      👨 Males: ${maleCount}`);
-    console.log(`      👩 Females: ${femaleCount}`);
-    console.log(`      🎲 Children randomized: ${childrenUpdated}`);
-    
-  } catch (error) {
+    } catch (error) {
     console.error('❌ Error updating gender:', error.message);
     throw error;
   }
 }
 
 function updateChildLabNumbers() {
-  console.log('🧬 Updating child lab numbers with father references and gender indicators...');
-  
   try {
     // Get all child samples
     const childSamples = db.prepare(`
@@ -98,8 +82,6 @@ function updateChildLabNumbers() {
       FROM samples 
       WHERE relation = 'child' AND case_number IS NOT NULL
     `).all();
-    
-    console.log(`   👶 Found ${childSamples.length} child samples to update`);
     
     const updateLabNumberStmt = db.prepare('UPDATE samples SET lab_number = ? WHERE id = ?');
     let updatedCount = 0;
@@ -129,30 +111,24 @@ function updateChildLabNumbers() {
               updateLabNumberStmt.run(newLabNumber, child.id);
               updatedCount++;
               
-              console.log(`      ✅ Updated: ${child.lab_number} → ${newLabNumber}`);
-            }
+              }
           } else {
-            console.log(`      ⚠️  No father found for child: ${child.lab_number} in case ${child.case_number}`);
-          }
+            }
         } catch (childError) {
-          console.warn(`      ⚠️  Error updating child ${child.lab_number}:`, childError.message);
-        }
+          }
       }
     });
     
     labUpdateTransaction();
     
-    console.log(`   ✅ Updated ${updatedCount} child lab numbers with father references and gender`);
-    
-  } catch (error) {
+    } catch (error) {
     console.error('❌ Error updating child lab numbers:', error.message);
     throw error;
   }
 }
 
 function generateSummaryReport() {
-  console.log('\\n📊 Final Database Summary:');
-  console.log('=' .repeat(40));
+  );
   
   try {
     // Get gender distribution
@@ -177,13 +153,6 @@ function generateSummaryReport() {
       FROM samples
     `).get();
     
-    console.log('👥 Overall Statistics:');
-    console.log(`   📊 Total Samples: ${totalStats.total_samples}`);
-    console.log(`   👨 Total Males: ${totalStats.total_males}`);
-    console.log(`   👩 Total Females: ${totalStats.total_females}`);
-    console.log(`   👶 Total Children: ${totalStats.total_children}`);
-    
-    console.log('\\n🏷️  Gender by Relation:');
     const relationGroups = {};
     for (const stat of genderStats) {
       if (!relationGroups[stat.relation]) {
@@ -195,8 +164,7 @@ function generateSummaryReport() {
     for (const [relation, genders] of Object.entries(relationGroups)) {
       const maleCount = genders['M'] || 0;
       const femaleCount = genders['F'] || 0;
-      console.log(`   ${relation}: 👨 ${maleCount}M, 👩 ${femaleCount}F`);
-    }
+      }
     
     // Show some examples of updated child lab numbers
     const childExamples = db.prepare(`
@@ -207,10 +175,9 @@ function generateSummaryReport() {
     `).all();
     
     if (childExamples.length > 0) {
-      console.log('\\n🧬 Example Child Lab Numbers:');
       for (const child of childExamples) {
         const genderIcon = child.gender === 'F' ? '👧' : '👦';
-        console.log(`   ${genderIcon} ${child.lab_number}: ${child.name} ${child.surname} (${child.case_number})`);
+        `);
       }
     }
     
@@ -222,11 +189,9 @@ function generateSummaryReport() {
 // Main execution
 async function main() {
   try {
-    console.log('🔍 Checking database connection...');
-    
     // Test database connection
     const testQuery = db.prepare('SELECT COUNT(*) as count FROM samples').get();
-    console.log(`   ✅ Database connected (${testQuery.count} samples found)`);
+    `);
     
     // Execute steps
     addGenderColumn();
@@ -234,15 +199,12 @@ async function main() {
     updateChildLabNumbers();
     generateSummaryReport();
     
-    console.log('\\n🎉 Gender database update completed successfully!');
-    
-  } catch (error) {
+    } catch (error) {
     console.error('💥 Fatal error:', error.message);
     process.exit(1);
   } finally {
     db.close();
-    console.log('👋 Database connection closed.');
-  }
+    }
 }
 
 // Run the script

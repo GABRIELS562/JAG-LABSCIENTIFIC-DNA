@@ -41,7 +41,7 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 const ElectrophoresisLayout = () => {
   const navigate = useNavigate();
   const theme = useTheme();
-  const isDarkMode = theme.palette.mode === 'dark';
+  const isDarkMode = theme?.palette?.mode === 'dark' || false;
   const [selectedSamples, setSelectedSamples] = useState([]);
   const [plateData, setPlateData] = useState({});
   const [draggedItem, setDraggedItem] = useState(null);
@@ -589,24 +589,13 @@ const ElectrophoresisLayout = () => {
 
   const loadPCRBatches = async () => {
     try {
-      console.log('🔍 Loading PCR batches...');
-      console.log('🌐 API URL:', API_URL);
       const response = await fetch(`${API_URL}/api/batches`);
-      console.log('📡 Response status:', response.status);
-      console.log('📡 Response headers:', response.headers);
-      
       if (response.ok) {
         const data = await response.json();
-        console.log('📊 All batches received:', data.data?.length || 0);
-        console.log('📊 Raw data:', data);
-        
         // Filter for completed PCR batches (those with LDS_ prefix)
         const pcrBatches = (data.data || []).filter(batch => 
           batch.batch_number?.startsWith('LDS_') && batch.status !== 'cancelled'
         );
-        console.log('🧪 Filtered PCR batches:', pcrBatches.length);
-        console.log('🧪 PCR batches:', pcrBatches);
-        
         setAvailablePCRBatches(pcrBatches);
         setLoadPCRDialog(true);
       } else {
@@ -630,23 +619,15 @@ const ElectrophoresisLayout = () => {
 
   const loadSamplesFromPCRBatch = async (batch) => {
     try {
-      console.log('🔄 Loading samples from PCR batch:', batch.batch_number);
-      console.log('📋 Batch plate layout:', batch.plate_layout);
-      
       // Get samples from the batch's plate layout
       const samplesFromBatch = [];
       if (batch.plate_layout && typeof batch.plate_layout === 'object') {
         Object.entries(batch.plate_layout).forEach(([wellId, well]) => {
-          console.log(`🔍 Processing well ${wellId}:`, well);
-          
           if (well.samples && well.samples.length > 0) {
-            console.log(`📋 Well ${wellId} has ${well.samples.length} samples:`, well.samples);
-            
             // Filter out control samples (keep only actual samples)
             const actualSamples = well.samples.filter(sample => {
               // First check if sample has basic required properties
               if (!sample || typeof sample !== 'object') {
-                console.log(`❌ Invalid sample object:`, sample);
                 return false;
               }
               
@@ -669,40 +650,28 @@ const ElectrophoresisLayout = () => {
               
               const isControl = hasControlInLabNumber || hasControlInId;
               
-              console.log(`🧪 Sample ${sample.lab_number || 'NO_LAB_NUMBER'} (id: ${sample.id || 'NO_ID'}) - isControl: ${isControl}`);
-              console.log(`   - hasControlInLabNumber: ${hasControlInLabNumber}`);
-              console.log(`   - hasControlInId: ${hasControlInId}`);
-              console.log(`   - sample object:`, sample);
-              
+              - isControl: ${isControl}`);
               return !isControl;
             });
             
-            console.log(`✅ Adding ${actualSamples.length} actual samples from well ${wellId}`);
             samplesFromBatch.push(...actualSamples);
           } else {
-            console.log(`❌ Well ${wellId} has no samples or empty samples array`);
-          }
+            }
         });
       } else {
-        console.log('❌ No plate layout or invalid plate layout structure');
-      }
+        }
       
-      console.log('🧪 Total extracted samples:', samplesFromBatch.length);
-      console.log('📝 Sample details:', samplesFromBatch.map(s => ({ id: s.id, lab_number: s.lab_number, name: s.name, surname: s.surname })));
+      ));
       
       // If no samples were extracted, try a less restrictive approach
       if (samplesFromBatch.length === 0) {
-        console.log('⚠️ No samples extracted with filtering, trying without filtering...');
         const allSamplesFromBatch = [];
         
         Object.entries(batch.plate_layout).forEach(([wellId, well]) => {
           if (well.samples && well.samples.length > 0) {
-            console.log(`🔄 Adding ALL samples from well ${wellId}:`, well.samples);
             allSamplesFromBatch.push(...well.samples);
           }
         });
-        
-        console.log('🚨 Total samples without filtering:', allSamplesFromBatch.length);
         
         if (allSamplesFromBatch.length > 0) {
           // Store samples for electrophoresis

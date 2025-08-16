@@ -26,11 +26,8 @@ const motherNames = [
 ];
 
 function generatePaternityData() {
-  console.log('🧬 Generating 250 paternity samples...');
-  
   try {
     // Clear existing samples
-    console.log('Clearing existing samples...');
     db.clearAllSamples();
     
     let sampleCounter = 1;
@@ -118,7 +115,7 @@ function generatePaternityData() {
         throw error;
       }
       
-      console.log(`✅ Created case ${caseNumber}: ${childLabNumber} (child), ${fatherLabNumber} (father), ${motherLabNumber} (mother)`);
+      , ${fatherLabNumber} (father), ${motherLabNumber} (mother)`);
       
       sampleCounter += 3;
       caseCounter++;
@@ -147,19 +144,12 @@ function generatePaternityData() {
     };
     
     db.createSample(finalSample);
-    console.log(`✅ Created final sample: ${finalLabNumber}`);
-    
     // Get final count
     const totalSamples = db.getSampleCount();
-    console.log(`🎉 Successfully generated ${totalSamples} paternity samples!`);
-    
     // Show some sample data
-    console.log('\n📊 Sample structure:');
-    console.log('Format: Lab Number - Case Number - Name Surname - Gender - Relation');
     const samples = db.getAllSamples().slice(0, 9); // Show first 9 samples (3 cases)
     samples.forEach(sample => {
-      console.log(`${sample.lab_number} - ${sample.case_number} - ${sample.name} ${sample.surname} - ${sample.gender} - ${sample.relation}`);
-    });
+      });
     
   } catch (error) {
     console.error('❌ Error generating paternity data:', error);

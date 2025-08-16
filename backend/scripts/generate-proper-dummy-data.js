@@ -7,8 +7,6 @@ const path = require('path');
 const dbPath = path.join(__dirname, '../database/ashley_lims.db');
 const db = new Database(dbPath);
 
-console.log('🎭 Generating Proper Dummy Data - Continuing from LDS_121, Sample 420');
-
 // Enable WAL mode for better performance
 db.pragma('journal_mode = WAL');
 
@@ -56,8 +54,6 @@ function randomIdNumber(birthDate) {
 
 // Setup sequences to continue from your current position
 function setupSequences() {
-  console.log('🔧 Setting up sequence numbers...');
-  
   try {
     // Set up BN sequence table
     const bnSequenceStmt = db.prepare(`
@@ -90,17 +86,14 @@ function setupSequences() {
     `);
     updateLabStmt.run(421, '25');
     
-    console.log('   ✅ BN sequence set to start from BN-0122');
-    console.log('   ✅ Lab numbers will continue from 25_421');
-    
-  } catch (error) {
+    } catch (error) {
     console.error('❌ Sequence setup failed:', error.message);
     throw error;
   }
 }
 
 function clearExistingData() {
-  console.log('🧹 Clearing existing dummy data (keeping your real data)...');
+  ...');
   
   // Only clear dummy data, not your imported real data
   // Clear samples with lab numbers starting with "25_" that are > 420
@@ -109,12 +102,10 @@ function clearExistingData() {
   // Clear test cases with BN numbers > 121
   db.prepare("DELETE FROM test_cases WHERE case_number LIKE 'BN-%' AND CAST(SUBSTR(case_number, 4) AS INTEGER) > 121").run();
   
-  console.log('✅ Existing dummy data cleared (your real data preserved)');
+  ');
 }
 
 function generateDummyData() {
-  console.log('🎭 Generating realistic dummy data continuing from your current position...');
-  
   // Sample data that would logically follow your current lab state
   const dummyTestCases = [
     {
@@ -296,7 +287,6 @@ function generateDummyData() {
     `);
     
     // Insert test cases
-    console.log('📁 Creating test cases...');
     for (const testCase of dummyTestCases) {
       const result = caseStmt.run(
         testCase.case_number,
@@ -311,12 +301,10 @@ function generateDummyData() {
       
       if (result.changes > 0) {
         insertedCases++;
-        console.log(`  ✅ Created case: ${testCase.case_number}`);
-      }
+        }
     }
     
     // Insert samples
-    console.log('🧪 Creating samples...');
     for (const sample of dummySamples) {
       const result = sampleStmt.run(
         sample.lab_number,
@@ -336,14 +324,11 @@ function generateDummyData() {
       
       if (result.changes > 0) {
         insertedSamples++;
-        console.log(`  ✅ Created sample: ${sample.lab_number} - ${sample.name} ${sample.surname} (${sample.relation})`);
+        `);
       }
     }
     
-    console.log(`\n📊 Dummy data generation completed!`);
-    console.log(`   📁 Test cases created: ${insertedCases}`);
-    console.log(`   🧪 Samples created: ${insertedSamples}`);
-  });
+    });
   
   try {
     dataTransaction();
@@ -355,8 +340,6 @@ function generateDummyData() {
 
 // Create a sample batch continuing from LDS_121
 function createSampleBatch() {
-  console.log('⚗️  Creating sample batch LDS_122...');
-  
   try {
     const batchStmt = db.prepare(`
       INSERT OR REPLACE INTO batches (
@@ -376,8 +359,7 @@ function createSampleBatch() {
     );
     
     if (result.changes > 0) {
-      console.log('  ✅ Created batch: LDS_122');
-    }
+      }
   } catch (error) {
     console.error('❌ Batch creation failed:', error.message);
     throw error;
@@ -387,12 +369,10 @@ function createSampleBatch() {
 // Main execution
 async function main() {
   try {
-    console.log('🔍 Checking database connection...');
-    
     // Test database connection
     const testQuery = db.prepare("SELECT COUNT(*) as count FROM sqlite_master WHERE type='table'");
     const result = testQuery.get();
-    console.log(`   ✅ Database connected (${result.count} tables found)`);
+    `);
     
     // Setup sequences to continue from your current position
     setupSequences();
@@ -411,11 +391,6 @@ async function main() {
     const caseCount = db.prepare('SELECT COUNT(*) as count FROM test_cases').get();
     const batchCount = db.prepare('SELECT COUNT(*) as count FROM batches').get();
     
-    console.log('\n📊 Final Database Status:');
-    console.log(`   🧪 Total Samples: ${sampleCount.count}`);
-    console.log(`   📁 Total Cases: ${caseCount.count}`);
-    console.log(`   ⚗️  Total Batches: ${batchCount.count}`);
-    
     // Show recent samples
     const recentSamples = db.prepare(`
       SELECT lab_number, name, surname, relation, workflow_status, kit_batch_number
@@ -424,18 +399,16 @@ async function main() {
       LIMIT 8
     `).all();
     
-    console.log('\n🔍 Recent Samples:');
     recentSamples.forEach(sample => {
-      console.log(`   ${sample.lab_number}: ${sample.name} ${sample.surname} (${sample.relation}) - ${sample.kit_batch_number}`);
+      - ${sample.kit_batch_number}`);
     });
     
     // Show next numbers that will be generated
     const bnSequence = db.prepare('SELECT next_bn_number FROM bn_sequence WHERE id = 1').get();
     const labSequence = db.prepare('SELECT next_lab_number, year_prefix FROM lab_sequence WHERE id = 1').get();
     
-    console.log('\n🎯 Next Generated Numbers:');
-    console.log(`   📋 Next BN Kit: BN-${bnSequence.next_bn_number.toString().padStart(4, '0')}`);
-    console.log(`   🧪 Next Lab Number: ${labSequence.year_prefix}_${labSequence.next_lab_number.toString().padStart(3, '0')}`);
+    .padStart(4, '0')}`);
+    .padStart(3, '0')}`);
     
   } catch (error) {
     console.error('💥 Script failed:', error.message);
@@ -443,8 +416,7 @@ async function main() {
   } finally {
     if (db) {
       db.close();
-      console.log('\n👋 Database connection closed. Dummy data generation complete!');
-    }
+      }
   }
 }
 

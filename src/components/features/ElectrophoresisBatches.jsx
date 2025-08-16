@@ -79,8 +79,7 @@ const ElectrophoresisBatches = () => {
         // Refresh the batches list to include the new batch
         fetchElectrophoresisBatches();
       } catch (error) {
-        console.warn('Failed to process newly created electro batch:', error);
-      }
+        }
     }
   };
 

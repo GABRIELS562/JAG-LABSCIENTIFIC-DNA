@@ -48,7 +48,7 @@ export default defineConfig({
     port: 5173,
     open: true,
     watch: {
-      // Ignore backend and Osiris workspace files to prevent infinite reloads
+      // Ignore backend files to prevent infinite reloads
       ignored: [
         '**/backend/**',
         '**/node_modules/**',

@@ -41,8 +41,7 @@ router.post("/refresh-database", async (req, res) => {
         db.db.exec('VACUUM');
         db.db.exec('ANALYZE');
       } catch (optimizeError) {
-        console.warn('Database optimization warning:', optimizeError.message);
-      }
+        }
       
       // Only recreate tables if schema has changed
       const forceRebuild = req.body?.forceRebuild || false;
@@ -95,14 +94,6 @@ router.post("/submit-test", async (req, res) => {
     const { childRow, fatherRow, motherRow, signatures, witness, legalDeclarations, consentType } = req.body;
     const clientType = req.body.clientType || 'paternity';
     
-    console.log('Received enhanced form submission:', {
-      clientType,
-      consentType,
-      hasSignatures: !!signatures,
-      hasWitness: !!witness,
-      hasLegalDeclarations: !!legalDeclarations
-    });
-
     if (DB_MODE === 'sqlite') {
       // SQLite implementation (primary)
       const result = await dualWrite(
@@ -544,9 +535,7 @@ router.post("/generate-batch", async (req, res) => {
       if (batchedSampleIds.length > 0) {
         try {
           db.batchUpdateSampleWorkflowStatus(batchedSampleIds, 'pcr_batched');
-          console.log(`Updated ${batchedSampleIds.length} samples to pcr_batched status`);
-        } catch (workflowError) {
-          console.warn('Failed to update sample workflow status:', workflowError);
+          } catch (workflowError) {
           // Don't fail the batch creation if workflow update fails
         }
       }

@@ -3,14 +3,12 @@ const path = require("path");
 
 // Google Sheets disabled - using SQLite database only
 const initializeSheets = () => {
-  console.log("Google Sheets initialization disabled - using SQLite database only");
   return null;
 };
 
 const sheets = null; // Disabled for SQLite-only mode
 
 const appendRows = async (spreadsheetType, sheetName, rows) => {
-  console.log("Google Sheets appendRows called but disabled - using SQLite only");
   return { success: true, message: "Google Sheets disabled, using SQLite database" };
 
   try {
@@ -28,12 +26,6 @@ const appendRows = async (spreadsheetType, sheetName, rows) => {
       throw new Error(`No spreadsheet ID found for type: ${spreadsheetType}`);
     }
 
-    console.log("Attempting to append rows:");
-    console.log("Spreadsheet Type:", spreadsheetType);
-    console.log("Sheet Name:", sheetName);
-    console.log("Spreadsheet ID:", spreadsheetId);
-    console.log("Rows to append:", rows);
-
     const response = await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: `${sheetName}!A:P`,
@@ -42,7 +34,6 @@ const appendRows = async (spreadsheetType, sheetName, rows) => {
       requestBody: { values: rows },
     });
 
-    console.log("Append response:", response.data);
     return response.data;
   } catch (error) {
     console.error("Error details:", {
@@ -135,7 +126,6 @@ const SHEETS = {
 };
 
 const setupSheetStructure = async () => {
-  console.log("Google Sheets setup disabled - using SQLite database only");
   return { success: true, message: "Google Sheets disabled" };
   try {
     // Setup main data sheet
@@ -197,7 +187,6 @@ const setupSheetStructure = async () => {
       },
     });
 
-    console.log("Sheet structures updated successfully");
     return true;
   } catch (error) {
     console.error("Error setting up sheet structures:", error);

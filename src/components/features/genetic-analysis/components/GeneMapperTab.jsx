@@ -56,15 +56,10 @@ const GeneMapperTab = ({ isDarkMode, notifications }) => {
       setBatchesLoading(true);
       // Use relative path to leverage Vite proxy
       const apiUrl = '/api/batches';
-      console.log('🔄 Loading batches from:', apiUrl);
-      
       const response = await fetch(apiUrl);
       const data = await response.json();
       
-      console.log('📊 API Response:', {
-        success: data.success,
-        dataCount: data.data?.length || 0,
-        sampleBatches: data.data?.slice(0, 3).map(b => ({
+      .map(b => ({
           batch_number: b.batch_number,
           hasPlateLayout: !!b.plate_layout,
           wellCount: b.plate_layout ? Object.keys(b.plate_layout).length : 0
@@ -78,18 +73,13 @@ const GeneMapperTab = ({ isDarkMode, notifications }) => {
           const hasCorrectName = batch.batch_number?.includes('ELEC_') || batch.batch_number?.includes('_RR');
           const hasPlateLayout = batch.plate_layout && Object.keys(batch.plate_layout).length > 0;
           
-          console.log(`🔍 Checking batch ${batch.batch_number}:`, {
-            hasCorrectName,
-            hasPlateLayout,
-            wellCount: batch.plate_layout ? Object.keys(batch.plate_layout).length : 0
+          .length : 0
           });
           
           return hasCorrectName && hasPlateLayout;
         });
         
-        console.log('✅ Filtered batches:', filteredBatches.map(b => ({
-          batch_number: b.batch_number,
-          wellCount: Object.keys(b.plate_layout).length
+        .length
         })));
         
         setAvailableBatches(filteredBatches);
@@ -125,9 +115,6 @@ const GeneMapperTab = ({ isDarkMode, notifications }) => {
     if (!batch || !batch.plate_layout) {
       return '';
     }
-
-    console.log('🧬 Generating template for batch:', batch.batch_number);
-    console.log('📋 Plate layout:', batch.plate_layout);
 
     // Header section (matching LDS_73 format exactly)
     const header = [
@@ -202,8 +189,6 @@ const GeneMapperTab = ({ isDarkMode, notifications }) => {
             
             if (fatherLabMatch) {
               const fatherLabNumber = fatherLabMatch[1];
-              console.log(`🧬 Child ${sample.lab_number} looking for father ${fatherLabNumber}`);
-              
               // Find father sample in the same batch to get first name
               const fatherSample = Object.values(plateLayout).find(well => 
                 well.samples && well.samples[0] && 
@@ -213,17 +198,14 @@ const GeneMapperTab = ({ isDarkMode, notifications }) => {
               
               if (fatherSample && fatherSample.samples[0]) {
                 comment = fatherSample.samples[0].name || fatherSample.samples[0].surname || sample.name;
-                console.log(`✅ Found father sample, using father's first name: ${comment}`);
-              } else {
+                } else {
                 // Fallback: use child's first name if father not found in batch
                 comment = sample.name || sample.surname || sampleName.split('_')[0];
-                console.log(`⚠️ Father not found in batch, using child first name: ${comment}`);
-              }
+                }
             } else {
               // Fallback for child without proper lab number format
               comment = sample.name || sample.surname || sampleName.split('_')[0];
-              console.log(`⚠️ No father reference found in lab number, using child first name: ${comment}`);
-            }
+              }
           } else {
             // For non-child samples (father, mother, etc), use their own first name
             comment = sample.name || sample.surname || sampleName.split('_')[0];
@@ -257,7 +239,6 @@ const GeneMapperTab = ({ isDarkMode, notifications }) => {
     });
 
     const template = header + '\n' + sampleRows.join('\n') + '\n';
-    console.log('✅ Generated template with', sampleRows.length, 'samples');
     return template;
   }, []);
 

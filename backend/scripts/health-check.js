@@ -12,7 +12,6 @@ const options = {
 
 const req = http.request(options, (res) => {
   if (res.statusCode === 200) {
-    console.log('Health check passed');
     process.exit(0);
   } else {
     console.error(`Health check failed with status: ${res.statusCode}`);

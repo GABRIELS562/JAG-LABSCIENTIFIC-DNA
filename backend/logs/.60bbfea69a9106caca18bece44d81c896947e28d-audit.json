@@ -64,6 +64,11 @@
             "date": 1755264501909,
             "name": "/Users/user/LABSCIENTIFIC-LIMS/backend/logs/application-2025-08-15.log.2",
             "hash": "b6013bd362c616d4bca192cd589efb3d82ce254c9948f3c94a537e1e118ccba4"
+        },
+        {
+            "date": 1755321799124,
+            "name": "/Users/user/LABSCIENTIFIC-LIMS/backend/logs/application-2025-08-16.log",
+            "hash": "e45c8bf6202ba2e025ddb989ec4088c93afcc6b68dfd7d7172ec68b815a6fb53"
         }
     ],
     "hashType": "sha256"

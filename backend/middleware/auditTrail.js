@@ -128,23 +128,87 @@ function logAuditEvent(auditData) {
 }
 
 // Function to log data changes
-function logDataChange(entityType, entityId, oldValue, newValue, userId, username) {
+function logDataChange(entityType, entityId, oldValue, newValue, userId, username, ipAddress = null) {
   try {
     const auditData = {
       timestamp: new Date().toISOString(),
       user_id: userId,
-      username: username,
+      username: username || 'system',
       action: 'DATA_CHANGE',
       entity_type: entityType,
       entity_id: entityId,
       old_value: JSON.stringify(oldValue),
       new_value: JSON.stringify(newValue),
+      ip_address: ipAddress,
       status: 'success'
     };
     
     logAuditEvent(auditData);
   } catch (error) {
     logger.error('Failed to log data change:', error);
+  }
+}
+
+// Function to log sample workflow changes with detailed tracking
+function logSampleWorkflowChange(sampleIds, oldStatus, newStatus, userId, username, ipAddress, batchNumber = null) {
+  try {
+    sampleIds.forEach(sampleId => {
+      const auditData = {
+        timestamp: new Date().toISOString(),
+        user_id: userId,
+        username: username || 'system',
+        action: CRITICAL_ACTIONS.SAMPLE_STATUS_CHANGE,
+        entity_type: 'samples',
+        entity_id: sampleId.toString(),
+        old_value: JSON.stringify({ workflow_status: oldStatus, batch_number: null }),
+        new_value: JSON.stringify({ workflow_status: newStatus, batch_number: batchNumber }),
+        ip_address: ipAddress,
+        status: 'success',
+        metadata: JSON.stringify({
+          samples_affected: sampleIds.length,
+          batch_operation: !!batchNumber,
+          batch_number: batchNumber
+        })
+      };
+      
+      logAuditEvent(auditData);
+    });
+  } catch (error) {
+    logger.error('Failed to log sample workflow change:', error);
+  }
+}
+
+// Function to log sample creation with full details
+function logSampleCreation(sampleData, userId, username, ipAddress) {
+  try {
+    const auditData = {
+      timestamp: new Date().toISOString(),
+      user_id: userId,
+      username: username || 'system',
+      action: CRITICAL_ACTIONS.SAMPLE_CREATE,
+      entity_type: 'samples',
+      entity_id: sampleData.id ? sampleData.id.toString() : 'pending',
+      old_value: null,
+      new_value: JSON.stringify({
+        lab_number: sampleData.lab_number,
+        name: sampleData.name,
+        surname: sampleData.surname,
+        relation: sampleData.relation,
+        case_id: sampleData.case_id,
+        workflow_status: sampleData.workflow_status || 'sample_collected'
+      }),
+      ip_address: ipAddress,
+      status: 'success',
+      metadata: JSON.stringify({
+        operation: 'sample_registration',
+        lab_number: sampleData.lab_number,
+        case_number: sampleData.case_number
+      })
+    };
+    
+    logAuditEvent(auditData);
+  } catch (error) {
+    logger.error('Failed to log sample creation:', error);
   }
 }
 
@@ -250,13 +314,20 @@ const CRITICAL_ACTIONS = {
   USER_UPDATE: 'User Updated',
   USER_DELETE: 'User Deleted',
   BACKUP_CREATE: 'Backup Created',
-  BACKUP_RESTORE: 'Backup Restored'
+  BACKUP_RESTORE: 'Backup Restored',
+  
+  // Additional Sample Actions
+  SAMPLE_RERUN_INCREMENT: 'Sample Rerun Count Incremented',
+  TEST_CASE_CREATE: 'Test Case Created',
+  SAMPLE_BATCH_ASSIGN: 'Sample Assigned to Batch'
 };
 
 module.exports = {
   auditTrail,
   logAuditEvent,
   logDataChange,
+  logSampleWorkflowChange,
+  logSampleCreation,
   getAuditLogs,
   CRITICAL_ACTIONS,
   auditDb

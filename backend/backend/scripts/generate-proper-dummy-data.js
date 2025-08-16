@@ -48,18 +48,13 @@ function randomIdNumber(birthDate) {
 }
 
 function clearExistingData() {
-  console.log('🧹 Clearing existing dummy data...');
-  
   // Clear samples and test_cases
   db.prepare('DELETE FROM samples').run();
   db.prepare('DELETE FROM test_cases').run();
   
-  console.log('✅ Existing data cleared');
-}
+  }
 
 function generateDummyData() {
-  console.log('🔄 Generating new dummy data with proper format...');
-  
   let currentLabNumber = 1;
   let currentKit = 71; // Starting at BN-0071
   
@@ -181,11 +176,9 @@ function generateDummyData() {
     
     currentKit++;
     
-    console.log(`📦 Generated kit ${kitNumber} with ${hasMother ? 3 : 2} samples`);
-  }
+    }
   
-  console.log(`✅ Generated ${currentLabNumber - 1} samples across ${currentKit - 71} kits`);
-}
+  }
 
 function createSample(sampleData) {
   const stmt = db.prepare(`
@@ -229,21 +222,15 @@ try {
   const sampleCount = db.prepare('SELECT COUNT(*) as count FROM samples').get();
   const caseCount = db.prepare('SELECT COUNT(*) as count FROM test_cases').get();
   
-  console.log(`\n📊 Summary:`);
-  console.log(`   - Total samples: ${sampleCount.count}`);
-  console.log(`   - Total cases/kits: ${caseCount.count}`);
-  console.log(`   - Lab numbers: 25_001 to 25_${sampleCount.count.toString().padStart(3, '0')}`);
+  .padStart(3, '0')}`);
   
   // Show some sample data
-  console.log(`\n📋 Sample data:`);
   const samples = db.prepare('SELECT lab_number, name, surname, relation, case_number FROM samples ORDER BY id LIMIT 10').all();
   samples.forEach(sample => {
-    console.log(`   ${sample.lab_number} - ${sample.name} ${sample.surname} (${sample.relation}) - ${sample.case_number}`);
+    - ${sample.case_number}`);
   });
   
-  console.log('\n🎉 Dummy data generation complete!');
-  
-} catch (error) {
+  } catch (error) {
   console.error('❌ Error generating dummy data:', error);
 } finally {
   db.close();

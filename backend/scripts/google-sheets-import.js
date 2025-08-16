@@ -10,8 +10,6 @@ const fs = require('fs');
 const dbPath = path.join(__dirname, '../database/ashley_lims.db');
 const db = new Database(dbPath);
 
-console.log('📊 Google Sheets Import Script for LabScientific LIMS');
-
 // Enable WAL mode for better performance
 db.pragma('journal_mode = WAL');
 
@@ -30,8 +28,6 @@ class GoogleSheetsImporter {
   }
 
   async authenticate() {
-    console.log('🔐 Authenticating with Google Sheets API...');
-    
     try {
       // Load service account key
       if (!fs.existsSync(this.serviceAccountKeyPath)) {
@@ -51,9 +47,6 @@ class GoogleSheetsImporter {
       this.doc = new GoogleSpreadsheet(this.spreadsheetId, this.serviceAccountAuth);
       
       await this.doc.loadInfo();
-      console.log(`   ✅ Connected to spreadsheet: ${this.doc.title}`);
-      console.log(`   📄 Available sheets: ${this.doc.sheetCount}`);
-      
       return true;
     } catch (error) {
       console.error('❌ Authentication failed:', error.message);
@@ -62,8 +55,6 @@ class GoogleSheetsImporter {
   }
 
   async getSheetData(sheetName = null, headerRow = 1) {
-    console.log(`📥 Reading sheet data...`);
-    
     try {
       // Get the first sheet or specified sheet
       const sheet = sheetName 
@@ -73,9 +64,6 @@ class GoogleSheetsImporter {
       if (!sheet) {
         throw new Error(`Sheet not found: ${sheetName || 'first sheet'}`);
       }
-      
-      console.log(`   📋 Reading from sheet: ${sheet.title}`);
-      console.log(`   📊 Rows: ${sheet.rowCount}, Columns: ${sheet.columnCount}`);
       
       // Load the sheet data
       await sheet.loadCells();
@@ -89,7 +77,7 @@ class GoogleSheetsImporter {
         }
       }
       
-      console.log(`   📑 Headers found: ${headers.join(', ')}`);
+      }`);
       
       // Get data rows
       const data = [];
@@ -110,7 +98,6 @@ class GoogleSheetsImporter {
         }
       }
       
-      console.log(`   ✅ Read ${data.length} data rows`);
       return { headers, data };
       
     } catch (error) {
@@ -120,8 +107,6 @@ class GoogleSheetsImporter {
   }
 
   normalizeColumnNames(data) {
-    console.log('🔄 Normalizing column names...');
-    
     const columnMap = {
       // Common variations for lab number
       'lab_number': 'lab_number',
@@ -217,8 +202,7 @@ function parseDate(dateStr) {
       return dateStr.substring(0, 10);
     }
   } catch (error) {
-    console.warn(`Date parsing failed for: ${dateStr}`);
-  }
+    }
   
   return null;
 }
@@ -267,8 +251,6 @@ function generateCaseNumber(kitNumber) {
 }
 
 function setupSequences(nextBNNumber = 121, nextLabNumber = 420) {
-  console.log(`\n🔧 Setting up sequence numbers...`);
-  
   try {
     // Set up BN sequence table
     const bnSequenceStmt = db.prepare(`
@@ -301,8 +283,8 @@ function setupSequences(nextBNNumber = 121, nextLabNumber = 420) {
     `);
     updateLabStmt.run(nextLabNumber, '25');
     
-    console.log(`   ✅ BN sequence set to start from BN-${nextBNNumber.toString().padStart(4, '0')}`);
-    console.log(`   ✅ Lab numbers will continue from 25_${nextLabNumber.toString().padStart(3, '0')}`);
+    .padStart(4, '0')}`);
+    .padStart(3, '0')}`);
     
   } catch (error) {
     console.error('❌ Sequence setup failed:', error.message);
@@ -311,8 +293,6 @@ function setupSequences(nextBNNumber = 121, nextLabNumber = 420) {
 }
 
 function importSheetsData(data) {
-  console.log('\n🚀 Starting Google Sheets import...');
-  
   // Begin transaction
   const importTransaction = db.transaction(() => {
     let importedSamples = 0;
@@ -339,8 +319,6 @@ function importSheetsData(data) {
     `);
     
     // First pass: Create test cases
-    console.log('🔄 Creating test cases...');
-    
     for (const row of data) {
       if (!row.lab_number || !row.kit_number) continue;
       
@@ -367,7 +345,7 @@ function importSheetsData(data) {
         
         if (result.changes > 0) {
           importedCases++;
-          console.log(`  ✅ Created case: ${caseNumber} (${row.kit_number})`);
+          `);
         }
         
         processedCases.add(caseNumber);
@@ -375,8 +353,6 @@ function importSheetsData(data) {
     }
     
     // Second pass: Insert samples
-    console.log('🔄 Importing samples...');
-    
     for (const row of data) {
       if (!row.lab_number) continue;
       
@@ -407,14 +383,11 @@ function importSheetsData(data) {
       
       if (result.changes > 0) {
         importedSamples++;
-        console.log(`  ✅ Imported: ${row.lab_number} - ${row.name || 'Patient'} ${row.surname || 'Unknown'} (${normalizedRelation}${gender ? ' ' + gender : ''})`);
+        `);
       }
     }
     
-    console.log(`\n📈 Import completed successfully!`);
-    console.log(`   📁 Cases created: ${importedCases}`);
-    console.log(`   🧪 Samples imported: ${importedSamples}`);
-  });
+    });
   
   try {
     importTransaction();
@@ -430,14 +403,6 @@ async function main() {
     const args = process.argv.slice(2);
     
     if (args.length < 2) {
-      console.log('📖 Usage:');
-      console.log('  node google-sheets-import.js <service-account-key.json> <spreadsheet-id> [sheet-name] [next-bn] [next-lab]');
-      console.log('  node google-sheets-import.js ./service-account.json 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms Sheet1 121 420');
-      console.log('\n📝 Setup:');
-      console.log('  1. Create a Google Cloud project');
-      console.log('  2. Enable Google Sheets API');
-      console.log('  3. Create a service account and download the key JSON file');
-      console.log('  4. Share your Google Sheet with the service account email');
       process.exit(1);
     }
     
@@ -452,10 +417,9 @@ async function main() {
       process.exit(1);
     }
     
-    console.log('🔍 Checking database connection...');
     const testQuery = db.prepare('SELECT COUNT(*) as count FROM sqlite_master WHERE type="table"');
     const result = testQuery.get();
-    console.log(`   ✅ Database connected (${result.count} tables found)`);
+    `);
     
     // Setup sequences
     setupSequences(nextBNNumber, nextLabNumber);
@@ -470,7 +434,6 @@ async function main() {
     const { headers, data } = await importer.getSheetData(sheetName);
     
     if (data.length === 0) {
-      console.log('⚠️  No data found in the sheet');
       process.exit(1);
     }
     
@@ -484,10 +447,6 @@ async function main() {
     const sampleCount = db.prepare('SELECT COUNT(*) as count FROM samples').get();
     const caseCount = db.prepare('SELECT COUNT(*) as count FROM test_cases').get();
     
-    console.log('\n📊 Current Database Status:');
-    console.log(`   🧪 Total Samples: ${sampleCount.count}`);
-    console.log(`   📁 Total Cases: ${caseCount.count}`);
-    
     // Show recent imports
     const recentSamples = db.prepare(`
       SELECT lab_number, name, surname, relation, workflow_status, lab_batch_number 
@@ -496,9 +455,8 @@ async function main() {
       LIMIT 10
     `).all();
     
-    console.log('\n🔍 Most Recent Samples:');
     recentSamples.forEach(sample => {
-      console.log(`   ${sample.lab_number}: ${sample.name} ${sample.surname} (${sample.relation}) [${sample.lab_batch_number}]`);
+      [${sample.lab_batch_number}]`);
     });
     
   } catch (error) {
@@ -507,8 +465,7 @@ async function main() {
   } finally {
     if (db) {
       db.close();
-      console.log('\n👋 Database connection closed. Import complete!');
-    }
+      }
   }
 }
 

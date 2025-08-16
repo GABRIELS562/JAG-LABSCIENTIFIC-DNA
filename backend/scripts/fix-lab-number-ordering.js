@@ -4,8 +4,6 @@ const db = require('../services/database');
 // Should be: Child (lowest number), Father (middle), Mother (highest)
 
 async function fixLabNumberOrdering() {
-  console.log('Starting lab number ordering fix...');
-  
   try {
     // Get all samples grouped by case
     const allSamples = db.getAllSamples();
@@ -21,7 +19,7 @@ async function fixLabNumberOrdering() {
       }
     });
     
-    console.log(`Found ${Object.keys(caseGroups).length} cases to process`);
+    .length} cases to process`);
     
     let fixedCases = 0;
     let totalSamplesUpdated = 0;
@@ -43,7 +41,6 @@ async function fixLabNumberOrdering() {
       const mother = samples.find(s => s.relation === 'Mother');
       
       if (!child || !father) {
-        console.log(`⚠️  Skipping ${caseNumber}: Missing child or father`);
         continue;
       }
       
@@ -68,16 +65,11 @@ async function fixLabNumberOrdering() {
       );
       
       if (!needsUpdate) {
-        console.log(`✅ ${caseNumber}: Already in correct order`);
         continue;
       }
       
-      console.log(`🔄 Fixing ${caseNumber}:`);
-      console.log(`   Child: ${child.lab_number} → ${newLabNumbers.child}`);
-      console.log(`   Father: ${father.lab_number} → ${newLabNumbers.father}`);
       if (mother) {
-        console.log(`   Mother: ${mother.lab_number} → ${newLabNumbers.mother}`);
-      }
+        }
       
       // Update lab numbers in database
       const updateStmt = db.db.prepare('UPDATE samples SET lab_number = ? WHERE id = ?');
@@ -91,18 +83,12 @@ async function fixLabNumberOrdering() {
         
         fixedCases++;
         totalSamplesUpdated += mother ? 3 : 2;
-        console.log(`✅ Updated ${caseNumber}`);
-        
-      } catch (error) {
+        } catch (error) {
         console.error(`❌ Error updating ${caseNumber}:`, error.message);
       }
     }
     
-    console.log(`\n🎉 Fix complete!`);
-    console.log(`📊 Fixed ${fixedCases} cases`);
-    console.log(`🔢 Updated ${totalSamplesUpdated} sample lab numbers`);
-    
-  } catch (error) {
+    } catch (error) {
     console.error('❌ Error during fix:', error);
   }
 }
@@ -110,7 +96,6 @@ async function fixLabNumberOrdering() {
 // Run the fix
 if (require.main === module) {
   fixLabNumberOrdering().then(() => {
-    console.log('Script completed');
     process.exit(0);
   }).catch(error => {
     console.error('Script failed:', error);

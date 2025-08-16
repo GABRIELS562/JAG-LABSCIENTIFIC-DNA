@@ -80,7 +80,6 @@ export const AuthProvider = ({ children }) => {
               clearAuth();
             }
           } catch (apiError) {
-            console.warn('Failed to verify token, will retry on next request:', apiError);
             // Keep existing auth state but log the issue
           }
         }
@@ -162,8 +161,7 @@ export const AuthProvider = ({ children }) => {
           });
         } catch (error) {
           // Even if logout endpoint fails, clear local state
-          console.warn('Logout endpoint failed, clearing local state:', error);
-        }
+          }
       }
     } catch (error) {
       console.error('Logout error:', error);

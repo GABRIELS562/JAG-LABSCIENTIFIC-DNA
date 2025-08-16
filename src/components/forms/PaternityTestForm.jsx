@@ -19,7 +19,9 @@ import {
   FormControlLabel,
   Card,
   CardContent,
-  IconButton
+  IconButton,
+  RadioGroup,
+  Radio
 } from '@mui/material';
 import { PhotoCamera, CloudUpload, Close, CameraAlt, AutoFixHigh } from '@mui/icons-material';
 import { createWorker } from 'tesseract.js';
@@ -70,12 +72,8 @@ const initialFormState = {
   motherPresent: 'NO',
   numberOfChildren: 1,
   
-  // Client type selection
-  clientType: {
-    paternity: false,
-    lt: false,
-    urgent: false
-  },
+  // Client type selection - single selection only
+  clientType: 'peace_of_mind', // peace_of_mind, legal, or urgent
   
   // File uploads for LT samples
   ltDocuments: {
@@ -156,7 +154,7 @@ const initialFormState = {
   // Legal and Consent Information
   consentType: 'paternity', // 'paternity' or 'legal'
   testPurpose: '',
-  sampleType: 'saliva',
+  sampleType: 'buccal_swab', // Default to buccal swab
   authorizedCollector: '',
   
   // Signatures
@@ -238,6 +236,8 @@ const FormProgress = ({ currentSection, sections }) => {
 };
 
 const FormSummary = ({ formData, onEdit }) => {
+  const sections = getSections(formData.numberOfChildren);
+  
   const renderPersonSection = (title, section, notAvailable) => {
     if (notAvailable) {
       return (
@@ -265,27 +265,72 @@ const FormSummary = ({ formData, onEdit }) => {
         <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
             <Typography variant="caption" color="text.secondary">Lab No</Typography>
-            <Typography variant="body1">{formData[section].labNo}</Typography>
+            <Typography variant="body1">{formData[section]?.labNo || ''}</Typography>
           </Grid>
           <Grid item xs={12} md={6}>
             <Typography variant="caption" color="text.secondary">Name</Typography>
-            <Typography variant="body1">{formData[section].name}</Typography>
+            <Typography variant="body1">{formData[section]?.name || ''}</Typography>
           </Grid>
           <Grid item xs={12} md={6}>
             <Typography variant="caption" color="text.secondary">Surname</Typography>
-            <Typography variant="body1">{formData[section].surname}</Typography>
+            <Typography variant="body1">{formData[section]?.surname || ''}</Typography>
           </Grid>
           <Grid item xs={12} md={6}>
-            <Typography variant="caption" color="text.secondary">ID/DOB</Typography>
-            <Typography variant="body1">{formData[section].idDob}</Typography>
+            <Typography variant="caption" color="text.secondary">ID Number</Typography>
+            <Typography variant="body1">{formData[section]?.idNumber || ''}</Typography>
           </Grid>
           <Grid item xs={12} md={6}>
             <Typography variant="caption" color="text.secondary">Date of Birth</Typography>
-            <Typography variant="body1">{formData[section].dateOfBirth}</Typography>
+            <Typography variant="body1">{formData[section]?.dateOfBirth || ''}</Typography>
           </Grid>
           <Grid item xs={12} md={6}>
             <Typography variant="caption" color="text.secondary">Collection Date</Typography>
-            <Typography variant="body1">{formData[section].collectionDate}</Typography>
+            <Typography variant="body1">{formData[section]?.collectionDate || ''}</Typography>
+          </Grid>
+        </Grid>
+      </Paper>
+    );
+  };
+  
+  const renderChildSection = (title, child, index) => {
+    return (
+      <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h6">
+            {title}
+          </Typography>
+          <Button 
+            size="small" 
+            onClick={() => onEdit(3 + index)}
+            sx={{ color: '#8EC74F' }}
+          >
+            Edit
+          </Button>
+        </Box>
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={6}>
+            <Typography variant="caption" color="text.secondary">Lab No</Typography>
+            <Typography variant="body1">{child?.labNo || ''}</Typography>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Typography variant="caption" color="text.secondary">Name</Typography>
+            <Typography variant="body1">{child?.name || ''}</Typography>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Typography variant="caption" color="text.secondary">Surname</Typography>
+            <Typography variant="body1">{child?.surname || ''}</Typography>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Typography variant="caption" color="text.secondary">ID Number</Typography>
+            <Typography variant="body1">{child?.idNumber || ''}</Typography>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Typography variant="caption" color="text.secondary">Date of Birth</Typography>
+            <Typography variant="body1">{child?.dateOfBirth || ''}</Typography>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Typography variant="caption" color="text.secondary">Collection Date</Typography>
+            <Typography variant="body1">{child?.collectionDate || ''}</Typography>
           </Grid>
         </Grid>
       </Paper>
@@ -326,8 +371,13 @@ const FormSummary = ({ formData, onEdit }) => {
       {/* Father Information */}
       {renderPersonSection('👨 Father Information', 'father', formData.fatherNotAvailable)}
 
-      {/* Child Information */}
-      {renderPersonSection('👶 Child Information', 'additionalInfo', formData.additionalInfoNotAvailable)}
+      {/* Children Information */}
+      {formData.children && formData.children.map((child, index) => {
+        const childTitle = formData.numberOfChildren === 1 
+          ? '👶 Child Information' 
+          : `👶 Child ${index + 1} Information`;
+        return <div key={`child-${index}`}>{renderChildSection(childTitle, child, index)}</div>;
+      })}
 
       {/* Contact Information */}
       <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
@@ -337,7 +387,7 @@ const FormSummary = ({ formData, onEdit }) => {
           </Typography>
           <Button 
             size="small" 
-            onClick={() => onEdit(4)}
+            onClick={() => onEdit(3 + formData.numberOfChildren)}
             sx={{ color: '#8EC74F' }}
           >
             Edit
@@ -728,11 +778,9 @@ export default function PaternityTestForm({ onSuccess }) {
 
       // Apply global form data if detected
       if (extractedData.formType === 'legal') {
-        newState.clientType.lt = true;
-        newState.clientType.paternity = false;
+        newState.clientType = 'legal';
       } else if (extractedData.formType === 'paternity') {
-        newState.clientType.paternity = true;
-        newState.clientType.lt = false;
+        newState.clientType = 'peace_of_mind';
       }
 
       if (extractedData.testPurpose) {
@@ -830,7 +878,7 @@ export default function PaternityTestForm({ onSuccess }) {
     }
   };
 
-  const generateLabNumbers = async (numberOfChildren = 1, clientType = 'paternity') => {
+  const generateLabNumbers = async (numberOfChildren = 1, clientType = 'peace_of_mind') => {
     try {
       // Get the next sequence of lab numbers from backend
       const response = await fetch('/api/get-last-lab-number');
@@ -895,7 +943,7 @@ export default function PaternityTestForm({ onSuccess }) {
   useEffect(() => {
     const initializeLabNumbers = async () => {
       try {
-        const clientType = formData.clientType.lt ? 'legal' : 'paternity';
+        const clientType = formData.clientType === 'legal' ? 'legal' : 'peace_of_mind';
         const { motherLabNo, fatherLabNo, childrenLabNos } = await generateLabNumbers(formData.numberOfChildren, clientType);
         
         setFormData(prevState => ({
@@ -917,7 +965,7 @@ export default function PaternityTestForm({ onSuccess }) {
     };
 
     initializeLabNumbers();
-  }, [formData.clientType.lt, formData.numberOfChildren]);
+  }, [formData.clientType, formData.numberOfChildren]);
 
   useEffect(() => {
     const savedForm = localStorage.getItem('paternityFormData');
@@ -1048,6 +1096,7 @@ export default function PaternityTestForm({ onSuccess }) {
 
   const renderChildSection = (title, childIndex, disabled = false) => {
     const child = formData.children[childIndex];
+    const isPeaceOfMind = formData.clientType === 'peace_of_mind' || formData.testPurpose === 'peace_of_mind';
     
     return (
       <Box>
@@ -1101,12 +1150,12 @@ export default function PaternityTestForm({ onSuccess }) {
 
           <Grid item xs={12} md={6}>
             <DateDropdown
-              label="Date of Birth"
+              label={`Date of Birth${isPeaceOfMind ? '' : ' *'}`}
               name="dateOfBirth"
               value={child.dateOfBirth || ''}
               onChange={(value) => handleChildChange(childIndex, 'dateOfBirth', value)}
               disabled={disabled}
-              required
+              required={!isPeaceOfMind}
               error={!!errors[`child${childIndex}.dateOfBirth`]}
               helperText={errors[`child${childIndex}.dateOfBirth`]}
             />
@@ -1114,7 +1163,7 @@ export default function PaternityTestForm({ onSuccess }) {
 
           <Grid item xs={12} md={6}>
             <FormControl fullWidth disabled={disabled}>
-              <InputLabel>Place of Birth</InputLabel>
+              <InputLabel>Place of Birth{isPeaceOfMind ? '' : ' *'}</InputLabel>
               <Select
                 name="placeOfBirth"
                 value={child.placeOfBirth || ''}
@@ -1185,12 +1234,12 @@ export default function PaternityTestForm({ onSuccess }) {
           <Grid item xs={12} md={6}>
             <TextField
               fullWidth
-              label="ID Number"
+              label={`ID Number${isPeaceOfMind ? '' : ' *'}`}
               name="idNumber"
               value={child.idNumber || ''}
               onChange={(e) => handleChildChange(childIndex, 'idNumber', e.target.value)}
               disabled={disabled}
-              required
+              required={!isPeaceOfMind}
               error={!!errors[`child${childIndex}.idNumber`]}
               helperText={errors[`child${childIndex}.idNumber`]}
             />
@@ -1200,10 +1249,10 @@ export default function PaternityTestForm({ onSuccess }) {
             <FormControl 
               fullWidth 
               disabled={disabled} 
-              required
+              required={!isPeaceOfMind}
               error={!!errors[`child${childIndex}.idType`]}
             >
-              <InputLabel>ID Type</InputLabel>
+              <InputLabel>ID Type{isPeaceOfMind ? '' : ' *'}</InputLabel>
               <Select
                 name="idType"
                 value={child.idType || ''}
@@ -1244,11 +1293,14 @@ export default function PaternityTestForm({ onSuccess }) {
 
           <Grid item xs={12} md={6}>
             <DateDropdown
-              label="Collection Date"
+              label="Collection Date *"
               name="collectionDate"
               value={child.collectionDate || ''}
               onChange={(value) => handleChildChange(childIndex, 'collectionDate', value)}
               disabled={disabled}
+              required
+              error={!!errors[`child${childIndex}.collectionDate`]}
+              helperText={errors[`child${childIndex}.collectionDate`]}
             />
           </Grid>
 
@@ -1273,24 +1325,44 @@ export default function PaternityTestForm({ onSuccess }) {
 
   const renderSection = (title, section, disabled = false) => {
     const isNotAvailable = formData[`${section}NotAvailable`];
+    const isPeaceOfMind = formData.clientType === 'peace_of_mind' || formData.testPurpose === 'peace_of_mind';
     
     return (
       <Box>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6" sx={{ color: '#0D488F', fontWeight: 'bold' }}>
-            {title}
-          </Typography>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={isNotAvailable}
-                onChange={() => handleSectionToggle(section)}
-                name={`${section}NotAvailable`}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography variant="h6" sx={{ color: '#0D488F', fontWeight: 'bold' }}>
+              {title}
+            </Typography>
+            {/* Show checkbox on top left for mother information in Peace of Mind */}
+            {isPeaceOfMind && section === 'mother' && (
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={isNotAvailable}
+                    onChange={() => handleSectionToggle(section)}
+                    name={`${section}NotAvailable`}
+                  />
+                }
+                label="Mother information"
+                sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.875rem', color: 'text.secondary' } }}
               />
-            }
-            label={`${title} NOT AVAILABLE`}
-            sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.875rem', color: 'text.secondary' } }}
-          />
+            )}
+          </Box>
+          {/* Show top right checkbox for non-Peace of Mind or non-mother sections */}
+          {!(isPeaceOfMind && section === 'mother') && (
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={isNotAvailable}
+                  onChange={() => handleSectionToggle(section)}
+                  name={`${section}NotAvailable`}
+                />
+              }
+              label={`${title} NOT AVAILABLE`}
+              sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.875rem', color: 'text.secondary' } }}
+            />
+          )}
         </Box>
 
         <PhotoUploadComponent sectionTitle={title} />
@@ -1481,11 +1553,14 @@ export default function PaternityTestForm({ onSuccess }) {
 
             <Grid item xs={12} md={6}>
               <DateDropdown
-                label="Collection Date"
+                label="Collection Date *"
                 name="collectionDate"
                 value={formData[section].collectionDate || ''}
                 onChange={(value) => handleChange(section, 'collectionDate', value)}
                 disabled={disabled}
+                required
+                error={!!errors[`${section}.collectionDate`]}
+                helperText={errors[`${section}.collectionDate`]}
               />
             </Grid>
 
@@ -1549,8 +1624,8 @@ export default function PaternityTestForm({ onSuccess }) {
                   }));
                 }}
                 value={formData.signatures?.[section === 'additionalInfo' ? 'child' : section]}
-                required={formData.clientType.lt}
-                legalBinding={formData.clientType.lt}
+                required={formData.clientType === 'legal'}
+                legalBinding={formData.clientType === 'legal'}
                 disabled={disabled}
                 touchEnabled={true}
                 responsive={true}
@@ -1568,10 +1643,7 @@ export default function PaternityTestForm({ onSuccess }) {
     
     try {
       // Determine client type
-      let clientType = 'paternity';
-      if (formData.clientType.lt) {
-        clientType = 'legal';
-      }
+      let clientType = formData.clientType || 'peace_of_mind';
 
       // Format data for backend including new fields - support multiple children
       const childrenRows = formData.children.map((child, index) => ({
@@ -1603,9 +1675,9 @@ export default function PaternityTestForm({ onSuccess }) {
         motherRow,
         clientType,
         signatures: formData.signatures,
-        witness: formData.clientType.lt ? formData.witness : null,
+        witness: formData.clientType === 'legal' ? formData.witness : null,
         legalDeclarations: formData.legalDeclarations,
-        consentType: formData.clientType.lt ? 'legal' : 'paternity',
+        consentType: formData.clientType === 'legal' ? 'legal' : 'paternity',
         numberOfChildren: formData.numberOfChildren
       };
 
@@ -1691,7 +1763,6 @@ export default function PaternityTestForm({ onSuccess }) {
       setErrors({});
     } else {
       setErrors(sectionErrors);
-      console.log('Validation errors:', sectionErrors);
       // Show snackbar with validation errors
       setSnackbar({
         open: true,
@@ -1728,21 +1799,33 @@ export default function PaternityTestForm({ onSuccess }) {
         
       case 1: // Mother Information
         if (!formData.motherNotAvailable) {
+          const isPeaceOfMind = formData.clientType === 'peace_of_mind' || formData.testPurpose === 'peace_of_mind';
           if (!formData.mother.name.trim()) errors['mother.name'] = 'Name is required';
           if (!formData.mother.surname.trim()) errors['mother.surname'] = 'Surname is required';
-          if (!formData.mother.dateOfBirth) errors['mother.dateOfBirth'] = 'Date of Birth is required';
-          if (!formData.mother.idNumber.trim()) errors['mother.idNumber'] = 'ID Number is required';
-          if (!formData.mother.idType.trim()) errors['mother.idType'] = 'ID Type is required';
+          if (!formData.mother.collectionDate) errors['mother.collectionDate'] = 'Collection Date is required';
+          
+          // Only require these fields if NOT Peace of Mind
+          if (!isPeaceOfMind) {
+            if (!formData.mother.dateOfBirth) errors['mother.dateOfBirth'] = 'Date of Birth is required';
+            if (!formData.mother.idNumber.trim()) errors['mother.idNumber'] = 'ID Number is required';
+            if (!formData.mother.idType.trim()) errors['mother.idType'] = 'ID Type is required';
+          }
         }
         break;
         
       case 2: // Father Information
         if (!formData.fatherNotAvailable) {
+          const isPeaceOfMind = formData.clientType === 'peace_of_mind' || formData.testPurpose === 'peace_of_mind';
           if (!formData.father.name.trim()) errors['father.name'] = 'Name is required';
           if (!formData.father.surname.trim()) errors['father.surname'] = 'Surname is required';
-          if (!formData.father.dateOfBirth) errors['father.dateOfBirth'] = 'Date of Birth is required';
-          if (!formData.father.idNumber.trim()) errors['father.idNumber'] = 'ID Number is required';
-          if (!formData.father.idType.trim()) errors['father.idType'] = 'ID Type is required';
+          if (!formData.father.collectionDate) errors['father.collectionDate'] = 'Collection Date is required';
+          
+          // Only require these fields if NOT Peace of Mind
+          if (!isPeaceOfMind) {
+            if (!formData.father.dateOfBirth) errors['father.dateOfBirth'] = 'Date of Birth is required';
+            if (!formData.father.idNumber.trim()) errors['father.idNumber'] = 'ID Number is required';
+            if (!formData.father.idType.trim()) errors['father.idType'] = 'ID Type is required';
+          }
         }
         break;
         
@@ -1752,11 +1835,17 @@ export default function PaternityTestForm({ onSuccess }) {
           const childIndex = sectionIndex - 3;
           if (formData.children[childIndex]) {
             const child = formData.children[childIndex];
+            const isPeaceOfMind = formData.clientType === 'peace_of_mind' || formData.testPurpose === 'peace_of_mind';
             if (!child.name.trim()) errors[`child${childIndex}.name`] = 'Name is required';
             if (!child.surname.trim()) errors[`child${childIndex}.surname`] = 'Surname is required';
-            if (!child.dateOfBirth) errors[`child${childIndex}.dateOfBirth`] = 'Date of Birth is required';
-            if (!child.idNumber.trim()) errors[`child${childIndex}.idNumber`] = 'ID Number is required';
-            if (!child.idType.trim()) errors[`child${childIndex}.idType`] = 'ID Type is required';
+            if (!child.collectionDate) errors[`child${childIndex}.collectionDate`] = 'Collection Date is required';
+            
+            // Only require these fields if NOT Peace of Mind
+            if (!isPeaceOfMind) {
+              if (!child.dateOfBirth) errors[`child${childIndex}.dateOfBirth`] = 'Date of Birth is required';
+              if (!child.idNumber.trim()) errors[`child${childIndex}.idNumber`] = 'ID Number is required';
+              if (!child.idType.trim()) errors[`child${childIndex}.idType`] = 'ID Type is required';
+            }
           }
         }
         // Contact Information
@@ -1793,60 +1882,47 @@ export default function PaternityTestForm({ onSuccess }) {
               <Typography variant="h6" sx={{ mb: 2, color: '#0D488F' }}>
                 Client Type
               </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={4}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.clientType.paternity}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          clientType: { ...prev.clientType, paternity: e.target.checked }
-                        }))}
-                        sx={{ color: '#0D488F', '&.Mui-checked': { color: '#0D488F' } }}
+              <FormControl component="fieldset">
+                <RadioGroup
+                  row
+                  value={formData.clientType}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    clientType: e.target.value
+                  }))}
+                >
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} md={4}>
+                      <FormControlLabel
+                        value="peace_of_mind"
+                        control={<Radio sx={{ color: '#0D488F', '&.Mui-checked': { color: '#0D488F' } }} />}
+                        label="Peace of Mind"
+                        sx={{ '& .MuiFormControlLabel-label': { fontWeight: 500 } }}
                       />
-                    }
-                    label="Peace of Mind Samples"
-                    sx={{ '& .MuiFormControlLabel-label': { fontWeight: 500 } }}
-                  />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.clientType.lt}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          clientType: { ...prev.clientType, lt: e.target.checked }
-                        }))}
-                        sx={{ color: '#0D488F', '&.Mui-checked': { color: '#0D488F' } }}
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <FormControlLabel
+                        value="legal"
+                        control={<Radio sx={{ color: '#0D488F', '&.Mui-checked': { color: '#0D488F' } }} />}
+                        label="Legal (requires ID copies)"
+                        sx={{ '& .MuiFormControlLabel-label': { fontWeight: 500 } }}
                       />
-                    }
-                    label="LT (Legal - requires ID copies)"
-                    sx={{ '& .MuiFormControlLabel-label': { fontWeight: 500 } }}
-                  />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.clientType.urgent}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          clientType: { ...prev.clientType, urgent: e.target.checked }
-                        }))}
-                        sx={{ color: '#0D488F', '&.Mui-checked': { color: '#0D488F' } }}
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <FormControlLabel
+                        value="urgent"
+                        control={<Radio sx={{ color: '#0D488F', '&.Mui-checked': { color: '#0D488F' } }} />}
+                        label="Urgent"
+                        sx={{ '& .MuiFormControlLabel-label': { fontWeight: 500 } }}
                       />
-                    }
-                    label="Urgent Samples"
-                    sx={{ '& .MuiFormControlLabel-label': { fontWeight: 500 } }}
-                  />
-                </Grid>
-              </Grid>
+                    </Grid>
+                  </Grid>
+                </RadioGroup>
+              </FormControl>
             </Box>
             
-            {/* ID Upload Section for LT samples */}
-            {formData.clientType.lt && (
+            {/* ID Upload Section for Legal samples */}
+            {formData.clientType === 'legal' && (
               <Box sx={{ mb: 4, p: 3, border: '2px solid #ff9800', borderRadius: 2, bgcolor: '#fff3e0' }}>
                 <Typography variant="h6" sx={{ mb: 2, color: '#f57c00', display: 'flex', alignItems: 'center' }}>
                   <CloudUpload sx={{ mr: 1 }} />
@@ -2212,7 +2288,7 @@ export default function PaternityTestForm({ onSuccess }) {
                         label="I agree to be notified of the test results via the contact information provided."
                       />
                     </Grid>
-                    {formData.clientType.lt && (
+                    {formData.clientType === 'legal' && (
                       <Grid item xs={12}>
                         <FormControlLabel
                           control={
@@ -2290,7 +2366,7 @@ export default function PaternityTestForm({ onSuccess }) {
             return (
               // Witness Information (only for legal testing)
               <Box>
-                {formData.clientType.lt ? (
+                {formData.clientType === 'legal' ? (
                   <WitnessSection
                     witnessData={formData.witness}
                     onWitnessChange={(witnessData) => setFormData(prev => ({

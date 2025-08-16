@@ -9,12 +9,8 @@ const db = require('../services/database');
 const { appendRows, SHEETS, setupSheetStructure } = require('../services/spreadsheets');
 
 async function seedGoogleSheets() {
-  console.log('🌱 Seeding Google Sheets with dummy data from SQLite...\n');
-
   try {
     // Skip sheet structure setup for now - assume sheets exist
-    console.log('📋 Using existing Google Sheets structure...');
-
     // Get all data from SQLite
     const samples = db.getAllSamples();
     const batches = db.getAllBatches();
@@ -22,15 +18,7 @@ async function seedGoogleSheets() {
     const equipment = db.getAllEquipment();
     const testCases = db.getAllTestCases();
 
-    console.log(`📊 Retrieved data from SQLite:`);
-    console.log(`   • ${samples.length} samples`);
-    console.log(`   • ${batches.length} batches`);
-    console.log(`   • ${qcRecords.length} QC records`);
-    console.log(`   • ${equipment.length} equipment items`);
-    console.log(`   • ${testCases.length} test cases\n`);
-
     // 1. Populate Main Data Sheet with samples
-    console.log('📝 Adding samples to Main Data sheet...');
     const sampleRows = samples.map(sample => [
       sample.lab_number,                    // Lab No
       sample.name,                          // Name
@@ -51,10 +39,7 @@ async function seedGoogleSheets() {
     ]);
 
     await appendRows('MAIN', SHEETS.MAIN_DATA.name, sampleRows);
-    console.log(`✅ Added ${sampleRows.length} sample records to Main Data sheet`);
-
     // 2. Populate Batch Data Sheets
-    console.log('🧪 Adding batch data to Batch Data sheets...');
     let batchCount = 0;
     
     for (const batch of batches) {
@@ -91,10 +76,8 @@ async function seedGoogleSheets() {
           ]);
 
           await appendRows('BATCH', SHEETS.BATCH_DATA.name, wellRows);
-          console.log(`✅ Added batch ${batch.batch_number} with ${wellAssignments.length} well assignments`);
-        } else {
-          console.log(`⚠️ No well assignments found for batch ${batch.batch_number}`);
-        }
+          } else {
+          }
         
         batchCount++;
       } catch (error) {
@@ -103,7 +86,6 @@ async function seedGoogleSheets() {
     }
 
     // 3. Add Quality Control Data (if QC sheet exists)
-    console.log('🔬 Adding Quality Control data...');
     try {
       // Create QC data rows
       const qcRows = qcRecords.map(qc => [
@@ -121,13 +103,11 @@ async function seedGoogleSheets() {
       
       // Then add data
       await appendRows('MAIN', SHEETS.QC_DATA.name, qcRows);
-      console.log(`✅ Added ${qcRows.length} QC records`);
-    } catch (error) {
-      console.warn(`⚠️ Could not add QC data (sheet may not exist): ${error.message}`);
+      } catch (error) {
+      : ${error.message}`);
     }
 
     // 4. Add Equipment Data (if Equipment sheet exists)
-    console.log('⚙️ Adding Equipment data...');
     try {
       // Create equipment data rows
       const equipmentRows = equipment.map(eq => [
@@ -144,17 +124,12 @@ async function seedGoogleSheets() {
       
       // Then add data
       await appendRows('MAIN', SHEETS.EQUIPMENT_DATA.name, equipmentRows);
-      console.log(`✅ Added ${equipmentRows.length} equipment records`);
-    } catch (error) {
-      console.warn(`⚠️ Could not add equipment data (sheet may not exist): ${error.message}`);
+      } catch (error) {
+      : ${error.message}`);
     }
 
-    console.log('\n🎉 Google Sheets seeding completed successfully!');
-    console.log('\n📊 Summary:');
-    console.log(`   • ${sampleRows.length} Sample records added to Main Data sheet`);
-    console.log(`   • ${batchCount} Batch records processed`);
-    console.log(`   • ${qcRecords.length} QC records added (if sheet exists)`);
-    console.log(`   • ${equipment.length} Equipment records added (if sheet exists)`);
+    `);
+    `);
 
     return {
       samples: sampleRows.length,
@@ -173,8 +148,6 @@ async function seedGoogleSheets() {
 if (require.main === module) {
   seedGoogleSheets()
     .then((summary) => {
-      console.log('\n✅ Google Sheets seeding completed successfully!');
-      console.log('Summary:', summary);
       process.exit(0);
     })
     .catch((error) => {

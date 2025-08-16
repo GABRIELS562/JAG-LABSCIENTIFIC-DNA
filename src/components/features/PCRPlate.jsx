@@ -42,7 +42,7 @@ const API_BASE = '';
 const PCRPlate = () => {
   const navigate = useNavigate();
   const theme = useTheme();
-  const isDarkMode = theme.palette.mode === 'dark';
+  const isDarkMode = theme?.palette?.mode === 'dark' || false;
   
   // Responsive detection - temporarily disabled
   const isMobile = false;
@@ -690,17 +690,10 @@ const PCRPlate = () => {
       };
 
       // Add comprehensive logging
-      console.log('🔍 PCR Plate - Starting batch finalization');
-      console.log('📊 Batch data:', {
-        batchNumber,
-        analyst,
-        sampleCount: getPlacedSamplesCount(),
+      ,
         wellCount: Object.keys(transformedWells).length,
         date: batchData.date
       });
-      console.log('[DEBUG] Wells data:', transformedWells);
-      console.log('[API] URL:', '/api/generate-batch');
-
       // Call the API to generate the batch
       const authToken = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
       const headers = {
@@ -712,20 +705,14 @@ const PCRPlate = () => {
         headers['Authorization'] = `Bearer ${authToken}`;
       }
       
-      console.log('📤 Sending request to backend...');
       const response = await fetch('/api/generate-batch', {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(batchData)
       });
       
-      console.log('📥 Response status:', response.status);
-      console.log('📥 Response ok:', response.ok);
-
       if (response.ok) {
         const result = await response.json();
-        console.log('✅ Success response:', result);
-        
         // Update sample status to 'pcr_batched' in the database
         const sampleIds = Object.values(plateData)
           .filter(well => well.samples && well.samples.length > 0)
@@ -744,8 +731,7 @@ const PCRPlate = () => {
               })
             });
           } catch (error) {
-            console.warn('Failed to update sample status:', error);
-          }
+            }
         }
         
         // Store samples for electrophoresis
@@ -789,7 +775,6 @@ const PCRPlate = () => {
         }, 2000);
       } else {
         const error = await response.json();
-        console.log('❌ Error response:', error);
         setSnackbar({
           open: true,
           message: `Error finalizing batch: ${error.error || 'Unknown error'}`,

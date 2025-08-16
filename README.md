@@ -18,7 +18,7 @@ A comprehensive Laboratory Information Management System designed for forensic a
 - **Chain of Custody**: Full audit trail and compliance tracking
 
 ### **🧬 Genetic Analysis Integration**
-- **Osiris Integration**: Direct integration with OSIRIS genetic analysis software
+- **GeneMapper Integration**: Compatible with Applied Biosystems GeneMapper software
 - **STR Analysis**: Support for major STR kits (Identifiler Plus, PowerPlex Fusion, GlobalFiler)
 - **Automated Results**: Streamlined analysis workflow with automated data processing
 - **Visual Analytics**: Executive-level dashboards and reporting
@@ -49,7 +49,7 @@ A comprehensive Laboratory Information Management System designed for forensic a
 - **ACID compliance**: Data integrity guarantees
 
 ### **External Integrations**
-- **OSIRIS**: Genetic analysis software
+- **GeneMapper**: Genetic analysis software compatibility
 - **Google Sheets**: Data backup and sharing
 - **PDF Generation**: Automated reporting
 
@@ -65,7 +65,7 @@ A comprehensive Laboratory Information Management System designed for forensic a
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                                 │
                        ┌─────────────────┐
-                       │ Osiris Software │
+                       │ GeneMapper Software │
                        │                 │
                        │ • STR Analysis  │
                        │ • FSA Processing│
@@ -78,7 +78,7 @@ A comprehensive Laboratory Information Management System designed for forensic a
 ### **Prerequisites**
 - Node.js 18+ 
 - npm or yarn
-- OSIRIS 2.16+ (for genetic analysis)
+- GeneMapper software (for genetic analysis)
 
 ### **Installation**
 
@@ -117,7 +117,7 @@ npm run dev
    - Monitor quality metrics
 
 3. **Genetic Analysis**
-   - Launch Osiris integration
+   - Import GeneMapper data
    - Configure analysis parameters
    - Review results and generate reports
 
@@ -177,7 +177,7 @@ PUT    /api/samples/:id
 # Genetic Analysis  
 GET    /api/genetic-analysis/cases
 POST   /api/genetic-analysis/upload
-POST   /api/genetic-analysis/launch-osiris
+POST   /api/genetic-analysis/import-genemapper
 
 # Reporting
 GET    /api/reports
@@ -202,7 +202,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Full-Stack Development**: React + Node.js + SQLite
 - **Complex Domain Logic**: Laboratory workflow management
-- **External Integrations**: OSIRIS genetic analysis software
+- **External Integrations**: GeneMapper software compatibility
 - **Modern UI/UX**: Material Design with dark/light modes
 - **Performance Optimization**: Memoization, lazy loading, efficient queries
 - **Production-Ready**: Error handling, logging, monitoring

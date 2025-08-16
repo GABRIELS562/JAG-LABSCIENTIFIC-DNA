@@ -2,8 +2,6 @@ const db = require('../services/database');
 const GeneticTestDataGenerator = require('../utils/generateTestData');
 
 async function loadTestData() {
-  console.log('🧬 Loading genetic analysis test data...');
-  
   try {
     const generator = new GeneticTestDataGenerator();
     
@@ -16,12 +14,8 @@ async function loadTestData() {
       generator.generateInclusionCase('PAT-2025-005')
     ];
 
-    console.log(`Generated ${testCases.length} test cases`);
-
     // Load test cases into database
     for (const testCase of testCases) {
-      console.log(`Loading case: ${testCase.caseId}`);
-      
       // Create genetic case
       const caseResult = db.createGeneticCase({
         caseId: testCase.caseId,
@@ -29,8 +23,6 @@ async function loadTestData() {
         priority: 'normal',
         notes: `Test case - ${testCase.scenario} scenario`
       });
-
-      console.log(`  ✅ Created case: ${testCase.caseId}`);
 
       // Create samples for each profile
       for (const [sampleType, profile] of Object.entries(testCase.profiles)) {
@@ -50,7 +42,7 @@ async function loadTestData() {
           kit: 'PowerPlex_ESX_17'
         });
 
-        console.log(`    ✅ Created sample: ${sampleId} (${adjustedSampleType})`);
+        `);
 
         // Create STR profiles
         for (const [locus, data] of Object.entries(profile)) {
@@ -64,7 +56,7 @@ async function loadTestData() {
           });
         }
 
-        console.log(`      ✅ Created STR profile with ${Object.keys(profile).length} loci`);
+        .length} loci`);
 
         // Add file audit
         db.addGeneticFileAudit({
@@ -96,7 +88,7 @@ async function loadTestData() {
         };
 
         const analysisResult = db.createGeneticAnalysisResult(resultData);
-        console.log(`    ✅ Created analysis result: inclusion (${testCase.expectedProbability}%)`);
+        `);
 
         // Create loci comparisons
         const father = testCase.profiles.father;
@@ -120,26 +112,18 @@ async function loadTestData() {
         // Update case status
         db.updateGeneticCaseStatus(testCase.caseId, 'analysis_complete');
         
-        console.log(`      ✅ Created ${Object.keys(father).length} loci comparisons`);
+        .length} loci comparisons`);
       }
 
-      console.log(`✅ Completed loading case: ${testCase.caseId}\n`);
-    }
+      }
 
     // Add some cases to Osiris queue for testing
     db.addToOsirisQueue('PAT-2025-004', 5); // Inconclusive case pending
-    console.log('✅ Added PAT-2025-004 to analysis queue');
-
-    console.log('🎉 Test data loading completed successfully!');
-    console.log(`📊 Loaded ${testCases.length} cases with samples and STR profiles`);
-    
     // Print summary
     const allCases = db.getAllGeneticCases();
-    console.log(`\n📈 Database Summary:`);
-    console.log(`   Cases: ${allCases.length}`);
-    console.log(`   Completed: ${allCases.filter(c => c.status === 'analysis_complete').length}`);
-    console.log(`   Pending: ${allCases.filter(c => c.status === 'pending').length}`);
-    console.log(`   Inclusions: ${allCases.filter(c => c.conclusion === 'inclusion').length}`);
+    .length}`);
+    .length}`);
+    .length}`);
 
   } catch (error) {
     console.error('❌ Error loading test data:', error);
@@ -151,7 +135,6 @@ async function loadTestData() {
 if (require.main === module) {
   loadTestData()
     .then(() => {
-      console.log('\n✅ Test data loading complete!');
       process.exit(0);
     })
     .catch((error) => {

@@ -79,26 +79,6 @@ const AnalysisSummary = () => {
   const getAllSavedBatches = () => {
     const batches = [];
     
-    // Get Osiris batches
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key.startsWith('osiris_batch_') || key === 'osiris_latest_results') {
-        try {
-          const data = JSON.parse(localStorage.getItem(key));
-          batches.push({
-            id: key,
-            type: 'Osiris',
-            name: data.caseId || `Osiris Analysis ${key.split('_').pop()}`,
-            timestamp: data.timestamp || new Date().toISOString(),
-            sampleCount: data.samples?.length || 0,
-            status: data.conclusion || 'Completed',
-            data: data
-          });
-        } catch (error) {
-          console.warn(`Failed to parse batch ${key}:`, error);
-        }
-      }
-    }
     
     // Get GeneMapper batches
     for (let i = 0; i < localStorage.length; i++) {
@@ -116,8 +96,7 @@ const AnalysisSummary = () => {
             data: data
           });
         } catch (error) {
-          console.warn(`Failed to parse batch ${key}:`, error);
-        }
+          }
       }
     }
     
@@ -323,8 +302,6 @@ const AnalysisSummary = () => {
   const fetchAnalysisResults = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('🔍 Fetching analysis results...');
-      
       // Load all available batches first
       const batches = getAllSavedBatches();
       setAvailableBatches(batches);
@@ -353,7 +330,6 @@ const AnalysisSummary = () => {
       if (storedGeneMapperResults) {
         const geneMapperData = JSON.parse(storedGeneMapperResults);
         if (geneMapperData.timestamp && new Date(geneMapperData.timestamp) > new Date(Date.now() - 24*60*60*1000)) {
-          console.log('🧬 Loading fresh GeneMapper results');
           setSummaryData({
             ...geneMapperData,
             softwareType: 'GeneMapper',
@@ -371,8 +347,6 @@ const AnalysisSummary = () => {
       if (storedOsirisResults) {
         const osirisData = JSON.parse(storedOsirisResults);
         if (osirisData.timestamp && new Date(osirisData.timestamp) > new Date(Date.now() - 24*60*60*1000)) {
-          console.log('🧬 Loading fresh Osiris results');
-          
           try {
             const parsedOsiris = parseOsirisResults(osirisData.results);
             if (parsedOsiris) {
@@ -405,7 +379,7 @@ const AnalysisSummary = () => {
         const geneMapperData = await geneMapperResponse.value.json();
         if (geneMapperData.success) {
           analysisData = { ...geneMapperData, softwareType: 'GeneMapper' };
-          console.log(`📊 GeneMapper data loaded: ${geneMapperData.source} (Real data: ${geneMapperData.isRealData})`);
+          `);
         }
       }
       
@@ -414,8 +388,7 @@ const AnalysisSummary = () => {
         const osirisData = await osirisResponse.value.json();
         if (osirisData.success) {
           analysisData = { ...osirisData, softwareType: 'Osiris' };
-          console.log(`📊 Osiris data loaded: ${osirisData.source}`);
-        }
+          }
       }
       
       if (analysisData) {
@@ -435,7 +408,6 @@ const AnalysisSummary = () => {
           setAvailableBatches(updatedBatches);
         }
       } else {
-        console.log('❌ No analysis results found from any source');
         // If no current data but we have saved batches, load the most recent one
         if (batches.length > 0) {
           loadBatch(batches[0].id);

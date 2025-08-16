@@ -1,0 +1,117 @@
+{
+  "name": "LabScientific LIMS",
+  "short_name": "LabDNA LIMS",
+  "description": "Laboratory Information Management System for genetic analysis and paternity testing",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1976d2",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["medical", "science", "productivity"],
+  "icons": [
+    {
+      "src": "/labdna-logo-light.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/labdna-logo-light.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/images/screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Desktop view of LabScientific LIMS"
+    },
+    {
+      "src": "/images/screenshot-mobile.png",
+      "sizes": "375x667",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile view of LabScientific LIMS"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Sample Registration",
+      "short_name": "New Sample",
+      "description": "Register a new sample",
+      "url": "/client-register",
+      "icons": [
+        {
+          "src": "/labdna-logo-light.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Sample Search",
+      "short_name": "Search",
+      "description": "Search existing samples",
+      "url": "/sample-search",
+      "icons": [
+        {
+          "src": "/labdna-logo-light.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Laboratory Dashboard",
+      "short_name": "Dashboard",
+      "description": "View laboratory statistics",
+      "url": "/dashboard",
+      "icons": [
+        {
+          "src": "/labdna-logo-light.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "prefer_related_applications": false,
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "protocol_handlers": [
+    {
+      "protocol": "web+labdna",
+      "url": "/?protocol=%s"
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "/import",
+      "accept": {
+        "text/csv": [".csv"],
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"]
+      },
+      "launch_type": "single-client"
+    }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "file",
+          "accept": ["text/csv", ".xlsx", ".fsa"]
+        }
+      ]
+    }
+  }
+}

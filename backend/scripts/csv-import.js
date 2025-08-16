@@ -8,14 +8,10 @@ const Database = require('better-sqlite3');
 const dbPath = path.join(__dirname, '../database/ashley_lims.db');
 const db = new Database(dbPath);
 
-console.log('📊 CSV Data Import Script for LabScientific LIMS');
-
 // Enable WAL mode for better performance
 db.pragma('journal_mode = WAL');
 
 function parseCSV(filePath) {
-  console.log(`📁 Reading CSV file: ${filePath}`);
-  
   const content = fs.readFileSync(filePath, 'utf8');
   const lines = content.trim().split('\n');
   const headers = lines[0].split(',').map(h => h.trim());
@@ -30,7 +26,6 @@ function parseCSV(filePath) {
     data.push(row);
   }
   
-  console.log(`   ✅ Parsed ${data.length} rows`);
   return data;
 }
 
@@ -57,8 +52,7 @@ function parseDate(dateStr) {
       return dateStr.substring(0, 10);
     }
   } catch (error) {
-    console.warn(`Date parsing failed for: ${dateStr}`);
-  }
+    }
   
   return null;
 }
@@ -107,8 +101,6 @@ function generateCaseNumber(kitNumber) {
 }
 
 function importCSVData(csvFilePath) {
-  console.log('\n🚀 Starting CSV import...');
-  
   // Parse CSV file
   const csvData = parseCSV(csvFilePath);
   
@@ -138,8 +130,6 @@ function importCSVData(csvFilePath) {
     `);
     
     // First pass: Create test cases
-    console.log('🔄 Creating test cases...');
-    
     for (const row of csvData) {
       const caseNumber = generateCaseNumber(row.kit_number);
       const clientType = determineClientType(row.lab_number);
@@ -164,7 +154,7 @@ function importCSVData(csvFilePath) {
         
         if (result.changes > 0) {
           importedCases++;
-          console.log(`  ✅ Created case: ${caseNumber} (${row.kit_number})`);
+          `);
         }
         
         processedCases.add(caseNumber);
@@ -172,8 +162,6 @@ function importCSVData(csvFilePath) {
     }
     
     // Second pass: Insert samples
-    console.log('🔄 Importing samples...');
-    
     for (const row of csvData) {
       const caseNumber = generateCaseNumber(row.kit_number);
       const gender = extractGender(row.relation);
@@ -202,14 +190,11 @@ function importCSVData(csvFilePath) {
       
       if (result.changes > 0) {
         importedSamples++;
-        console.log(`  ✅ Imported: ${row.lab_number} - ${row.name} ${row.surname} (${normalizedRelation}${gender ? ' ' + gender : ''})`);
+        `);
       }
     }
     
-    console.log(`\n📈 Import completed successfully!`);
-    console.log(`   📁 Cases created: ${importedCases}`);
-    console.log(`   🧪 Samples imported: ${importedSamples}`);
-  });
+    });
   
   try {
     importTransaction();
@@ -221,8 +206,6 @@ function importCSVData(csvFilePath) {
 
 // Setup sequence numbers for continuing from specific positions
 function setupSequences(nextBNNumber = 121, nextLabNumber = 420) {
-  console.log(`\n🔧 Setting up sequence numbers...`);
-  
   try {
     // Set up BN sequence table
     const bnSequenceStmt = db.prepare(`
@@ -255,8 +238,8 @@ function setupSequences(nextBNNumber = 121, nextLabNumber = 420) {
     `);
     updateLabStmt.run(nextLabNumber, '25');
     
-    console.log(`   ✅ BN sequence set to start from BN-${nextBNNumber.toString().padStart(4, '0')}`);
-    console.log(`   ✅ Lab numbers will continue from 25_${nextLabNumber.toString().padStart(3, '0')}`);
+    .padStart(4, '0')}`);
+    .padStart(3, '0')}`);
     
   } catch (error) {
     console.error('❌ Sequence setup failed:', error.message);
@@ -270,11 +253,6 @@ async function main() {
     const args = process.argv.slice(2);
     
     if (args.length === 0) {
-      console.log('📖 Usage:');
-      console.log('  node csv-import.js <csv-file-path> [next-bn-number] [next-lab-number]');
-      console.log('  node csv-import.js csv-import-template.csv 121 420');
-      console.log('\n📝 CSV Format:');
-      console.log('  lab_number,relation,dob,name,surname,kit_number,batch_number,report_number,process_date,status,notes');
       process.exit(1);
     }
     
@@ -287,12 +265,10 @@ async function main() {
       process.exit(1);
     }
     
-    console.log('🔍 Checking database connection...');
-    
     // Test database connection
     const testQuery = db.prepare('SELECT COUNT(*) as count FROM sqlite_master WHERE type="table"');
     const result = testQuery.get();
-    console.log(`   ✅ Database connected (${result.count} tables found)`);
+    `);
     
     // Setup sequences
     setupSequences(nextBNNumber, nextLabNumber);
@@ -304,10 +280,6 @@ async function main() {
     const sampleCount = db.prepare('SELECT COUNT(*) as count FROM samples').get();
     const caseCount = db.prepare('SELECT COUNT(*) as count FROM test_cases').get();
     
-    console.log('\n📊 Current Database Status:');
-    console.log(`   🧪 Total Samples: ${sampleCount.count}`);
-    console.log(`   📁 Total Cases: ${caseCount.count}`);
-    
     // Show recent imports
     const recentSamples = db.prepare(`
       SELECT lab_number, name, surname, relation, workflow_status, lab_batch_number 
@@ -316,9 +288,8 @@ async function main() {
       LIMIT 10
     `).all();
     
-    console.log('\n🔍 Most Recent Samples:');
     recentSamples.forEach(sample => {
-      console.log(`   ${sample.lab_number}: ${sample.name} ${sample.surname} (${sample.relation}) [${sample.lab_batch_number}]`);
+      [${sample.lab_batch_number}]`);
     });
     
   } catch (error) {
@@ -327,8 +298,7 @@ async function main() {
   } finally {
     if (db) {
       db.close();
-      console.log('\n👋 Database connection closed. Import complete!');
-    }
+      }
   }
 }
 

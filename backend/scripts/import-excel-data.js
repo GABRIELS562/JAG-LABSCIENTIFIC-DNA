@@ -7,9 +7,6 @@ const path = require('path');
 const dbPath = path.join(__dirname, '../database/ashley_lims.db');
 const db = new Database(dbPath);
 
-console.log('🚀 Excel Data Import Script for LabScientific LIMS');
-console.log('📁 Database:', dbPath);
-
 // Enable WAL mode for better performance
 db.pragma('journal_mode = WAL');
 
@@ -196,8 +193,7 @@ function parseDate(dateStr) {
       return `${year}-${month}-${day}`;
     }
   } catch (error) {
-    console.warn(`Date parsing failed for: ${dateStr}`);
-  }
+    }
   
   return null;
 }
@@ -252,8 +248,6 @@ function generateCaseNumber(kitNumber, relation) {
 
 // Main import function
 function importExcelData() {
-  console.log('\n📊 Starting data import...');
-  
   // Begin transaction
   const importTransaction = db.transaction(() => {
     let importedSamples = 0;
@@ -261,8 +255,6 @@ function importExcelData() {
     const processedCases = new Set();
     
     // First pass: Create test cases for unique kit numbers
-    console.log('🔄 Creating test cases...');
-    
     const caseStmt = db.prepare(`
       INSERT OR IGNORE INTO test_cases (
         case_number, ref_kit_number, submission_date, client_type,
@@ -294,7 +286,7 @@ function importExcelData() {
         
         if (result.changes > 0) {
           importedCases++;
-          console.log(`  ✅ Created case: ${caseNumber} (${row.kitNumber})`);
+          `);
         }
         
         processedCases.add(caseNumber);
@@ -302,8 +294,6 @@ function importExcelData() {
     }
     
     // Second pass: Insert samples
-    console.log('🔄 Importing samples...');
-    
     const sampleStmt = db.prepare(`
       INSERT OR REPLACE INTO samples (
         lab_number, name, surname, date_of_birth, collection_date,
@@ -346,14 +336,11 @@ function importExcelData() {
       
       if (result.changes > 0) {
         importedSamples++;
-        console.log(`  ✅ Imported: ${row.labNumber} (${normalizedRelation}${gender ? ' ' + gender : ''})`);
+        `);
       }
     }
     
-    console.log(`\n📈 Import completed successfully!`);
-    console.log(`   📁 Cases created: ${importedCases}`);
-    console.log(`   🧪 Samples imported: ${importedSamples}`);
-  });
+    });
   
   try {
     importTransaction();
@@ -365,8 +352,6 @@ function importExcelData() {
 
 // Set up sequence numbers for continuing from your current position
 function setupSequences() {
-  console.log('\n🔧 Setting up sequence numbers...');
-  
   try {
     // Set up BN sequence to continue from your current position
     // You mentioned starting from LDS_121, so set BN sequence accordingly
@@ -387,10 +372,7 @@ function setupSequences() {
     // Update the lab number generation to start from 420
     // This will be handled in the generateLabNumber function in server.js
     
-    console.log('   ✅ BN sequence set to start from BN-0121');
-    console.log('   ✅ Lab numbers will continue from 25_420');
-    
-  } catch (error) {
+    } catch (error) {
     console.error('❌ Sequence setup failed:', error.message);
     throw error;
   }
@@ -399,12 +381,10 @@ function setupSequences() {
 // Main execution
 async function main() {
   try {
-    console.log('🔍 Checking database connection...');
-    
     // Test database connection
     const testQuery = db.prepare('SELECT COUNT(*) as count FROM sqlite_master WHERE type="table"');
     const result = testQuery.get();
-    console.log(`   ✅ Database connected (${result.count} tables found)`);
+    `);
     
     // Setup sequences for continuing from your current lab position
     setupSequences();
@@ -416,10 +396,6 @@ async function main() {
     const sampleCount = db.prepare('SELECT COUNT(*) as count FROM samples').get();
     const caseCount = db.prepare('SELECT COUNT(*) as count FROM test_cases').get();
     
-    console.log('\n📊 Current Database Status:');
-    console.log(`   🧪 Total Samples: ${sampleCount.count}`);
-    console.log(`   📁 Total Cases: ${caseCount.count}`);
-    
     // Show recent imports
     const recentSamples = db.prepare(`
       SELECT lab_number, relation, workflow_status, lab_batch_number 
@@ -428,9 +404,8 @@ async function main() {
       LIMIT 5
     `).all();
     
-    console.log('\n🔍 Most Recent Samples:');
     recentSamples.forEach(sample => {
-      console.log(`   ${sample.lab_number}: ${sample.relation} (${sample.workflow_status}) [${sample.lab_batch_number}]`);
+      [${sample.lab_batch_number}]`);
     });
     
   } catch (error) {
@@ -438,8 +413,7 @@ async function main() {
     process.exit(1);
   } finally {
     db.close();
-    console.log('\n👋 Database connection closed. Import complete!');
-  }
+    }
 }
 
 // Run the script

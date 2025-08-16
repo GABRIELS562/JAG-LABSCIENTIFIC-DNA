@@ -2,8 +2,6 @@ const Database = require('better-sqlite3');
 const path = require('path');
 
 async function migrateRelationConstraint() {
-  console.log('Starting relation constraint migration...');
-  
   const dbPath = path.join(__dirname, '..', 'database', 'ashley_lims.db');
   const db = new Database(dbPath);
   
@@ -78,9 +76,7 @@ async function migrateRelationConstraint() {
     // Commit transaction
     db.exec('COMMIT');
     
-    console.log('✅ Successfully migrated samples table to remove relation CHECK constraint');
-    
-  } catch (error) {
+    } catch (error) {
     console.error('❌ Migration failed:', error);
     db.exec('ROLLBACK');
     throw error;
@@ -92,7 +88,6 @@ async function migrateRelationConstraint() {
 // Run the migration
 if (require.main === module) {
   migrateRelationConstraint().then(() => {
-    console.log('Migration completed successfully');
     process.exit(0);
   }).catch(error => {
     console.error('Migration failed:', error);

@@ -1,17 +1,11 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Expose Osiris API to the renderer process
-contextBridge.exposeInMainWorld('osirisAPI', {
-  // Osiris control methods
-  analyzeCase: (caseData) => ipcRenderer.invoke('osiris-analyze-case', caseData),
-  openGUI: (caseData) => ipcRenderer.invoke('osiris-open-gui', caseData),
-  selectInstallation: () => ipcRenderer.invoke('osiris-select-installation'),
-  
-  // Event listeners
-  onStatusUpdate: (callback) => ipcRenderer.on('osiris-status', (event, data) => callback(data)),
-  onResults: (callback) => ipcRenderer.on('osiris-results', (event, data) => callback(data)),
-  onLog: (callback) => ipcRenderer.on('osiris-log', (event, data) => callback(data)),
-  onGUIClosed: (callback) => ipcRenderer.on('osiris-gui-closed', (event, data) => callback(data)),
+// Expose file operations API to the renderer process
+contextBridge.exposeInMainWorld('fileAPI', {
+  // File selection
+  selectFile: () => ipcRenderer.invoke('select-file'),
+  selectDirectory: () => ipcRenderer.invoke('select-directory'),
+  saveFile: (options) => ipcRenderer.invoke('save-file', options),
   
   // File system operations
   selectFSAFiles: () => ipcRenderer.invoke('select-fsa-files'),
@@ -34,5 +28,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // File operations
   showOpenDialog: (options) => ipcRenderer.invoke('show-open-dialog', options),
   showSaveDialog: (options) => ipcRenderer.invoke('show-save-dialog', options),
-  openExternal: (url) => ipcRenderer.invoke('open-external', url)
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  
+  // Menu events
+  onMenuAction: (callback) => {
+    ipcRenderer.on('menu-new-case', () => callback('new-case'));
+    ipcRenderer.on('menu-import', () => callback('import'));
+  }
 });

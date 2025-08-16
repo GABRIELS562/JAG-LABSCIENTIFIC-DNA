@@ -12,17 +12,10 @@ const ApiTest = () => {
     setResult(null);
 
     try {
-      console.log('Testing API connection...');
-      console.log('Base URL:', optimizedApi.baseURL);
-      
       // Test basic connection
       const healthCheck = await optimizedApi.checkHealth();
-      console.log('Health check:', healthCheck);
-      
       // Test samples API
       const samples = await optimizedApi.getSamples(1, 5);
-      console.log('Samples response:', samples);
-      
       setResult({
         health: healthCheck,
         samples: samples,

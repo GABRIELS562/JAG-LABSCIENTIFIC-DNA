@@ -60,8 +60,6 @@ export default function ClientRegister() {
     try {
       setLoading(true);
       setError(null);
-      console.log('[INFO] Loading samples...');
-      
       // Try multiple endpoints with better error handling
       let samplesData = [];
       let success = false;
@@ -71,19 +69,16 @@ export default function ClientRegister() {
       for (const endpoint of endpoints) {
         try {
           const fullUrl = `${API_BASE_URL}${endpoint}`;
-          console.log(`[API] Trying endpoint: ${fullUrl}`);
           const response = await fetch(fullUrl);
           
           // Check if response is ok
           if (!response.ok) {
-            console.warn(`❌ HTTP ${response.status} for ${endpoint}`);
             continue;
           }
           
           // Check if response has content
           const text = await response.text();
           if (!text.trim()) {
-            console.warn(`⚠️ Empty response from ${endpoint}`);
             continue;
           }
           
@@ -92,7 +87,6 @@ export default function ClientRegister() {
           try {
             data = JSON.parse(text);
           } catch (parseError) {
-            console.warn(`⚠️ Invalid JSON from ${endpoint}:`, parseError.message);
             continue;
           }
           
@@ -100,28 +94,23 @@ export default function ClientRegister() {
           if (data && data.success && Array.isArray(data.data)) {
             samplesData = data.data;
             success = true;
-            console.log(`[SUCCESS] Loaded ${samplesData.length} samples from ${endpoint}`);
             break;
           } else if (Array.isArray(data)) {
             samplesData = data;
             success = true;
-            console.log(`[SUCCESS] Loaded ${samplesData.length} samples from ${endpoint} (direct array)`);
+            `);
             break;
           } else {
-            console.warn(`⚠️ Unexpected data format from ${endpoint}:`, data);
-          }
+            }
         } catch (err) {
-          console.warn(`❌ Error with ${endpoint}:`, err.message);
           continue;
         }
       }
       
       if (success) {
         setSamples(samplesData);
-        console.log(`📊 Set ${samplesData.length} samples in state`);
-      } else {
+        } else {
         // If all endpoints fail, provide some mock data for demo purposes
-        console.log('🎭 Loading mock data for demonstration');
         const mockSamples = [
           {
             id: 1,
@@ -166,8 +155,7 @@ export default function ClientRegister() {
         
         setSamples(mockSamples);
         setError('Connected to demo mode - showing sample data. Backend may be unavailable.');
-        console.log('📊 Using mock data with 3 demo samples');
-      }
+        }
       
     } catch (error) {
       console.error('💥 Unexpected error loading samples:', error);
@@ -215,8 +203,6 @@ export default function ClientRegister() {
     try {
       setLoading(true);
       setError(null);
-      console.log(`🔍 Searching for: "${searchQuery}"`);
-      
       let samplesData = [];
       let success = false;
       
@@ -231,17 +217,14 @@ export default function ClientRegister() {
             if (data && data.success && Array.isArray(data.data)) {
               samplesData = data.data;
               success = true;
-              console.log(`[SUCCESS] Search found ${samplesData.length} samples`);
-            }
+              }
           }
         }
       } catch (searchErr) {
-        console.warn('❌ Search endpoint failed:', searchErr.message);
-      }
+        }
       
       // If search failed, try local filtering
       if (!success) {
-        console.log('[INFO] Falling back to local filtering...');
         try {
           const response = await fetch(`${API_BASE_URL}/api/samples`);
           if (response.ok) {
@@ -283,8 +266,7 @@ export default function ClientRegister() {
               });
               
               success = true;
-              console.log(`[SUCCESS] Local filter found ${samplesData.length} samples`);
-            }
+              }
           }
         } catch (filterErr) {
           console.error('❌ Local filtering failed:', filterErr.message);
@@ -350,8 +332,6 @@ export default function ClientRegister() {
     // Store selected samples in sessionStorage for PCR Plate page
     const selectedSampleData = samples.filter(s => selectedSamples.has(s.id));
     sessionStorage.setItem('selectedSamplesForBatch', JSON.stringify(selectedSampleData));
-    console.log('📋 Selected samples for PCR batch:', selectedSampleData);
-    
     // Navigate to PCR Plate page
     window.location.href = '/pcr-plate';
   };

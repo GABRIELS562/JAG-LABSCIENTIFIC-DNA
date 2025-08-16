@@ -1,0 +1,36 @@
+{
+  "timestamp": "2025-08-16T10:42:48.770Z",
+  "checks": {
+    "database": "FAILED"
+  },
+  "issues": [
+    "Database check error: no such table: cases"
+  ],
+  "warnings": [
+    "Potential bottleneck: 85 samples stuck at sample_collected",
+    "Created missing directory: backend/data/genemapper",
+    "Created missing directory: backend/temp"
+  ],
+  "stats": {
+    "workflowDistribution": [
+      {
+        "workflow_status": "sample_collected",
+        "count": 85
+      },
+      {
+        "workflow_status": "analysis_ready",
+        "count": 20
+      },
+      {
+        "workflow_status": "electro_batched",
+        "count": 5
+      },
+      {
+        "workflow_status": "rerun_batched",
+        "count": 3
+      }
+    ],
+    "totalEndpoints": 7,
+    "indexes": 59
+  }
+}

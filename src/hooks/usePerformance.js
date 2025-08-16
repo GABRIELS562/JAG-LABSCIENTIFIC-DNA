@@ -47,8 +47,7 @@ export const useRenderCount = (componentName) => {
   useEffect(() => {
     renderCount.current++;
     if (process.env.NODE_ENV === 'development') {
-      console.log(`${componentName} rendered ${renderCount.current} times`);
-    }
+      }
   });
   
   return renderCount.current;
@@ -62,15 +61,14 @@ export const useComponentLifetime = (componentName) => {
     mountTime.current = performance.now();
     
     if (process.env.NODE_ENV === 'development') {
-      console.log(`${componentName} mounted at ${mountTime.current}ms`);
-    }
+      }
     
     return () => {
       const unmountTime = performance.now();
       const lifetime = unmountTime - mountTime.current;
       
       if (process.env.NODE_ENV === 'development') {
-        console.log(`${componentName} unmounted after ${lifetime.toFixed(2)}ms`);
+        }ms`);
       }
     };
   }, [componentName]);

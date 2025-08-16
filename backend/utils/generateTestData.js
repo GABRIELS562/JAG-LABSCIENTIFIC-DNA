@@ -239,7 +239,6 @@ class GeneticTestDataGenerator {
         }, null, 2));
       }
 
-      console.log(`Generated ${testCases.length} test cases in ${outputDir}`);
       return testCases;
 
     } catch (error) {
@@ -282,14 +281,11 @@ if (require.main === module) {
   const generator = new GeneticTestDataGenerator();
   
   generator.createTestDataset().then(testCases => {
-    console.log('Test data generation completed successfully');
-    
     // Generate SQL
     const sql = generator.generateTestDataSQL(testCases);
     return fs.writeFile('./test_data/insert_test_data.sql', sql);
   }).then(() => {
-    console.log('SQL insert statements generated');
-  }).catch(error => {
+    }).catch(error => {
     console.error('Error generating test data:', error);
   });
 }

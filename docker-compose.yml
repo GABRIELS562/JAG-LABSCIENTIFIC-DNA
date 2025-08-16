@@ -1,75 +1,132 @@
 version: '3.8'
 
-# Simple production setup for client home server
 services:
-  # Main LIMS Application
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: labscientific-lims-app
-    ports:
-      - "3000:3000"
-      - "3001:3001"
+  # Main application
+  lims-app:
+    build: .
+    container_name: labscientific-lims
+    restart: unless-stopped
     environment:
       - NODE_ENV=production
-      - DB_PATH=/app/data/ashley_lims.db
+      - PORT=3001
+      # Security - these should be in .env file
+      - JWT_SECRET=${JWT_SECRET}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - DATABASE_PATH=/app/data/lims.db
       - LOG_LEVEL=info
+      - CORS_ORIGIN=${CORS_ORIGIN:-https://localhost}
     volumes:
-      - lims_data:/app/data
-      - lims_logs:/app/backend/logs
-      - lims_temp:/app/temp
-    depends_on:
-      - redis
+      # Persistent data volumes
+      - ./data:/app/backend/database
+      - ./uploads:/app/backend/uploads
+      - ./reports:/app/backend/reports
+      - ./logs:/app/backend/logs
+      # Read-only config
+      - ./.env.production:/app/.env:ro
     networks:
-      - lims_network
-    restart: unless-stopped
+      - lims-network
+    ports:
+      # Only expose to localhost, Cloudflare Tunnel will handle external access
+      - "127.0.0.1:3001:3001"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # Redis for caching and sessions
-  redis:
-    image: redis:7-alpine
-    container_name: labscientific-lims-redis
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
-    volumes:
-      - redis_data:/data
-    networks:
-      - lims_network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
       timeout: 3s
       retries: 3
+      start_period: 40s
 
-  # Nginx reverse proxy
+  # Nginx reverse proxy with additional security
   nginx:
     image: nginx:alpine
-    container_name: labscientific-lims-nginx
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/nginx.client.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - app
-    networks:
-      - lims_network
+    container_name: lims-nginx
     restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.docker.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./dist:/usr/share/nginx/html:ro
+    networks:
+      - lims-network
+    ports:
+      # Only expose to localhost for Cloudflare Tunnel
+      - "127.0.0.1:8080:80"
+      - "127.0.0.1:8443:443"
+    depends_on:
+      - lims-app
+    security_opt:
+      - no-new-privileges:true
+
+  # Cloudflare Tunnel (Cloudflared)
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: lims-tunnel
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - lims-network
+    depends_on:
+      - nginx
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  # Database backup service
+  backup:
+    image: alpine:latest
+    container_name: lims-backup
+    volumes:
+      - ./data:/data:ro
+      - ./backups:/backups
+    command: >
+      sh -c "
+      while true; do
+        echo 'Creating backup...';
+        sqlite3 /data/lims.db '.backup /backups/lims_$$(date +%Y%m%d_%H%M%S).db';
+        find /backups -name '*.db' -mtime +30 -delete;
+        echo 'Backup complete';
+        sleep 86400;
+      done
+      "
+    restart: unless-stopped
+    networks:
+      - lims-network
+    security_opt:
+      - no-new-privileges:true
+
+  # Monitoring with Prometheus (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: lims-prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - lims-network
+    ports:
+      - "127.0.0.1:9090:9090"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
 networks:
-  lims_network:
+  lims-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
 volumes:
-  lims_data:
-    driver: local
-  lims_logs:
-    driver: local
-  lims_temp:
-    driver: local
-  redis_data:
-    driver: local
+  prometheus-data:

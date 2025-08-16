@@ -146,7 +146,7 @@ const SampleSelectionDialog = ({ open, onClose, samples, batchInfo, onSelectionC
 const Reruns = () => {
   const navigate = useNavigate();
   const theme = useTheme();
-  const isDarkMode = theme.palette.mode === 'dark';
+  const isDarkMode = theme?.palette?.mode === 'dark' || false;
   const [selectedSamples, setSelectedSamples] = useState([]);
   const [plateData, setPlateData] = useState({});
   const [draggedItem, setDraggedItem] = useState(null);
@@ -651,10 +651,7 @@ const Reruns = () => {
   };
 
   const handleFinalizeBatch = async () => {
-    console.log('🔄 Finalize batch clicked!');
-    console.log('📊 Plate data:', plateData);
-    console.log('👨‍⚕️ Analyst:', analyst);
-    console.log('📈 Sample count:', getPlacedSamplesCount());
+    );
     
     try {
       const filledWells = Object.entries(plateData).filter(([_, well]) => well.samples.length > 0);
@@ -740,8 +737,7 @@ const Reruns = () => {
               })
             });
           } catch (error) {
-            console.warn('Failed to update rerun tracking:', error);
-          }
+            }
         }
         
         sessionStorage.removeItem('selectedSamplesForReruns');
@@ -892,9 +888,7 @@ const Reruns = () => {
                 variant="contained"
                 color="success"
                 onClick={() => {
-                  console.log('🎯 Main Finalize button clicked - opening dialog');
-                  console.log('✅ Analyst:', analyst);
-                  console.log('✅ Sample count:', getPlacedSamplesCount());
+                  );
                   setFinalizeDialog(true);
                 }}
                 disabled={!analyst?.trim() || getPlacedSamplesCount() === 0}
@@ -1401,7 +1395,6 @@ const Reruns = () => {
           <Button 
             variant="contained" 
             onClick={() => {
-              console.log('🎯 Dialog Finalize button clicked!');
               handleFinalizeBatch();
             }} 
             sx={{ bgcolor: '#e91e63' }}

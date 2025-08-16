@@ -1,0 +1,60 @@
+version: '3.8'
+
+# Simple Docker Compose for LIMS Development
+# This setup mirrors your current local development with hot reload
+
+services:
+  # Backend API Server
+  backend:
+    image: node:18-alpine
+    container_name: lims-backend
+    working_dir: /app
+    ports:
+      - "3001:3001"
+    volumes:
+      # Mount entire backend directory for hot reload
+      - ./backend:/app
+      # Persist SQLite database
+      - ./backend/database.db:/app/database.db
+      # Persist uploads and reports
+      - ./backend/uploads:/app/uploads
+      - ./backend/reports:/app/reports
+      - ./backend/logs:/app/logs
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+    command: sh -c "npm install && npm run dev"
+    networks:
+      - lims-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend Vite Dev Server
+  frontend:
+    image: node:18-alpine
+    container_name: lims-frontend
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    volumes:
+      # Mount source code for hot reload
+      - ./:/app
+      # Exclude node_modules to avoid conflicts
+      - /app/node_modules
+      - /app/backend/node_modules
+    environment:
+      - NODE_ENV=development
+      # Update proxy to use container name
+      - VITE_API_URL=http://backend:3001
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - backend
+    networks:
+      - lims-net
+
+networks:
+  lims-net:
+    driver: bridge

@@ -55,8 +55,7 @@ class UnifiedDatabaseService {
           foreignKeys: true
         });
       } else {
-        console.log('✅ Database initialized successfully at:', this.dbPath);
-      }
+        }
       
       this.isConnected = true;
     } catch (error) {
@@ -107,8 +106,7 @@ class UnifiedDatabaseService {
         if (logger && logger.warn) {
           logger.warn('Failed to apply pragma', { pragma, error: error.message });
         } else {
-          console.warn(`⚠️ Failed to apply pragma ${pragma}:`, error.message);
-        }
+          }
       }
     });
     
@@ -116,8 +114,7 @@ class UnifiedDatabaseService {
     try {
       this.db.pragma('analysis_limit = 1000');
       this.db.exec('PRAGMA optimize');
-      console.log('✅ Database optimization pragmas applied');
-    } catch (error) {
+      } catch (error) {
       if (logger && logger.warn) {
         logger.warn('Failed to apply optimization pragmas', { error: error.message });
       }
@@ -140,16 +137,6 @@ class UnifiedDatabaseService {
         }
       }
       
-      const osirisCacheSchemaPath = path.join(__dirname, '..', 'database', 'osiris-cache-schema.sql');
-      if (fs.existsSync(osirisCacheSchemaPath)) {
-        const osirisCacheSchema = fs.readFileSync(osirisCacheSchemaPath, 'utf8');
-        this.db.exec(osirisCacheSchema);
-        if (logger.info) {
-          logger.info('Osiris cache schema loaded successfully');
-        } else {
-          console.log('✅ Osiris cache schema loaded successfully');
-        }
-      }
       
       const enhancedReportsSchemaPath = path.join(__dirname, '..', 'database', 'enhanced-reports-schema.sql');
       if (fs.existsSync(enhancedReportsSchemaPath)) {
@@ -158,8 +145,7 @@ class UnifiedDatabaseService {
         if (logger.info) {
           logger.info('Enhanced reports schema loaded successfully');
         } else {
-          console.log('✅ Enhanced reports schema loaded successfully');
-        }
+          }
       }
       
       if (logger.info) {
@@ -201,14 +187,13 @@ class UnifiedDatabaseService {
           indexTime: `${indexTime}ms`
         });
       } else {
-        console.log(`✅ Created ${indexes.length} database indexes (${indexTime}ms)`);
+        `);
       }
     } catch (error) {
       if (logger && logger.warn) {
         logger.warn('Failed to create some indexes', { error: error.message });
       } else {
-        console.warn('⚠️ Failed to create some database indexes:', error.message);
-      }
+        }
     }
   }
 

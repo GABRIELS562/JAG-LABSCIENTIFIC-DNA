@@ -29,17 +29,18 @@ import {
   Visibility,
   EditNote,
   Storage,
-  TableChart,
   ExitToApp,
-  Search,
   Description, // Added for Reports icon
   Assessment,
   Group,
-  Queue,
   ElectricBolt,
   Replay,
   AccountCircle,
-  Logout
+  Logout,
+  VerifiedUser, // Added for ISO 17025
+  Biotech, // Added for Quality Control Module
+  CheckCircle, // Added for Batch Completion
+  Upload // Added for GeneMapper Import
 } from '@mui/icons-material';
 import Logo from '../ui/Logo';
 
@@ -157,6 +158,22 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       roles: ['staff']
     },
     { 
+      icon: <CheckCircle />, 
+      label: 'Batch Completion',
+      hasSubMenu: false,
+      path: '/batch-completion',
+      onClick: () => navigate('/batch-completion'),
+      roles: ['staff']
+    },
+    { 
+      icon: <Upload />, 
+      label: 'GeneMapper Import',
+      hasSubMenu: false,
+      path: '/genemapper-import',
+      onClick: () => navigate('/genemapper-import'),
+      roles: ['staff']
+    },
+    { 
       icon: <Assessment />, 
       label: 'Analysis Summary',
       hasSubMenu: false,
@@ -181,29 +198,21 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       roles: ['staff', 'client']
     },
     { 
-      icon: <Assessment />, 
-      label: 'Quality Control',
-      hasSubMenu: true,
+      icon: <Biotech />, 
+      label: 'Quality Control Module',
+      hasSubMenu: false,
       path: '/quality-control',
       onClick: () => navigate('/quality-control'),
       roles: ['staff']
     },
     { 
-      icon: <Queue />, 
-      label: 'Sample Queues',
+      icon: <VerifiedUser />, 
+      label: 'ISO 17025 Compliance',
       hasSubMenu: false,
-      path: '/sample-queues',
-      onClick: () => navigate('/sample-queues'),
-      roles: ['staff', 'client']
+      path: '/iso17025',
+      onClick: () => navigate('/iso17025'),
+      roles: ['staff']
     },
-    { 
-      icon: <TableChart />, 
-      label: 'Statistics',
-      hasSubMenu: false,
-      path: '/statistics',
-      onClick: () => navigate('/statistics'),
-      roles: ['staff', 'client']
-    }
   ];
 
   // For development - show all menu items without role filtering
@@ -281,34 +290,6 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       )}
       */}
 
-      <Box sx={{ p: 2 }}>
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            backgroundColor: isDarkMode 
-              ? 'rgba(255, 255, 255, 0.05)' 
-              : 'rgba(255, 255, 255, 0.1)',
-            borderRadius: 1,
-            p: 1,
-            transition: 'background-color 0.3s ease',
-          }}
-        >
-          <Search sx={{ mr: 1, opacity: 0.7 }} />
-          <input
-            type="text"
-            placeholder="Search..."
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'white',
-              outline: 'none',
-              width: '100%',
-              fontSize: '0.9rem',
-            }}
-          />
-        </Box>
-      </Box>
 
       <List sx={{ pt: 0 }}>
         {menuItems.map((item, index) => (

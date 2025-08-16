@@ -5,25 +5,29 @@ import { Menu as MenuIcon } from '@mui/icons-material';
 
 // Import components
 import HomePage from './components/ui/HomePage';
+import IntegratedHomePage from './components/ui/IntegratedHomePage';
 import ThemeToggle from './components/ui/ThemeToggle';
 import Sidebar from './components/layout/Sidebar';
 import Reports from './components/features/Reports';
 import LabResults from './components/features/LabResults';
 import ElectrophoresisBatches from './components/features/ElectrophoresisBatches';
 import RerunBatches from './components/features/RerunBatches';
-import SampleQueues from './components/features/SampleQueues';
-import Statistics from './components/features/Statistics';
-import QualityControl from './components/features/QualityControl';
+import SampleManagement from './components/features/SampleManagement';
+import QualityControlModule from './components/features/QualityControlModule';
 import PCRPlate from './components/features/PCRPlate';
 import PCRBatches from './components/features/PCRBatches';
 import SampleSearch from './components/features/SampleSearch';
-import ClientRegister from './components/features/ClientRegister';
 import GeneticAnalysis from './components/features/genetic-analysis/GeneticAnalysisRefactored';
 import AnalysisSummary from './components/features/AnalysisSummary';
 import ElectrophoresisLayout from './components/features/ElectrophoresisLayout';
 import Reruns from './components/features/Reruns';
 import ApiTest from './components/debug/ApiTest';
 import PaternityTestForm from './components/forms/PaternityTestForm';
+import ISO17025Dashboard from './components/features/ISO17025Dashboard';
+import TestRoute from './components/TestRoute';
+import DebugRouter from './components/DebugRouter';
+import BatchCompletion from './components/features/BatchCompletion';
+import GeneMapperImport from './components/features/GeneMapperImport';
 
 // Import authentication components
 import LoginPage from './components/auth/LoginPage';
@@ -88,6 +92,7 @@ function AppContent() {
         
         <main className={`flex-1 overflow-y-auto w-full ${isMobile ? 'pt-16' : ''}`}>
           <ThemeToggle onToggle={toggleTheme} isDarkMode={isDarkMode} />
+          <DebugRouter />
           <Routes>
             {/* Authentication pages - accessible separately */}
             <Route 
@@ -104,6 +109,15 @@ function AppContent() {
               path="/" 
               element={
                 <div className={`min-h-screen w-full ${containerBackground} backdrop-blur-md`}>
+                  <IntegratedHomePage isDarkMode={isDarkMode} />
+                </div>
+              } 
+            />
+            
+            <Route 
+              path="/classic-home" 
+              element={
+                <div className={`min-h-screen w-full ${containerBackground} backdrop-blur-md`}>
                   <HomePage isDarkMode={isDarkMode} />
                 </div>
               } 
@@ -112,22 +126,22 @@ function AppContent() {
             <Route 
               path="/register-client" 
               element={
-                <ErrorBoundary fallback="minimal">
-                  <div className={`${containerBackground} min-h-screen`}>
-                    <PaternityTestForm />
-                  </div>
-                </ErrorBoundary>
+                <div className={`${containerBackground} min-h-screen`}>
+                  <PaternityTestForm />
+                </div>
               } 
             />
             
             <Route 
+              path="/test" 
+              element={<TestRoute />} 
+            />
+            <Route 
               path="/pcr-plate" 
               element={
-                <ErrorBoundary fallback="minimal">
-                  <div className={`${containerBackground} min-h-screen`}>
-                    <PCRPlate />
-                  </div>
-                </ErrorBoundary>
+                <div className={`${containerBackground} min-h-screen`}>
+                  <PCRPlate />
+                </div>
               } 
             />
             <Route 
@@ -185,7 +199,7 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <QualityControl />
+                    <QualityControlModule />
                   </div>
                 </ErrorBoundary>
               } 
@@ -213,9 +227,37 @@ function AppContent() {
             <Route 
               path="/reports" 
               element={
+                <div className={`${containerBackground} min-h-screen`}>
+                  <Reports />
+                </div>
+              } 
+            />
+            <Route 
+              path="/iso17025" 
+              element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <Reports />
+                    <ISO17025Dashboard />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/batch-completion" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <BatchCompletion />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/genemapper-import" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <GeneMapperImport />
                   </div>
                 </ErrorBoundary>
               } 
@@ -231,33 +273,11 @@ function AppContent() {
               } 
             />
             <Route 
-              path="/sample-queues" 
-              element={
-                <ErrorBoundary fallback="minimal">
-                  <div className={`${containerBackground} min-h-screen`}>
-                    <SampleQueues />
-                  </div>
-                </ErrorBoundary>
-              } 
-            />
-            <Route 
               path="/samples" 
               element={
-                <ErrorBoundary fallback="minimal">
-                  <div className={`${containerBackground} min-h-screen`}>
-                    <ClientRegister />
-                  </div>
-                </ErrorBoundary>
-              } 
-            />
-            <Route 
-              path="/statistics" 
-              element={
-                <ErrorBoundary fallback="minimal">
-                  <div className={`${containerBackground} min-h-screen`}>
-                    <Statistics />
-                  </div>
-                </ErrorBoundary>
+                <div className={`${containerBackground} min-h-screen`}>
+                  <SampleManagement />
+                </div>
               } 
             />
             <Route 

@@ -26,9 +26,7 @@ function createDemoCase() {
       // Check if case already exists
       const existingCase = db.getGeneticCase(caseId);
       if (existingCase) {
-        console.log(`Case ${caseId} already exists. Updating with new data...`);
-      } else {
-        console.log(`Creating new case: ${caseId}`);
+        } else {
         db.createGeneticCase({
           caseId: caseId,
           caseType: 'paternity',
@@ -64,7 +62,6 @@ function createDemoCase() {
         );
         resultId = result.lastInsertRowid;
       } catch (insertError) {
-        console.log('Analysis results already exist, getting existing result ID...');
         const existing = db.db.prepare('SELECT id FROM genetic_analysis_results WHERE case_id = ?').get(caseId);
         resultId = existing ? existing.id : 1;
       }
@@ -93,8 +90,7 @@ function createDemoCase() {
             'PowerPlex ESX 17'
           );
         } catch (sampleError) {
-          console.log(`Sample ${sample.id} already exists`);
-        }
+          }
         
         // Add STR profile data
         Object.keys(sample.profile).forEach(locus => {
@@ -147,20 +143,10 @@ function createDemoCase() {
             matchStatus
           );
         } catch (lociError) {
-          console.log(`Loci comparison for ${locus} already exists`);
-        }
+          }
       });
       
-      console.log('\n=== Demo Case Created Successfully ===');
-      console.log(`Case ID: ${caseId}`);
-      console.log(`Status: analysis_complete`);
-      console.log(`Paternity Probability: 99.97%`);
-      console.log(`Conclusion: inclusion`);
-      console.log(`STR Loci: ${loci.length} (${loci.join(', ')})`);
-      console.log(`Samples: Father, Mother, Child`);
-      console.log(`FSA Files: Available in backend/test_data/fsa_samples/`);
-      console.log('\nThis case can now be viewed in the LIMS with real STR data!');
-      
+      })`);
       return {
         success: true,
         caseId: caseId,
