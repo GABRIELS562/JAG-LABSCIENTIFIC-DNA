@@ -690,7 +690,7 @@ const PCRPlate = () => {
       };
 
       // Add comprehensive logging
-      ,
+      console.log('Sending PCR batch data:', {
         wellCount: Object.keys(transformedWells).length,
         date: batchData.date
       });

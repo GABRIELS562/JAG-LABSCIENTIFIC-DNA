@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Paper,
@@ -189,14 +190,14 @@ const initialFormState = {
 const getSections = (numberOfChildren = 1) => {
   const sections = [
     'Test Information',
-    '👩 Mother Information',
-    '👨 Father Information',
+    'Mother Information',
+    'Father Information',
   ];
   
   // Add sections for each child
   for (let i = 1; i <= numberOfChildren; i++) {
     if (numberOfChildren === 1) {
-      sections.push('👶 Child Information');
+      sections.push('Child Information');
     } else {
       sections.push(`👶 Child ${i} Information`);
     }
@@ -366,15 +367,15 @@ const FormSummary = ({ formData, onEdit }) => {
       </Paper>
 
       {/* Mother Information */}
-      {renderPersonSection('👩 Mother Information', 'mother', formData.motherNotAvailable)}
+      {renderPersonSection('Mother Information', 'mother', formData.motherNotAvailable)}
 
       {/* Father Information */}
-      {renderPersonSection('👨 Father Information', 'father', formData.fatherNotAvailable)}
+      {renderPersonSection('Father Information', 'father', formData.fatherNotAvailable)}
 
       {/* Children Information */}
       {formData.children && formData.children.map((child, index) => {
         const childTitle = formData.numberOfChildren === 1 
-          ? '👶 Child Information' 
+          ? 'Child Information' 
           : `👶 Child ${index + 1} Information`;
         return <div key={`child-${index}`}>{renderChildSection(childTitle, child, index)}</div>;
       })}
@@ -419,6 +420,7 @@ const FormSummary = ({ formData, onEdit }) => {
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export default function PaternityTestForm({ onSuccess }) {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -880,45 +882,54 @@ export default function PaternityTestForm({ onSuccess }) {
 
   const generateLabNumbers = async (numberOfChildren = 1, clientType = 'peace_of_mind') => {
     try {
-      // Get the next sequence of lab numbers from backend
-      const response = await fetch('/api/get-last-lab-number');
+      // Calculate total lab numbers needed: children + father + (mother if present)
+      const includeMotherInCount = formData.motherPresent === 'YES' && !formData.motherNotAvailable;
+      const totalParticipants = numberOfChildren + 1 + (includeMotherInCount ? 1 : 0);
+      
+      // Get sequential lab numbers from backend
+      const response = await fetch(`${API_URL}/get-next-lab-numbers?count=${totalParticipants}`);
       const data = await response.json();
       
-      let baseNumber = 1;
-      if (data.success && data.data) {
-        // Extract number from format like "25_001" and increment
-        const parts = data.data.split('_');
-        if (parts.length === 2) {
-          baseNumber = parseInt(parts[1], 10) + 1;
-        }
+      if (!data.success || !data.labNumbers) {
+        throw new Error('Failed to get lab numbers from server');
       }
       
-      // Generate lab numbers: Child(ren) first, then Father, then Mother
+      const { labNumbers, baseNumber } = data;
+      
+      // Assign lab numbers in order: children first, then father, then mother
       const childrenLabNos = [];
-      let currentNum = baseNumber;
       
-      // Generate lab numbers for each child (child comes first)
+      // Get father lab number (comes after all children)
+      const fatherIndex = numberOfChildren;
+      const fatherLabNo = labNumbers[fatherIndex] || `25_${(baseNumber + fatherIndex).toString().padStart(3, '0')}`;
+      
+      // Extract father number for child lab number format
+      const fatherParts = fatherLabNo.split('_');
+      const fatherNumber = fatherParts.length === 2 ? fatherParts[1] : '001';
+      
+      // Generate children lab numbers with father reference
       for (let i = 0; i < numberOfChildren; i++) {
-        const childNum = currentNum;
-        const fatherNum = currentNum + numberOfChildren; // Father comes after all children
-        const motherNum = currentNum + numberOfChildren + 1; // Mother comes after father
+        const childLabNo = labNumbers[i] || `25_${(baseNumber + i).toString().padStart(3, '0')}`;
+        const childParts = childLabNo.split('_');
+        const childNumber = childParts.length === 2 ? childParts[1] : '001';
         
-        const childBase = childNum.toString().padStart(3, '0');
-        const father = fatherNum.toString().padStart(3, '0');
-        
-        childrenLabNos.push(`25_${childBase}(25_${father})M`);
-        currentNum++;
+        childrenLabNos.push(`25_${childNumber}(25_${fatherNumber})M`);
       }
       
-      // Father lab number (comes after all children)
-      const fatherNum = baseNumber + numberOfChildren;
-      const father = fatherNum.toString().padStart(3, '0');
-      const fatherLabNo = `25_${father}`;
+      // Generate mother lab number (comes after father)
+      let motherLabNo = null;
+      if (includeMotherInCount) {
+        const motherIndex = numberOfChildren + 1;
+        motherLabNo = labNumbers[motherIndex] || `25_${(baseNumber + motherIndex).toString().padStart(3, '0')}`;
+      }
       
-      // Mother lab number (comes after father)
-      const motherNum = fatherNum + 1;
-      const mother = motherNum.toString().padStart(3, '0');
-      const motherLabNo = `25_${mother}`;
+      console.log('Generated lab numbers:', {
+        childrenLabNos,
+        fatherLabNo,
+        motherLabNo,
+        totalParticipants,
+        includeMotherInCount
+      });
       
       return {
         childrenLabNos,
@@ -927,15 +938,35 @@ export default function PaternityTestForm({ onSuccess }) {
       };
     } catch (error) {
       console.error('Error generating lab numbers:', error);
-      // Fallback for multiple children
+      
+      // Fallback: use timestamp-based unique numbers to avoid conflicts
+      const timestamp = Date.now().toString().slice(-6);
+      const fallbackBase = parseInt(timestamp.slice(-3)) || 1;
+      
       const fallbackChildren = [];
+      const fallbackFatherNum = fallbackBase + numberOfChildren;
+      const fallbackFatherLabNo = `25_${fallbackFatherNum.toString().padStart(3, '0')}`;
+      
+      // Generate children lab numbers
       for (let i = 0; i < numberOfChildren; i++) {
-        fallbackChildren.push(`25_${(i + 1).toString().padStart(3, '0')}(25_${(numberOfChildren + 1).toString().padStart(3, '0')})M`);
+        const childNum = fallbackBase + i;
+        fallbackChildren.push(`25_${childNum.toString().padStart(3, '0')}(25_${fallbackFatherNum.toString().padStart(3, '0')})M`);
       }
+      
+      // Generate mother lab number
+      const fallbackMotherLabNo = (formData.motherPresent === 'YES' && !formData.motherNotAvailable) ? 
+        `25_${(fallbackFatherNum + 1).toString().padStart(3, '0')}` : null;
+      
+      console.log('Using fallback lab numbers:', {
+        childrenLabNos: fallbackChildren,
+        fatherLabNo: fallbackFatherLabNo,
+        motherLabNo: fallbackMotherLabNo
+      });
+      
       return {
         childrenLabNos: fallbackChildren,
-        fatherLabNo: `25_${(numberOfChildren + 1).toString().padStart(3, '0')}`,
-        motherLabNo: `25_${(numberOfChildren + 2).toString().padStart(3, '0')}`
+        fatherLabNo: fallbackFatherLabNo,
+        motherLabNo: fallbackMotherLabNo
       };
     }
   };
@@ -948,24 +979,27 @@ export default function PaternityTestForm({ onSuccess }) {
         
         setFormData(prevState => ({
           ...prevState,
-          mother: { ...prevState.mother, labNo: motherLabNo },
-          father: { ...prevState.father, labNo: fatherLabNo },
+          mother: { ...prevState.mother, labNo: motherLabNo || '' },
+          father: { ...prevState.father, labNo: fatherLabNo || '' },
           children: prevState.children.map((child, index) => ({
             ...child,
-            labNo: childrenLabNos[index] || `25_${(index + 1).toString().padStart(3, '0')}(25_${(formData.numberOfChildren + 1).toString().padStart(3, '0')})M`
-          }))
+            labNo: childrenLabNos[index] || ''
+          })),
+          // Auto-populate testPurpose when clientType is peace_of_mind
+          testPurpose: (clientType === 'peace_of_mind' || clientType === 'urgent') ? 'peace_of_mind' : prevState.testPurpose
         }));
       } catch (error) {
+        console.error('Error initializing lab numbers:', error);
         setSnackbar({
           open: true,
-          message: 'Error generating lab numbers',
+          message: 'Error generating lab numbers. Please refresh the page and try again.',
           severity: 'error'
         });
       }
     };
 
     initializeLabNumbers();
-  }, [formData.clientType, formData.numberOfChildren]);
+  }, [formData.clientType, formData.numberOfChildren, formData.motherPresent, formData.motherNotAvailable]);
 
   useEffect(() => {
     const savedForm = localStorage.getItem('paternityFormData');
@@ -1096,7 +1130,7 @@ export default function PaternityTestForm({ onSuccess }) {
 
   const renderChildSection = (title, childIndex, disabled = false) => {
     const child = formData.children[childIndex];
-    const isPeaceOfMind = formData.clientType === 'peace_of_mind' || formData.testPurpose === 'peace_of_mind';
+    const isPeaceOfMind = formData.clientType === 'peace_of_mind' || formData.clientType === 'urgent' || formData.testPurpose === 'peace_of_mind';
     
     return (
       <Box>
@@ -1128,7 +1162,7 @@ export default function PaternityTestForm({ onSuccess }) {
               value={child.name || ''}
               onChange={(e) => handleChildChange(childIndex, 'name', e.target.value)}
               disabled={disabled}
-              required
+              required={!isPeaceOfMind}
               error={!!errors[`child${childIndex}.name`]}
               helperText={errors[`child${childIndex}.name`]}
             />
@@ -1142,7 +1176,7 @@ export default function PaternityTestForm({ onSuccess }) {
               value={child.surname || ''}
               onChange={(e) => handleChildChange(childIndex, 'surname', e.target.value)}
               disabled={disabled}
-              required
+              required={!isPeaceOfMind}
               error={!!errors[`child${childIndex}.surname`]}
               helperText={errors[`child${childIndex}.surname`]}
             />
@@ -1150,7 +1184,7 @@ export default function PaternityTestForm({ onSuccess }) {
 
           <Grid item xs={12} md={6}>
             <DateDropdown
-              label={`Date of Birth${isPeaceOfMind ? '' : ' *'}`}
+              label="Date of Birth"
               name="dateOfBirth"
               value={child.dateOfBirth || ''}
               onChange={(value) => handleChildChange(childIndex, 'dateOfBirth', value)}
@@ -1234,7 +1268,7 @@ export default function PaternityTestForm({ onSuccess }) {
           <Grid item xs={12} md={6}>
             <TextField
               fullWidth
-              label={`ID Number${isPeaceOfMind ? '' : ' *'}`}
+              label="ID Number"
               name="idNumber"
               value={child.idNumber || ''}
               onChange={(e) => handleChildChange(childIndex, 'idNumber', e.target.value)}
@@ -1293,12 +1327,12 @@ export default function PaternityTestForm({ onSuccess }) {
 
           <Grid item xs={12} md={6}>
             <DateDropdown
-              label="Collection Date *"
+              label="Collection Date"
               name="collectionDate"
               value={child.collectionDate || ''}
               onChange={(value) => handleChildChange(childIndex, 'collectionDate', value)}
               disabled={disabled}
-              required
+              required={!isPeaceOfMind}
               error={!!errors[`child${childIndex}.collectionDate`]}
               helperText={errors[`child${childIndex}.collectionDate`]}
             />
@@ -1325,7 +1359,11 @@ export default function PaternityTestForm({ onSuccess }) {
 
   const renderSection = (title, section, disabled = false) => {
     const isNotAvailable = formData[`${section}NotAvailable`];
-    const isPeaceOfMind = formData.clientType === 'peace_of_mind' || formData.testPurpose === 'peace_of_mind';
+    const isPeaceOfMind = formData.clientType === 'peace_of_mind' || formData.clientType === 'urgent' || formData.testPurpose === 'peace_of_mind';
+    const isLegal = formData.clientType === 'legal';
+    const isMother = section === 'mother';
+    // For legal mode: mother fields are optional, father fields are required
+    const fieldsRequired = !isPeaceOfMind && !(isLegal && isMother);
     
     return (
       <Box>
@@ -1334,8 +1372,8 @@ export default function PaternityTestForm({ onSuccess }) {
             <Typography variant="h6" sx={{ color: '#0D488F', fontWeight: 'bold' }}>
               {title}
             </Typography>
-            {/* Show checkbox on top left for mother information in Peace of Mind */}
-            {isPeaceOfMind && section === 'mother' && (
+            {/* Show checkbox on top left for mother and father in Peace of Mind */}
+            {isPeaceOfMind && (section === 'mother' || section === 'father') && (
               <FormControlLabel
                 control={
                   <Checkbox
@@ -1344,13 +1382,13 @@ export default function PaternityTestForm({ onSuccess }) {
                     name={`${section}NotAvailable`}
                   />
                 }
-                label="Mother information"
+                label={`${section === 'mother' ? 'Mother' : 'Father'} Not Available`}
                 sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.875rem', color: 'text.secondary' } }}
               />
             )}
           </Box>
-          {/* Show top right checkbox for non-Peace of Mind or non-mother sections */}
-          {!(isPeaceOfMind && section === 'mother') && (
+          {/* Show top right checkbox for non-Peace of Mind or other sections */}
+          {!(isPeaceOfMind && (section === 'mother' || section === 'father')) && (
             <FormControlLabel
               control={
                 <Checkbox
@@ -1388,7 +1426,7 @@ export default function PaternityTestForm({ onSuccess }) {
                 value={formData[section].name || ''}
                 onChange={(e) => handleChange(section, 'name', e.target.value)}
                 disabled={disabled}
-                required
+                required={fieldsRequired}
                 error={!!errors[`${section}.name`]}
                 helperText={errors[`${section}.name`]}
               />
@@ -1402,7 +1440,7 @@ export default function PaternityTestForm({ onSuccess }) {
                 value={formData[section].surname || ''}
                 onChange={(e) => handleChange(section, 'surname', e.target.value)}
                 disabled={disabled}
-                required
+                required={fieldsRequired}
                 error={!!errors[`${section}.surname`]}
                 helperText={errors[`${section}.surname`]}
               />
@@ -1415,7 +1453,7 @@ export default function PaternityTestForm({ onSuccess }) {
                 value={formData[section].dateOfBirth || ''}
                 onChange={(value) => handleChange(section, 'dateOfBirth', value)}
                 disabled={disabled}
-                required
+                required={fieldsRequired}
                 error={!!errors[`${section}.dateOfBirth`]}
                 helperText={errors[`${section}.dateOfBirth`]}
               />
@@ -1499,7 +1537,7 @@ export default function PaternityTestForm({ onSuccess }) {
                 value={formData[section].idNumber || ''}
                 onChange={(e) => handleChange(section, 'idNumber', e.target.value)}
                 disabled={disabled}
-                required
+                required={fieldsRequired}
                 error={!!errors[`${section}.idNumber`]}
                 helperText={errors[`${section}.idNumber`]}
               />
@@ -1509,7 +1547,7 @@ export default function PaternityTestForm({ onSuccess }) {
               <FormControl 
                 fullWidth 
                 disabled={disabled} 
-                required
+                required={fieldsRequired}
                 error={!!errors[`${section}.idType`]}
               >
                 <InputLabel>ID Type</InputLabel>
@@ -1553,12 +1591,12 @@ export default function PaternityTestForm({ onSuccess }) {
 
             <Grid item xs={12} md={6}>
               <DateDropdown
-                label="Collection Date *"
+                label="Collection Date"
                 name="collectionDate"
                 value={formData[section].collectionDate || ''}
                 onChange={(value) => handleChange(section, 'collectionDate', value)}
                 disabled={disabled}
-                required
+                required={fieldsRequired}
                 error={!!errors[`${section}.collectionDate`]}
                 helperText={errors[`${section}.collectionDate`]}
               />
@@ -1670,19 +1708,33 @@ export default function PaternityTestForm({ onSuccess }) {
 
       // Include signature and witness data
       const enhancedData = {
-        childrenRows, // Multiple children support
-        fatherRow, 
-        motherRow,
+        refKitNumber: formData.refKitNumber,
+        submissionDate: formData.submissionDate,
+        testPurpose: formData.testPurpose || 'peace_of_mind',
+        children: childrenRows, // Multiple children support
+        father: fatherRow, 
+        mother: motherRow,
+        motherNotAvailable: formData.motherNotAvailable,
+        fatherNotAvailable: formData.fatherNotAvailable,
         clientType,
         signatures: formData.signatures,
         witness: formData.clientType === 'legal' ? formData.witness : null,
         legalDeclarations: formData.legalDeclarations,
+        parentSignedInventory: formData.parentSignedInventory,
         consentType: formData.clientType === 'legal' ? 'legal' : 'paternity',
-        numberOfChildren: formData.numberOfChildren
+        numberOfChildren: formData.numberOfChildren,
+        contactEmail: formData.emailContact,
+        contactPhone: formData.phoneContact,
+        addressArea: formData.addressArea,
+        comments: formData.comments,
+        isUrgent: formData.clientType === 'urgent' // Add urgent flag
       };
 
+      const submitUrl = `${API_URL}/submit-test`;
+      console.log('Submitting to:', submitUrl);
+      console.log('Data being sent:', enhancedData);
 
-      const response = await fetch(`${API_URL}/api/submit-test`, {
+      const response = await fetch(submitUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1690,12 +1742,20 @@ export default function PaternityTestForm({ onSuccess }) {
         body: JSON.stringify(enhancedData),
       });
 
+      // Check if response is JSON
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        console.error('Non-JSON response:', text);
+        throw new Error('Server returned an invalid response. Please try again.');
+      }
+
       const data = await response.json();
       
       if (data.success) {
         setSnackbar({
           open: true,
-          message: `Form submitted successfully! Case: ${data.data.caseNumber}`,
+          message: `Form submitted successfully! Case: ${data.caseNumber || data.refKitNumber || formData.refKitNumber || 'N/A'}`,
           severity: 'success'
         });
         
@@ -1716,6 +1776,21 @@ export default function PaternityTestForm({ onSuccess }) {
       
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
         errorMessage = 'Unable to connect to server. Please check your connection.';
+      } else if (error.message && error.message.includes('UNIQUE constraint failed')) {
+        errorMessage = 'Lab number already exists in database. The form will regenerate new lab numbers. Please try submitting again.';
+        // Trigger lab number regeneration
+        const clientType = formData.clientType === 'legal' ? 'legal' : 'peace_of_mind';
+        generateLabNumbers(formData.numberOfChildren, clientType).then(({ motherLabNo, fatherLabNo, childrenLabNos }) => {
+          setFormData(prevState => ({
+            ...prevState,
+            mother: { ...prevState.mother, labNo: motherLabNo || '' },
+            father: { ...prevState.father, labNo: fatherLabNo || '' },
+            children: prevState.children.map((child, index) => ({
+              ...child,
+              labNo: childrenLabNos[index] || ''
+            }))
+          }));
+        }).catch(console.error);
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -1730,23 +1805,39 @@ export default function PaternityTestForm({ onSuccess }) {
     }
   };
 
-  const handleReset = () => {
-    // Generate new lab numbers for current number of children
-    generateLabNumbers(formData.numberOfChildren).then(numbers => {
+  const handleReset = async () => {
+    try {
+      // Generate new lab numbers for current number of children
+      const clientType = formData.clientType === 'legal' ? 'legal' : 'peace_of_mind';
+      const { motherLabNo, fatherLabNo, childrenLabNos } = await generateLabNumbers(formData.numberOfChildren, clientType);
+      
       const resetData = {
         ...initialFormState,
         numberOfChildren: formData.numberOfChildren,
-        mother: { ...initialFormState.mother, labNo: numbers.motherLabNo },
-        father: { ...initialFormState.father, labNo: numbers.fatherLabNo },
+        clientType: formData.clientType,
+        motherPresent: formData.motherPresent,
+        mother: { ...initialFormState.mother, labNo: motherLabNo || '' },
+        father: { ...initialFormState.father, labNo: fatherLabNo || '' },
         children: Array.from({ length: formData.numberOfChildren }, (_, index) => ({
           ...initialFormState.children[0],
-          labNo: numbers.childrenLabNos[index] || `25_${(index + 1).toString().padStart(3, '0')}(25_${(formData.numberOfChildren + 1).toString().padStart(3, '0')})M`
+          labNo: childrenLabNos[index] || ''
         }))
       };
+      
       setFormData(resetData);
       setCurrentSection(0);
       setErrors({});
-    });
+      
+      // Clear local storage
+      localStorage.removeItem('paternityFormData');
+    } catch (error) {
+      console.error('Error resetting form:', error);
+      // Fallback to basic reset
+      setFormData(initialFormState);
+      setCurrentSection(0);
+      setErrors({});
+      localStorage.removeItem('paternityFormData');
+    }
   };
 
   const handleCloseSnackbar = () => {
@@ -1792,30 +1883,46 @@ export default function PaternityTestForm({ onSuccess }) {
     
     switch (sectionIndex) {
       case 0: // Test Information
-        if (!formData.refKitNumber.trim()) {
+        const isPeaceOfMindCase0 = formData.clientType === 'peace_of_mind' || formData.clientType === 'urgent' || formData.testPurpose === 'peace_of_mind';
+        if (!isPeaceOfMindCase0 && !formData.refKitNumber.trim()) {
           errors.refKitNumber = 'Reference Kit Number is required';
+        }
+        // Validate ID uploads for legal testing
+        if (formData.clientType === 'legal') {
+          if (!formData.ltDocuments.fatherIdCopy) {
+            errors['ltDocuments.fatherIdCopy'] = 'Father ID copy is required for legal testing';
+          }
+          if (!formData.ltDocuments.childIdCopy) {
+            errors['ltDocuments.childIdCopy'] = 'Child ID copy is required for legal testing';
+          }
+          // Mother ID is optional but required if mother is present
+          if (formData.motherPresent === 'YES' && !formData.motherNotAvailable && !formData.ltDocuments.motherIdCopy) {
+            errors['ltDocuments.motherIdCopy'] = 'Mother ID copy is required when mother is present';
+          }
         }
         break;
         
       case 1: // Mother Information
         if (!formData.motherNotAvailable) {
-          const isPeaceOfMind = formData.clientType === 'peace_of_mind' || formData.testPurpose === 'peace_of_mind';
-          if (!formData.mother.name.trim()) errors['mother.name'] = 'Name is required';
-          if (!formData.mother.surname.trim()) errors['mother.surname'] = 'Surname is required';
-          if (!formData.mother.collectionDate) errors['mother.collectionDate'] = 'Collection Date is required';
+          const isPeaceOfMind = formData.clientType === 'peace_of_mind' || formData.clientType === 'urgent' || formData.testPurpose === 'peace_of_mind';
+          const isLegal = formData.clientType === 'legal';
           
-          // Only require these fields if NOT Peace of Mind
-          if (!isPeaceOfMind) {
+          // For legal, mother fields are optional unless provided
+          // For non-peace-of-mind, mother fields are required if mother is available
+          if (!isPeaceOfMind && !isLegal) {
+            if (!formData.mother.name.trim()) errors['mother.name'] = 'Name is required';
+            if (!formData.mother.surname.trim()) errors['mother.surname'] = 'Surname is required';
             if (!formData.mother.dateOfBirth) errors['mother.dateOfBirth'] = 'Date of Birth is required';
             if (!formData.mother.idNumber.trim()) errors['mother.idNumber'] = 'ID Number is required';
             if (!formData.mother.idType.trim()) errors['mother.idType'] = 'ID Type is required';
+            if (!formData.mother.collectionDate) errors['mother.collectionDate'] = 'Collection Date is required';
           }
         }
         break;
         
       case 2: // Father Information
         if (!formData.fatherNotAvailable) {
-          const isPeaceOfMind = formData.clientType === 'peace_of_mind' || formData.testPurpose === 'peace_of_mind';
+          const isPeaceOfMind = formData.clientType === 'peace_of_mind' || formData.clientType === 'urgent' || formData.testPurpose === 'peace_of_mind';
           if (!formData.father.name.trim()) errors['father.name'] = 'Name is required';
           if (!formData.father.surname.trim()) errors['father.surname'] = 'Surname is required';
           if (!formData.father.collectionDate) errors['father.collectionDate'] = 'Collection Date is required';
@@ -1835,27 +1942,39 @@ export default function PaternityTestForm({ onSuccess }) {
           const childIndex = sectionIndex - 3;
           if (formData.children[childIndex]) {
             const child = formData.children[childIndex];
-            const isPeaceOfMind = formData.clientType === 'peace_of_mind' || formData.testPurpose === 'peace_of_mind';
-            if (!child.name.trim()) errors[`child${childIndex}.name`] = 'Name is required';
-            if (!child.surname.trim()) errors[`child${childIndex}.surname`] = 'Surname is required';
-            if (!child.collectionDate) errors[`child${childIndex}.collectionDate`] = 'Collection Date is required';
+            const isPeaceOfMind = formData.clientType === 'peace_of_mind' || formData.clientType === 'urgent' || formData.testPurpose === 'peace_of_mind';
             
             // Only require these fields if NOT Peace of Mind
             if (!isPeaceOfMind) {
+              if (!child.name.trim()) errors[`child${childIndex}.name`] = 'Name is required';
+              if (!child.surname.trim()) errors[`child${childIndex}.surname`] = 'Surname is required';
               if (!child.dateOfBirth) errors[`child${childIndex}.dateOfBirth`] = 'Date of Birth is required';
               if (!child.idNumber.trim()) errors[`child${childIndex}.idNumber`] = 'ID Number is required';
               if (!child.idType.trim()) errors[`child${childIndex}.idType`] = 'ID Type is required';
+              if (!child.collectionDate) errors[`child${childIndex}.collectionDate`] = 'Collection Date is required';
             }
           }
         }
         // Contact Information
         else if (sectionIndex === contactInfoIndex) {
-          if (!formData.phoneContact.trim()) errors.phoneContact = 'Phone Contact is required';
+          const isPeaceOfMind = formData.clientType === 'peace_of_mind' || formData.clientType === 'urgent' || formData.testPurpose === 'peace_of_mind';
           
-          // Check if at least one email is provided across all sections
-          if (!validateEmailRequirement()) {
+          // Only require fields if NOT Peace of Mind
+          if (!isPeaceOfMind) {
+            if (!formData.phoneContact.trim()) errors.phoneContact = 'Phone Contact is required';
+          }
+          
+          // Check if at least one email is provided across all sections (only for non-Peace of Mind)
+          if (!isPeaceOfMind && !validateEmailRequirement()) {
             errors.emailContact = 'At least one email address must be provided (mother, father, child, or contact email)';
           }
+        }
+        // Witness Information validation for legal testing
+        else if (sectionIndex === witnessIndex && formData.clientType === 'legal') {
+          if (!formData.witness.name.trim()) errors['witness.name'] = 'Witness name is required';
+          if (!formData.witness.surname.trim()) errors['witness.surname'] = 'Witness surname is required';
+          if (!formData.witness.idNumber.trim()) errors['witness.idNumber'] = 'Witness ID number is required';
+          if (!formData.witness.signature) errors['witness.signature'] = 'Witness signature is required';
         }
         break;
     }
@@ -1886,10 +2005,35 @@ export default function PaternityTestForm({ onSuccess }) {
                 <RadioGroup
                   row
                   value={formData.clientType}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    clientType: e.target.value
-                  }))}
+                  onChange={async (e) => {
+                    const newClientType = e.target.value;
+                    if (newClientType === 'peace_of_mind') {
+                      // Redirect to the Peace of Mind specific form
+                      navigate('/peace-of-mind');
+                    } else {
+                      // Update form data with new client type and test purpose
+                      setFormData(prev => ({
+                        ...prev,
+                        clientType: newClientType,
+                        testPurpose: newClientType === 'legal' ? 'legal_proceedings' : 
+                                   (newClientType === 'urgent' ? 'peace_of_mind' : prev.testPurpose)
+                      }));
+                      
+                      // Generate lab numbers for legal and urgent
+                      if (newClientType === 'legal' || newClientType === 'urgent') {
+                        const { motherLabNo, fatherLabNo, childrenLabNos } = await generateLabNumbers(formData.numberOfChildren, newClientType);
+                        setFormData(prev => ({
+                          ...prev,
+                          mother: { ...prev.mother, labNo: motherLabNo },
+                          father: { ...prev.father, labNo: fatherLabNo },
+                          children: prev.children.map((child, index) => ({
+                            ...child,
+                            labNo: childrenLabNos[index] || ''
+                          }))
+                        }));
+                      }
+                    }
+                  }}
                 >
                   <Grid container spacing={2}>
                     <Grid item xs={12} md={4}>
@@ -1904,8 +2048,14 @@ export default function PaternityTestForm({ onSuccess }) {
                       <FormControlLabel
                         value="legal"
                         control={<Radio sx={{ color: '#0D488F', '&.Mui-checked': { color: '#0D488F' } }} />}
-                        label="Legal (requires ID copies)"
-                        sx={{ '& .MuiFormControlLabel-label': { fontWeight: 500 } }}
+                        label={
+                          <Box>
+                            <Typography component="span" sx={{ fontWeight: 500 }}>Legal</Typography>
+                            <Typography variant="caption" sx={{ display: 'block', color: 'error.main', fontSize: '0.75rem' }}>
+                              (requires ID copies)
+                            </Typography>
+                          </Box>
+                        }
                       />
                     </Grid>
                     <Grid item xs={12} md={4}>
@@ -1933,8 +2083,15 @@ export default function PaternityTestForm({ onSuccess }) {
                 </Typography>
                 <Grid container spacing={3}>
                   <Grid item xs={12} md={4}>
-                    <Card sx={{ p: 2, textAlign: 'center', bgcolor: '#fafafa' }}>
-                      <Typography variant="subtitle2" sx={{ mb: 2 }}>Father ID Copy</Typography>
+                    <Card sx={{ 
+                      p: 2, 
+                      textAlign: 'center', 
+                      bgcolor: '#fafafa',
+                      border: errors['ltDocuments.fatherIdCopy'] ? '2px solid #f44336' : 'none'
+                    }}>
+                      <Typography variant="subtitle2" sx={{ mb: 2 }}>
+                        Father ID Copy <span style={{ color: 'red' }}>*</span>
+                      </Typography>
                       <input
                         accept="image/*,.pdf"
                         style={{ display: 'none' }}
@@ -1957,6 +2114,7 @@ export default function PaternityTestForm({ onSuccess }) {
                           startIcon={<CloudUpload />}
                           size="small"
                           sx={{ mb: 1 }}
+                          color={errors['ltDocuments.fatherIdCopy'] ? 'error' : 'primary'}
                         >
                           Upload
                         </Button>
@@ -1966,11 +2124,23 @@ export default function PaternityTestForm({ onSuccess }) {
                           ✓ {formData.ltDocuments.fatherIdCopy}
                         </Typography>
                       )}
+                      {errors['ltDocuments.fatherIdCopy'] && (
+                        <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1 }}>
+                          {errors['ltDocuments.fatherIdCopy']}
+                        </Typography>
+                      )}
                     </Card>
                   </Grid>
                   <Grid item xs={12} md={4}>
-                    <Card sx={{ p: 2, textAlign: 'center', bgcolor: '#fafafa' }}>
-                      <Typography variant="subtitle2" sx={{ mb: 2 }}>Child ID Copy</Typography>
+                    <Card sx={{ 
+                      p: 2, 
+                      textAlign: 'center', 
+                      bgcolor: '#fafafa',
+                      border: errors['ltDocuments.childIdCopy'] ? '2px solid #f44336' : 'none'
+                    }}>
+                      <Typography variant="subtitle2" sx={{ mb: 2 }}>
+                        Child ID Copy <span style={{ color: 'red' }}>*</span>
+                      </Typography>
                       <input
                         accept="image/*,.pdf"
                         style={{ display: 'none' }}
@@ -1993,6 +2163,7 @@ export default function PaternityTestForm({ onSuccess }) {
                           startIcon={<CloudUpload />}
                           size="small"
                           sx={{ mb: 1 }}
+                          color={errors['ltDocuments.childIdCopy'] ? 'error' : 'primary'}
                         >
                           Upload
                         </Button>
@@ -2002,11 +2173,23 @@ export default function PaternityTestForm({ onSuccess }) {
                           ✓ {formData.ltDocuments.childIdCopy}
                         </Typography>
                       )}
+                      {errors['ltDocuments.childIdCopy'] && (
+                        <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1 }}>
+                          {errors['ltDocuments.childIdCopy']}
+                        </Typography>
+                      )}
                     </Card>
                   </Grid>
                   <Grid item xs={12} md={4}>
-                    <Card sx={{ p: 2, textAlign: 'center', bgcolor: '#fafafa' }}>
-                      <Typography variant="subtitle2" sx={{ mb: 2 }}>Mother ID Copy (if applicable)</Typography>
+                    <Card sx={{ 
+                      p: 2, 
+                      textAlign: 'center', 
+                      bgcolor: '#fafafa',
+                      border: errors['ltDocuments.motherIdCopy'] ? '2px solid #f44336' : 'none'
+                    }}>
+                      <Typography variant="subtitle2" sx={{ mb: 2 }}>
+                        Mother ID Copy {formData.motherPresent === 'YES' && !formData.motherNotAvailable && <span style={{ color: 'red' }}>*</span>}
+                      </Typography>
                       <input
                         accept="image/*,.pdf"
                         style={{ display: 'none' }}
@@ -2029,6 +2212,7 @@ export default function PaternityTestForm({ onSuccess }) {
                           startIcon={<CloudUpload />}
                           size="small"
                           sx={{ mb: 1 }}
+                          color={errors['ltDocuments.motherIdCopy'] ? 'error' : 'primary'}
                         >
                           Upload
                         </Button>
@@ -2038,6 +2222,16 @@ export default function PaternityTestForm({ onSuccess }) {
                           ✓ {formData.ltDocuments.motherIdCopy}
                         </Typography>
                       )}
+                      {errors['ltDocuments.motherIdCopy'] && (
+                        <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1 }}>
+                          {errors['ltDocuments.motherIdCopy']}
+                        </Typography>
+                      )}
+                      {!formData.motherPresent || formData.motherPresent === 'NO' || formData.motherNotAvailable ? (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                          (Optional - mother not present)
+                        </Typography>
+                      ) : null}
                     </Card>
                   </Grid>
                 </Grid>
@@ -2053,7 +2247,7 @@ export default function PaternityTestForm({ onSuccess }) {
                   value={formData.refKitNumber || ''}
                   onChange={handleTopLevelChange}
                   placeholder="BN-"
-                  required
+                  required={formData.clientType !== 'peace_of_mind' && formData.clientType !== 'urgent' && formData.testPurpose !== 'peace_of_mind'}
                   error={!!errors.refKitNumber}
                   helperText={errors.refKitNumber}
                 />
@@ -2066,7 +2260,7 @@ export default function PaternityTestForm({ onSuccess }) {
                   type="date"
                   value={formData.submissionDate || ''}
                   onChange={handleTopLevelChange}
-                  required
+                  required={formData.clientType !== 'peace_of_mind' && formData.clientType !== 'urgent' && formData.testPurpose !== 'peace_of_mind'}
                   InputLabelProps={{ shrink: true }}
                 />
               </Grid>
@@ -2117,8 +2311,8 @@ export default function PaternityTestForm({ onSuccess }) {
                 <Typography variant="h6" sx={{ color: '#0D488F', fontWeight: 'bold', mb: 2 }}>
                   Contact Information
                 </Typography>
-                <Box sx={{ mb: 3, p: 2, bgcolor: '#e3f2fd', borderRadius: 1, border: '1px solid #2196f3' }}>
-                  <Typography variant="body2" sx={{ color: '#1976d2', fontWeight: 500 }}>
+                <Box sx={{ mb: 3, p: 2, bgcolor: '#ffebee', borderRadius: 1, border: '1px solid #f44336' }}>
+                  <Typography variant="body2" sx={{ color: '#d32f2f', fontWeight: 500 }}>
                     ⚠️ Email Requirement: At least one email address must be provided (mother, father, child, or contact email).
                   </Typography>
                 </Box>
@@ -2131,7 +2325,7 @@ export default function PaternityTestForm({ onSuccess }) {
                       type="email"
                       value={formData.emailContact || ''}
                       onChange={handleTopLevelChange}
-                      required
+                      required={formData.clientType !== 'peace_of_mind' && formData.clientType !== 'urgent' && formData.testPurpose !== 'peace_of_mind'}
                     />
                   </Grid>
                   <Grid item xs={12} md={6}>
@@ -2141,7 +2335,7 @@ export default function PaternityTestForm({ onSuccess }) {
                       name="phoneContact"
                       value={formData.phoneContact || ''}
                       onChange={handleTopLevelChange}
-                      required
+                      required={formData.clientType !== 'peace_of_mind' && formData.clientType !== 'urgent' && formData.testPurpose !== 'peace_of_mind'}
                     />
                   </Grid>
                   <Grid item xs={12}>
@@ -2228,10 +2422,40 @@ export default function PaternityTestForm({ onSuccess }) {
                   Signatures & Legal Consent
                 </Typography>
                 
+                {/* Parent Signed on Inventory Form Checkbox */}
+                <Paper elevation={1} sx={{ p: 3, mb: 3, bgcolor: '#e8f5e9', border: '2px solid #4caf50' }}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.parentSignedInventory || false}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          parentSignedInventory: e.target.checked,
+                          // If parent signed, automatically check all legal declarations
+                          legalDeclarations: e.target.checked ? {
+                            consentGiven: true,
+                            dataProtectionAgreed: true,
+                            resultNotificationAgreed: true,
+                            legalProceedingsUnderstood: true
+                          } : prev.legalDeclarations
+                        }))}
+                        sx={{ color: '#4caf50', '&.Mui-checked': { color: '#4caf50' } }}
+                      />
+                    }
+                    label="Parent (Mother or Father) has signed on the inventory form"
+                    sx={{ '& .MuiFormControlLabel-label': { fontWeight: 'bold', color: '#2e7d32' } }}
+                  />
+                  {formData.parentSignedInventory && (
+                    <Typography variant="body2" sx={{ mt: 1, color: '#2e7d32' }}>
+                      ✓ Legal declaration requirements satisfied - Inventory form signed by parent
+                    </Typography>
+                  )}
+                </Paper>
+                
                 {/* Legal Declarations */}
-                <Paper elevation={1} sx={{ p: 3, mb: 3, bgcolor: '#f8f9fa' }}>
+                <Paper elevation={1} sx={{ p: 3, mb: 3, bgcolor: formData.parentSignedInventory ? '#f5f5f5' : '#f8f9fa', opacity: formData.parentSignedInventory ? 0.5 : 1 }}>
                   <Typography variant="h6" sx={{ mb: 2, color: '#0D488F' }}>
-                    Legal Declarations
+                    Legal Declarations {formData.parentSignedInventory && '(Bypassed - Parent signed inventory form)'}
                   </Typography>
                   <Grid container spacing={2}>
                     <Grid item xs={12}>
@@ -2246,6 +2470,7 @@ export default function PaternityTestForm({ onSuccess }) {
                                 consentGiven: e.target.checked
                               }
                             }))}
+                            disabled={formData.parentSignedInventory}
                             required
                           />
                         }
@@ -2264,6 +2489,7 @@ export default function PaternityTestForm({ onSuccess }) {
                                 dataProtectionAgreed: e.target.checked
                               }
                             }))}
+                            disabled={formData.parentSignedInventory}
                             required
                           />
                         }
@@ -2282,6 +2508,7 @@ export default function PaternityTestForm({ onSuccess }) {
                                 resultNotificationAgreed: e.target.checked
                               }
                             }))}
+                            disabled={formData.parentSignedInventory}
                             required
                           />
                         }
@@ -2301,6 +2528,7 @@ export default function PaternityTestForm({ onSuccess }) {
                                   legalProceedingsUnderstood: e.target.checked
                                 }
                               }))}
+                              disabled={formData.parentSignedInventory}
                               required
                             />
                           }

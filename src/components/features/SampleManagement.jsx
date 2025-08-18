@@ -140,8 +140,8 @@ export default function SampleManagement() {
     setError(null);
     
     try {
-      const endpoint = query ? `/api/samples/search?q=${encodeURIComponent(query)}` : '/api/samples?limit=200';
-      const response = await fetch(`${API_BASE_URL}${endpoint}`);
+      // Always load all samples, let frontend filtering handle the search
+      const response = await fetch(`${API_BASE_URL}/api/samples?limit=500`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -225,6 +225,38 @@ export default function SampleManagement() {
   useEffect(() => {
     let filtered = [...samples];
     
+    // Apply general search query across all fields
+    if (query && query.trim()) {
+      const searchTerm = query.toLowerCase();
+      filtered = filtered.filter(sample => {
+        // Search across all relevant fields
+        return (
+          // Kit/case number
+          (sample.case_number && sample.case_number.toLowerCase().includes(searchTerm)) ||
+          (sample.kit_batch_number && sample.kit_batch_number.toLowerCase().includes(searchTerm)) ||
+          // Lab number
+          (sample.lab_number && sample.lab_number.toLowerCase().includes(searchTerm)) ||
+          // Names
+          (sample.name && sample.name.toLowerCase().includes(searchTerm)) ||
+          (sample.surname && sample.surname.toLowerCase().includes(searchTerm)) ||
+          // ID number
+          (sample.id_number && sample.id_number.toLowerCase().includes(searchTerm)) ||
+          // Phone and email
+          (sample.phone_number && sample.phone_number.includes(searchTerm)) ||
+          (sample.email && sample.email.toLowerCase().includes(searchTerm)) ||
+          // Dates
+          (sample.submission_date && sample.submission_date.includes(searchTerm)) ||
+          (sample.collection_date && sample.collection_date.includes(searchTerm)) ||
+          // Notes
+          (sample.notes && sample.notes.toLowerCase().includes(searchTerm)) ||
+          (sample.additional_notes && sample.additional_notes.toLowerCase().includes(searchTerm)) ||
+          // Status
+          (sample.status && sample.status.toLowerCase().includes(searchTerm)) ||
+          (sample.workflow_status && sample.workflow_status.toLowerCase().includes(searchTerm))
+        );
+      });
+    }
+    
     // Apply submission date filter
     if (filters.submissionDate) {
       filtered = filtered.filter(sample => 
@@ -268,7 +300,7 @@ export default function SampleManagement() {
     }
     
     setFilteredSamples(filtered);
-  }, [filters, samples]);
+  }, [filters, samples, query]);
   
   const clearFilters = () => {
     setFilters({
@@ -452,19 +484,16 @@ export default function SampleManagement() {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 3 }}>
-      {/* Header */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#1e3a5f', mb: 1 }}>
+    <Container maxWidth="xl" sx={{ py: 1 }}>
+      {/* Header - Compact */}
+      <Box sx={{ mb: 1.5 }}>
+        <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1e3a5f' }}>
           Sample Management
-        </Typography>
-        <Typography variant="body2" color="textSecondary">
-          Comprehensive sample database and workflow queue management
         </Typography>
       </Box>
 
-      {/* View Mode Tabs */}
-      <Paper sx={{ mb: 3 }}>
+      {/* View Mode Tabs - Compact */}
+      <Paper sx={{ mb: 1.5 }}>
         <Tabs
           value={viewMode}
           onChange={(e, newValue) => setViewMode(newValue)}
@@ -489,88 +518,87 @@ export default function SampleManagement() {
       {/* Database View */}
       {viewMode === 'database' && (
         <>
-          {/* Search and Stats Bar */}
-          <Grid container spacing={3} sx={{ mb: 3 }}>
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <form onSubmit={handleSearch}>
-                    <TextField
-                      fullWidth
-                      variant="outlined"
-                      placeholder="Search by case number, name, lab number..."
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <SearchIcon />
-                          </InputAdornment>
-                        ),
-                        endAdornment: query && (
-                          <InputAdornment position="end">
-                            <IconButton onClick={handleClearSearch} edge="end">
-                              <ClearIcon />
-                            </IconButton>
-                          </InputAdornment>
-                        )
-                      }}
-                    />
-                  </form>
-                  <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      onClick={handleRefresh}
-                      startIcon={<RefreshIcon />}
-                      disabled={loading}
-                    >
-                      Refresh
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={() => setShowFilters(!showFilters)}
-                      startIcon={showFilters ? <ExpandLess /> : <ExpandMore />}
-                    >
-                      {showFilters ? 'Hide Filters' : 'Show Filters'}
-                    </Button>
-                  </Box>
-                </CardContent>
-              </Card>
+          {/* Search and Stats Bar - Compact */}
+          <Grid container spacing={2} sx={{ mb: 2 }}>
+            <Grid item xs={12} md={8}>
+              <Paper sx={{ p: 1.5 }}>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    variant="outlined"
+                    placeholder="Search by case number, name, lab number, or any field..."
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon />
+                        </InputAdornment>
+                      ),
+                      endAdornment: query && (
+                        <InputAdornment position="end">
+                          <IconButton onClick={handleClearSearch} edge="end" size="small">
+                            <ClearIcon />
+                          </IconButton>
+                        </InputAdornment>
+                      )
+                    }}
+                  />
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={handleRefresh}
+                    startIcon={<RefreshIcon />}
+                    disabled={loading}
+                    sx={{ minWidth: '100px' }}
+                  >
+                    Refresh
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => setShowFilters(!showFilters)}
+                    startIcon={showFilters ? <ExpandLess /> : <ExpandMore />}
+                    sx={{ minWidth: '120px' }}
+                  >
+                    {showFilters ? 'Hide' : 'Show'} Filters
+                  </Button>
+                </Box>
+              </Paper>
             </Grid>
             
-            <Grid item xs={12} md={6}>
-              <Grid container spacing={2}>
+            <Grid item xs={12} md={4}>
+              <Grid container spacing={1}>
                 <Grid item xs={3}>
                   <Card sx={{ bgcolor: '#1e3a5f', color: 'white' }}>
-                    <CardContent sx={{ py: 1.5 }}>
-                      <Typography variant="h5" align="center">{sampleTotals.total}</Typography>
-                      <Typography variant="caption" align="center" display="block">Total</Typography>
+                    <CardContent sx={{ py: 1, px: 0.5 }}>
+                      <Typography variant="h6" align="center">{sampleTotals.total}</Typography>
+                      <Typography variant="caption" align="center" display="block" sx={{ fontSize: '0.7rem' }}>Total</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
                 <Grid item xs={3}>
                   <Card sx={{ bgcolor: '#f59e0b', color: 'white' }}>
-                    <CardContent sx={{ py: 1.5 }}>
-                      <Typography variant="h5" align="center">{sampleTotals.pending}</Typography>
-                      <Typography variant="caption" align="center" display="block">Pending</Typography>
+                    <CardContent sx={{ py: 1, px: 0.5 }}>
+                      <Typography variant="h6" align="center">{sampleTotals.pending}</Typography>
+                      <Typography variant="caption" align="center" display="block" sx={{ fontSize: '0.7rem' }}>Pending</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
                 <Grid item xs={3}>
                   <Card sx={{ bgcolor: '#3b82f6', color: 'white' }}>
-                    <CardContent sx={{ py: 1.5 }}>
-                      <Typography variant="h5" align="center">{sampleTotals.processing}</Typography>
-                      <Typography variant="caption" align="center" display="block">Processing</Typography>
+                    <CardContent sx={{ py: 1, px: 0.5 }}>
+                      <Typography variant="h6" align="center">{sampleTotals.processing}</Typography>
+                      <Typography variant="caption" align="center" display="block" sx={{ fontSize: '0.7rem' }}>Processing</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
                 <Grid item xs={3}>
                   <Card sx={{ bgcolor: '#10b981', color: 'white' }}>
-                    <CardContent sx={{ py: 1.5 }}>
-                      <Typography variant="h5" align="center">{sampleTotals.completed}</Typography>
-                      <Typography variant="caption" align="center" display="block">Completed</Typography>
+                    <CardContent sx={{ py: 1, px: 0.5 }}>
+                      <Typography variant="h6" align="center">{sampleTotals.completed}</Typography>
+                      <Typography variant="caption" align="center" display="block" sx={{ fontSize: '0.7rem' }}>Completed</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
@@ -578,11 +606,11 @@ export default function SampleManagement() {
             </Grid>
           </Grid>
           
-          {/* Advanced Filters */}
+          {/* Advanced Filters - Compact */}
           {showFilters && (
-            <Card sx={{ mb: 3 }}>
-              <CardContent>
-                <Typography variant="h6" sx={{ mb: 2 }}>Advanced Filters</Typography>
+            <Paper sx={{ mb: 2, p: 2 }}>
+              <Box>
+                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>Advanced Filters</Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={12} sm={6} md={2}>
                     <TextField
@@ -723,8 +751,8 @@ export default function SampleManagement() {
                     )}
                   </Grid>
                 </Grid>
-              </CardContent>
-            </Card>
+              </Box>
+            </Paper>
           )}
 
           {/* Action Buttons */}
@@ -831,8 +859,14 @@ export default function SampleManagement() {
                     </TableCell>
                   </TableRow>
                 ) : groupByKit ? (
-                  // Grouped view
-                  Object.entries(groupSamplesByKit(filteredSamples)).map(([kitNumber, kitSamples]) => {
+                  // Grouped view - sort by submission date (newest first)
+                  Object.entries(groupSamplesByKit(filteredSamples))
+                    .sort(([, samplesA], [, samplesB]) => {
+                      const dateA = samplesA[0]?.submission_date || '0000-00-00';
+                      const dateB = samplesB[0]?.submission_date || '0000-00-00';
+                      return dateB.localeCompare(dateA); // Descending order (newest first)
+                    })
+                    .map(([kitNumber, kitSamples]) => {
                     const isExpanded = expandedKits.has(kitNumber);
                     const allSelected = kitSamples.every(s => selectedSamples.has(s.lab_number));
                     const someSelected = kitSamples.some(s => selectedSamples.has(s.lab_number));
@@ -849,31 +883,58 @@ export default function SampleManagement() {
                             />
                           </TableCell>
                           <TableCell colSpan={8}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                               <IconButton
                                 size="small"
                                 onClick={() => toggleKitExpansion(kitNumber)}
                               >
                                 {isExpanded ? <ExpandLess /> : <ExpandMore />}
                               </IconButton>
+                              
+                              {/* Submission Date */}
+                              <Typography variant="body2" sx={{ color: 'text.secondary', minWidth: '100px' }}>
+                                {kitSamples[0]?.submission_date ? 
+                                  new Date(kitSamples[0].submission_date).toLocaleDateString('en-GB', { 
+                                    day: '2-digit', 
+                                    month: 'short', 
+                                    year: 'numeric' 
+                                  }) : 
+                                  'No date'
+                                }
+                              </Typography>
+                              
+                              {/* Kit Number */}
                               <Chip
                                 icon={<ScienceIcon />}
                                 label={`Kit: ${kitNumber}`}
-                                color="primary"
-                                sx={{ fontWeight: 'bold' }}
+                                color={kitSamples.some(s => s.is_urgent) ? "error" : "primary"}
+                                sx={{ fontWeight: 'bold', minWidth: '120px' }}
                               />
+                              
+                              {/* Status Label (Urgent or Peace of Mind) */}
+                              {kitSamples.some(s => s.is_urgent) ? (
+                                <Chip
+                                  label="URGENT"
+                                  size="small"
+                                  color="error"
+                                  sx={{ fontWeight: 'bold', minWidth: '80px' }}
+                                />
+                              ) : kitSamples[0]?.notes?.includes('Peace of Mind') || kitSamples[0]?.additional_notes?.includes('peace_of_mind') ? (
+                                <Chip
+                                  label="PEACE OF MIND"
+                                  size="small"
+                                  color="info"
+                                  sx={{ minWidth: '120px' }}
+                                />
+                              ) : null}
+                              
+                              {/* Sample Count */}
                               <Chip
                                 label={`${kitSamples.length} samples`}
                                 size="small"
                                 variant="outlined"
+                                sx={{ minWidth: '90px' }}
                               />
-                              {kitSamples[0]?.test_purpose && (
-                                <Chip
-                                  label={kitSamples[0].test_purpose}
-                                  size="small"
-                                  color="secondary"
-                                />
-                              )}
                             </Box>
                           </TableCell>
                         </TableRow>

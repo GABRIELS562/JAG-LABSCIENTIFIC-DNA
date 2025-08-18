@@ -113,10 +113,11 @@ const securityLogger = (req, res, next) => {
   ];
   
   if (securityEvents.some(path => req.path.startsWith(path))) {
-    .toISOString()}`);
+    // Log security event
+    console.log(`Security event logged for path: ${req.path}`);
     
     if (req.user) {
-      `);
+      console.log(`User: ${req.user.username}`);
     }
   }
   

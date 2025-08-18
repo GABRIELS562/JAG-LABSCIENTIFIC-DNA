@@ -42,8 +42,6 @@ import {
   Description as DescriptionIcon
 } from '@mui/icons-material';
 import { useThemeContext } from '../../../contexts/ThemeContext';
-import OsirisEmbeddedView from './OsirisEmbeddedView';
-import OsirisIntegration from '../OsirisIntegration';
 
 const CaseDetailsDialog = ({ open, onClose, caseData, onStartAnalysis }) => {
   const { isDarkMode } = useThemeContext();
@@ -51,7 +49,6 @@ const CaseDetailsDialog = ({ open, onClose, caseData, onStartAnalysis }) => {
   const [caseDetails, setCaseDetails] = useState(null);
   const [activeTab, setActiveTab] = useState(0);
   const [error, setError] = useState('');
-  const [osirisViewOpen, setOsirisViewOpen] = useState(false);
   const [reportGenerating, setReportGenerating] = useState(false);
 
   useEffect(() => {
@@ -479,22 +476,15 @@ const CaseDetailsDialog = ({ open, onClose, caseData, onStartAnalysis }) => {
 
               {/* STR Analysis Tab */}
               <TabPanel value={activeTab} index={2}>
-                {/* Real Osiris Integration */}
-                <OsirisIntegration
-                  caseData={{
-                    ...caseDetails.case,
-                    fsaFiles: caseDetails.samples.map(sample => ({
-                      path: sample.file_path || '/mock/path/' + sample.original_filename,
-                      name: sample.original_filename,
-                      sampleId: sample.sample_id,
-                      sampleType: sample.sample_type
-                    }))
-                  }}
-                  onAnalysisComplete={(results) => {
-                    // Refresh case details with new results
-                    fetchCaseDetails();
-                  }}
-                />
+                {/* GeneMapper Analysis */}
+                <Box sx={{ p: 2 }}>
+                  <Typography variant="h6" gutterBottom>
+                    GeneMapper Analysis
+                  </Typography>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Analysis is performed using GeneMapper software
+                  </Alert>
+                </Box>
                 
                 {caseDetails.analysisResults && (
                   <Box sx={{ mt: 4 }}>
@@ -679,13 +669,6 @@ const CaseDetailsDialog = ({ open, onClose, caseData, onStartAnalysis }) => {
         )}
       </DialogActions>
 
-      {/* Osiris Embedded View Dialog */}
-      <OsirisEmbeddedView
-        open={osirisViewOpen}
-        onClose={() => setOsirisViewOpen(false)}
-        caseData={caseData}
-        analysisResults={caseDetails}
-      />
     </Dialog>
   );
 };

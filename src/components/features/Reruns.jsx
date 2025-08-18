@@ -651,8 +651,6 @@ const Reruns = () => {
   };
 
   const handleFinalizeBatch = async () => {
-    );
-    
     try {
       const filledWells = Object.entries(plateData).filter(([_, well]) => well.samples.length > 0);
       
@@ -888,7 +886,6 @@ const Reruns = () => {
                 variant="contained"
                 color="success"
                 onClick={() => {
-                  );
                   setFinalizeDialog(true);
                 }}
                 disabled={!analyst?.trim() || getPlacedSamplesCount() === 0}

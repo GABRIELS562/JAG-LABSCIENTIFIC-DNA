@@ -67,8 +67,6 @@ class UnifiedApiClient {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-        :`, fullUrl);
-
         const response = await fetch(fullUrl, {
           ...options,
           signal: controller.signal,
@@ -147,7 +145,7 @@ class UnifiedApiClient {
   // Health check method
   async checkHealth() {
     try {
-      const response = await this.fetchJson('/api/test', {}, false);
+      const response = await this.fetchJson('/test', {}, false);
       return response.success === true;
     } catch (error) {
       return false;
@@ -158,7 +156,7 @@ class UnifiedApiClient {
 // Create singleton instance
 const apiClient = new UnifiedApiClient();
 
-export const api = {
+const api = {
   // Expose connection and cache management
   onConnectionChange: (callback) => apiClient.onConnectionChange(callback),
   isOnline: () => apiClient.isOnline,
@@ -168,7 +166,7 @@ export const api = {
   // Core API methods
 
   async submitPaternityTest(data) {
-    return apiClient.fetchJson('/api/submit-test', {
+    return apiClient.fetchJson('/submit-test', {
       method: "POST",
       body: JSON.stringify(data),
     }, false);
@@ -199,7 +197,7 @@ export const api = {
   },
 
   async getAllSamples() {
-    return apiClient.fetchJson('/api/samples/all');
+    return apiClient.fetchJson('/samples/all');
   },
 
   async searchSamples(query) {
@@ -210,7 +208,7 @@ export const api = {
   },
 
   async getSampleCounts() {
-    return apiClient.fetchJson('/api/samples/counts');
+    return apiClient.fetchJson('/samples/counts');
   },
 
   async getStatistics(period = 'daily') {
@@ -218,12 +216,12 @@ export const api = {
   },
 
   async getLastLabNumber() {
-    return apiClient.fetchJson('/api/get-last-lab-number');
+    return apiClient.fetchJson('/get-last-lab-number');
   },
 
   // Batch API methods
   async getBatches() {
-    return apiClient.fetchJson('/api/batches');
+    return apiClient.fetchJson('/batches');
   },
 
   async getBatch(batchNumber) {
@@ -236,7 +234,7 @@ export const api = {
 
   // Equipment and Quality Control
   async getEquipment() {
-    return apiClient.fetchJson('/api/equipment');
+    return apiClient.fetchJson('/equipment');
   },
 
   async getQualityControl(batchId = null) {
@@ -253,7 +251,7 @@ export const api = {
   },
 
   async getReportStats() {
-    return apiClient.fetchJson('/api/reports/stats');
+    return apiClient.fetchJson('/reports/stats');
   },
 
   async getReport(id) {
@@ -269,7 +267,7 @@ export const api = {
   },
 
   async createReport(reportData) {
-    return apiClient.fetchJson('/api/reports', {
+    return apiClient.fetchJson('/reports', {
       method: 'POST',
       body: JSON.stringify(reportData)
     }, false);
@@ -284,11 +282,11 @@ export const api = {
 
   // Database operations
   async getDbReports() {
-    return apiClient.fetchJson('/api/db/reports');
+    return apiClient.fetchJson('/db/reports');
   },
 
   async refreshDatabase() {
-    const result = await apiClient.fetchJson('/api/refresh-database', {
+    const result = await apiClient.fetchJson('/refresh-database', {
       method: 'POST'
     }, false);
     
@@ -299,7 +297,7 @@ export const api = {
 
   // Sample queue management (optimized methods)
   async getSampleQueueCounts() {
-    return apiClient.fetchJson('/api/samples/queue-counts');
+    return apiClient.fetchJson('/samples/queue-counts');
   },
 
   async getSamplesForQueue(queueType) {
@@ -307,9 +305,25 @@ export const api = {
   },
 
   async updateSampleWorkflowStatus(sampleIds, workflowStatus) {
-    return apiClient.fetchJson('/api/samples/workflow-status', {
+    return apiClient.fetchJson('/samples/workflow-status', {
       method: 'PUT',
       body: JSON.stringify({ sampleIds, workflowStatus })
+    }, false);
+  },
+
+  async getWellAssignments(batchId) {
+    return apiClient.fetchJson(`/api/well-assignments/${batchId}`);
+  },
+  
+  // Peace of Mind form endpoints
+  async getLastLabNumber() {
+    return apiClient.fetchJson('/get-last-lab-number', {}, false);
+  },
+  
+  async submitPaternityTest(data) {
+    return apiClient.fetchJson('/submit-paternity-test', {
+      method: 'POST',
+      body: JSON.stringify(data)
     }, false);
   }
 };
@@ -317,7 +331,7 @@ export const api = {
 export const batchApi = {
   async generateBatch(batchData) {
     try {
-      return await apiClient.fetchJson('/api/generate-batch', {
+      return await apiClient.fetchJson('/generate-batch', {
         method: "POST",
         body: JSON.stringify(batchData),
       }, false);
@@ -329,7 +343,7 @@ export const batchApi = {
 
   async saveBatch(batchData) {
     try {
-      return await apiClient.fetchJson('/api/save-batch', {
+      return await apiClient.fetchJson('/save-batch', {
         method: "POST",
         body: JSON.stringify(batchData),
       }, false);
@@ -337,15 +351,12 @@ export const batchApi = {
       console.error("Save batch error:", error);
       return { success: false, error: error.message };
     }
-  },
-
-  async getWellAssignments(batchId) {
-    return apiClient.fetchJson(`/api/well-assignments/${batchId}`);
   }
 };
 
 // Export the client instance for direct access if needed
 export { apiClient };
 
-// Export as default
+// Export both as named and default
+export { api };
 export default api;

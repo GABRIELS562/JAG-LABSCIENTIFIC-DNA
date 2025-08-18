@@ -49,12 +49,24 @@ const WitnessSection = ({
         <Grid item xs={12} md={6}>
           <TextField
             fullWidth
-            label="Witness Full Name"
+            label="Witness Name"
             value={witnessData?.name || ''}
             onChange={(e) => handleFieldChange('name', e.target.value)}
             disabled={disabled}
             required={required}
-            placeholder="Enter witness full name"
+            placeholder="Enter witness first name"
+          />
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Witness Surname"
+            value={witnessData?.surname || ''}
+            onChange={(e) => handleFieldChange('surname', e.target.value)}
+            disabled={disabled}
+            required={required}
+            placeholder="Enter witness surname"
           />
         </Grid>
 
@@ -87,7 +99,7 @@ const WitnessSection = ({
           </FormControl>
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} md={4}>
           <TextField
             fullWidth
             label="Contact Number"
@@ -98,7 +110,7 @@ const WitnessSection = ({
           />
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} md={4}>
           <TextField
             fullWidth
             label="Relationship to Case"
@@ -110,7 +122,7 @@ const WitnessSection = ({
           />
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} md={4}>
           <TextField
             fullWidth
             label="Witness Date"

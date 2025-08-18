@@ -217,7 +217,7 @@ export default function QualityControlModule() {
   const handleSave = async () => {
     try {
       // API call would go here
-      });
+      console.log('Saving QC data...');
       
       // Reload data
       await loadQCData();

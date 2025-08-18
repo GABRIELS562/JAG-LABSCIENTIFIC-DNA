@@ -140,9 +140,6 @@ const RerunBatches = () => {
 
     const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
     const cols = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0'));
-    
-    );
-    :', rows.slice(0,2).flatMap(row => cols.slice(0,3).map(col => `${row}${col}`)));
 
     return (
       <Box sx={{ overflowX: 'auto' }}>

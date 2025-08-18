@@ -187,13 +187,14 @@ class UnifiedDatabaseService {
           indexTime: `${indexTime}ms`
         });
       } else {
-        `);
+        // Indexes created successfully
       }
     } catch (error) {
       if (logger && logger.warn) {
         logger.warn('Failed to create some indexes', { error: error.message });
       } else {
-        }
+        // No action needed
+      }
     }
   }
 

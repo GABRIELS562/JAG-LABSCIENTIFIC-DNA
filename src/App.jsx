@@ -23,6 +23,7 @@ import ElectrophoresisLayout from './components/features/ElectrophoresisLayout';
 import Reruns from './components/features/Reruns';
 import ApiTest from './components/debug/ApiTest';
 import PaternityTestForm from './components/forms/PaternityTestForm';
+import PeaceOfMindForm from './components/forms/PeaceOfMindForm';
 import ISO17025Dashboard from './components/features/ISO17025Dashboard';
 import TestRoute from './components/TestRoute';
 import DebugRouter from './components/DebugRouter';
@@ -128,6 +129,15 @@ function AppContent() {
               element={
                 <div className={`${containerBackground} min-h-screen`}>
                   <PaternityTestForm />
+                </div>
+              } 
+            />
+            
+            <Route 
+              path="/peace-of-mind" 
+              element={
+                <div className={`${containerBackground} min-h-screen`}>
+                  <PeaceOfMindForm />
                 </div>
               } 
             />

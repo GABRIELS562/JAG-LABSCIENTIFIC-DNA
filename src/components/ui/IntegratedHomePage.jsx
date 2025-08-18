@@ -86,7 +86,15 @@ export default function IntegratedHomePage({ isDarkMode }) {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
-  const [turnaroundMetrics, setTurnaroundMetrics] = useState(null);
+  const [turnaroundMetrics, setTurnaroundMetrics] = useState({
+    average_tat: 0,
+    min_tat: 0,
+    max_tat: 0,
+    current_week: 0,
+    last_week: 0,
+    monthly_trend: [],
+    by_stage: {}
+  });
   const [recentActivity, setRecentActivity] = useState([]);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(new Date());
@@ -112,8 +120,8 @@ export default function IntegratedHomePage({ isDarkMode }) {
       
       // Load dashboard data with timeout and error handling
       const loadPromises = [
-        loadDashboardData().catch(err => ),
-        fetchSampleCounts().catch(err => )
+        loadDashboardData().catch(err => console.error('Dashboard load error:', err)),
+        fetchSampleCounts().catch(err => console.error('Sample count error:', err))
         // Removed refreshDatabase() as it might be causing delays
       ];
       
@@ -322,10 +330,10 @@ export default function IntegratedHomePage({ isDarkMode }) {
   };
 
   const turnaroundBarData = {
-    labels: Object.keys(turnaroundMetrics.by_stage).map(k => k.replace(/_/g, ' ').toUpperCase()),
+    labels: turnaroundMetrics?.by_stage ? Object.keys(turnaroundMetrics.by_stage).map(k => k.replace(/_/g, ' ').toUpperCase()) : [],
     datasets: [{
       label: 'Days',
-      data: Object.values(turnaroundMetrics.by_stage),
+      data: turnaroundMetrics?.by_stage ? Object.values(turnaroundMetrics.by_stage) : [],
       backgroundColor: '#1e3a5f',
       borderRadius: 4
     }]
@@ -420,7 +428,7 @@ export default function IntegratedHomePage({ isDarkMode }) {
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Box>
                   <Typography variant="h3" sx={{ fontWeight: 'bold' }}>
-                    {turnaroundMetrics.average_tat}
+                    {turnaroundMetrics?.average_tat || 0}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
                     Avg TAT (days)
@@ -619,11 +627,11 @@ export default function IntegratedHomePage({ isDarkMode }) {
       </Grid>
 
       {/* Performance Alert */}
-      {turnaroundMetrics.average_tat > 4 && (
+      {turnaroundMetrics?.average_tat > 4 && (
         <Alert severity="warning" sx={{ mb: 3 }}>
           <Typography variant="subtitle2">Performance Alert</Typography>
           <Typography variant="body2">
-            Average turnaround time is above target (4 days). Current: {turnaroundMetrics.average_tat} days.
+            Average turnaround time is above target (4 days). Current: {turnaroundMetrics?.average_tat || 0} days.
             Consider adding resources to {dashboardData.pending.pcr_queue > 40 ? 'PCR processing' : 'Analysis'}.
           </Typography>
         </Alert>

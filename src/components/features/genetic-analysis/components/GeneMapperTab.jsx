@@ -59,13 +59,6 @@ const GeneMapperTab = ({ isDarkMode, notifications }) => {
       const response = await fetch(apiUrl);
       const data = await response.json();
       
-      .map(b => ({
-          batch_number: b.batch_number,
-          hasPlateLayout: !!b.plate_layout,
-          wellCount: b.plate_layout ? Object.keys(b.plate_layout).length : 0
-        })) || []
-      });
-      
       if (data.success) {
         // Filter for electro batches and rerun batches
         const allBatches = data.data || [];
@@ -73,14 +66,8 @@ const GeneMapperTab = ({ isDarkMode, notifications }) => {
           const hasCorrectName = batch.batch_number?.includes('ELEC_') || batch.batch_number?.includes('_RR');
           const hasPlateLayout = batch.plate_layout && Object.keys(batch.plate_layout).length > 0;
           
-          .length : 0
-          });
-          
           return hasCorrectName && hasPlateLayout;
         });
-        
-        .length
-        })));
         
         setAvailableBatches(filteredBatches);
         

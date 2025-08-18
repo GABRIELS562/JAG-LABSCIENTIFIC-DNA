@@ -89,7 +89,7 @@ const AnalysisSummary = () => {
           batches.push({
             id: key,
             type: 'GeneMapper',
-            name: data.analysisId || `GeneMapper Analysis ${key.split('_').pop()}`,
+            name: data.analysisId || 'GeneMapper Analysis ' + key.split('_').pop(),
             timestamp: data.timestamp || new Date().toISOString(),
             sampleCount: data.samples?.length || 0,
             status: data.overallStatus || 'Completed',
@@ -107,7 +107,7 @@ const AnalysisSummary = () => {
   // Save a new batch with auto-generated ID
   const saveBatch = (analysisData, batchType) => {
     const timestamp = new Date().toISOString();
-    const batchId = `${batchType.toLowerCase()}_batch_${Date.now()}`;
+    const batchId = batchType.toLowerCase() + '_batch_' + Date.now();
     
     const batchData = {
       ...analysisData,
@@ -142,7 +142,7 @@ const AnalysisSummary = () => {
         return true;
       }
     } catch (error) {
-      console.error(`Failed to load batch ${batchId}:`, error);
+      console.error('Failed to load batch ' + batchId + ':', error);
     }
     return false;
   };
@@ -379,7 +379,6 @@ const AnalysisSummary = () => {
         const geneMapperData = await geneMapperResponse.value.json();
         if (geneMapperData.success) {
           analysisData = { ...geneMapperData, softwareType: 'GeneMapper' };
-          `);
         }
       }
       
@@ -480,7 +479,7 @@ const AnalysisSummary = () => {
             </Typography>
             {summaryData?.softwareType && (
               <Chip
-                label={`${summaryData.softwareType} Software`}
+                label={summaryData.softwareType + ' Software'}
                 color={summaryData.softwareType === 'Osiris' ? 'primary' : 'secondary'}
                 icon={<ScienceIcon />}
                 variant="outlined"
@@ -578,7 +577,7 @@ const AnalysisSummary = () => {
                       size="small"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (window.confirm(`Delete batch "${batch.name}"?`)) {
+                        if (window.confirm('Delete batch "' + batch.name + '"?')) {
                           deleteBatch(batch.id);
                         }
                       }}
@@ -696,7 +695,7 @@ const AnalysisSummary = () => {
           }}>
             <TrendingUp sx={{ fontSize: 40, mb: 1 }} />
             <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-              {summaryData?.analysisTime || (availableBatches.length > 0 ? `${availableBatches.length} Saved` : 'Ready')}
+              {summaryData?.analysisTime || (availableBatches.length > 0 ? availableBatches.length + ' Saved' : 'Ready')}
             </Typography>
             <Typography variant="body2" sx={{ opacity: 0.9 }}>
               Analysis Status
@@ -790,7 +789,7 @@ const AnalysisSummary = () => {
         <Card sx={{ mb: 3 }}>
           <CardHeader
             title="🧬 GeneMapper HID Analysis Results"
-            subheader={`${geneMapperData.source} • ${Object.keys(geneMapperData.cases || {}).length} cases • ${geneMapperData.totalSamples} samples`}
+            subheader={geneMapperData.source + ' • ' + Object.keys(geneMapperData.cases || {}).length + ' cases • ' + geneMapperData.totalSamples + ' samples'}
             action={
               <Button
                 variant="outlined"
@@ -822,12 +821,12 @@ const AnalysisSummary = () => {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <Typography variant="h6">Case {caseNum}</Typography>
                       <Chip 
-                        label={`${markers.length} markers`} 
+                        label={markers.length + ' markers'} 
                         size="small" 
                         color="primary" 
                       />
                       <Chip 
-                        label={`${Object.keys(caseData.samples).length} samples`} 
+                        label={Object.keys(caseData.samples).length + ' samples'} 
                         size="small" 
                         variant="outlined" 
                       />
@@ -872,17 +871,17 @@ const AnalysisSummary = () => {
                                 </TableCell>
                                 {mother && (
                                   <TableCell align="center">
-                                    {motherProfile ? `${motherProfile.allele1 || 'X'}, ${motherProfile.allele2 || 'X'}` : 'No data'}
+                                    {motherProfile ? (motherProfile.allele1 || 'X') + ', ' + (motherProfile.allele2 || 'X') : 'No data'}
                                   </TableCell>
                                 )}
                                 {child && (
                                   <TableCell align="center" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                                    {childProfile ? `${childProfile.allele1 || 'X'}, ${childProfile.allele2 || 'X'}` : 'No data'}
+                                    {childProfile ? (childProfile.allele1 || 'X') + ', ' + (childProfile.allele2 || 'X') : 'No data'}
                                   </TableCell>
                                 )}
                                 {allegedFather && (
                                   <TableCell align="center">
-                                    {fatherProfile ? `${fatherProfile.allele1 || 'X'}, ${fatherProfile.allele2 || 'X'}` : 'No data'}
+                                    {fatherProfile ? (fatherProfile.allele1 || 'X') + ', ' + (fatherProfile.allele2 || 'X') : 'No data'}
                                   </TableCell>
                                 )}
                                 <TableCell align="center">
@@ -913,7 +912,7 @@ const AnalysisSummary = () => {
         <Card sx={{ mb: 3 }}>
           <CardHeader
             title="🧬 GeneMapper HID STR Analysis Report"
-            subheader={`Analysis ID: ${summaryData.analysisId} • ${summaryData.source} • ${summaryData.runDate} ${summaryData.runTime}`}
+            subheader={'Analysis ID: ' + summaryData.analysisId + ' • ' + summaryData.source + ' • ' + summaryData.runDate + ' ' + summaryData.runTime}
             action={
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Chip
@@ -926,7 +925,7 @@ const AnalysisSummary = () => {
                   sx={{ fontSize: '0.9rem', fontWeight: 'bold' }}
                 />
                 <Chip
-                  label={`v${summaryData.chemistryVersion || '3.0.0'}`}
+                  label={'v' + (summaryData.chemistryVersion || '3.0.0')}
                   size="small"
                   variant="outlined"
                 />
@@ -964,7 +963,7 @@ const AnalysisSummary = () => {
                       <strong>Instrument:</strong> {summaryData.instrument}
                     </Typography>
                     <Typography variant="body2">
-                      <strong>Chemistry Kit:</strong> {summaryData.kit} {summaryData.chemistryVersion && `v${summaryData.chemistryVersion}`}
+                      <strong>Chemistry Kit:</strong> {summaryData.kit} {summaryData.chemistryVersion && ('v' + summaryData.chemistryVersion)}
                     </Typography>
                     <Typography variant="body2">
                       <strong>Kit Lot:</strong> {summaryData.kitLot || 'AB-IP-2024-001'}
@@ -1221,7 +1220,7 @@ const AnalysisSummary = () => {
         <Card sx={{ mb: 3 }}>
           <CardHeader
             title="🧬 DNA STR Paternity Analysis Report"
-            subheader={`Case ID: ${summaryData.caseId} • Analysis Date: ${new Date(summaryData.analysisDate).toLocaleDateString()}`}
+            subheader={'Case ID: ' + summaryData.caseId + ' • Analysis Date: ' + new Date(summaryData.analysisDate).toLocaleDateString()}
             action={
               <Chip
                 label={summaryData.conclusion}
@@ -1337,7 +1336,7 @@ const AnalysisSummary = () => {
             <Card>
               <CardHeader 
                 title="Sample Analysis Results"
-                subheader={`${summaryData.kit} • ${summaryData.runDate}`}
+                subheader={summaryData.kit + ' • ' + summaryData.runDate}
               />
               <CardContent>
                 <List>
@@ -1354,12 +1353,12 @@ const AnalysisSummary = () => {
                               {sample.name}
                             </Typography>
                             <Chip 
-                              label={`${sample.confidence}%`}
+                              label={sample.confidence + '%'}
                               color={sample.confidence > 95 ? 'success' : sample.confidence > 85 ? 'warning' : 'error'}
                               size="small"
                             />
                             <Chip 
-                              label={`${sample.lociDetected}/16 loci`}
+                              label={sample.lociDetected + '/16 loci'}
                               variant="outlined"
                               size="small"
                             />
@@ -1475,7 +1474,7 @@ const AnalysisSummary = () => {
         <Card sx={{ mt: 3 }}>
           <CardHeader 
             title="🧬 STR Loci Comparison - Paternity Analysis"
-            subheader={`${summaryData.strComparison.motherName} vs ${summaryData.strComparison.childName} vs ${summaryData.strComparison.allegedFatherName}`}
+            subheader={summaryData.strComparison.motherName + ' vs ' + summaryData.strComparison.childName + ' vs ' + summaryData.strComparison.allegedFatherName}
           />
           <CardContent>
             {/* Data Source Indicator */}
@@ -1486,7 +1485,7 @@ const AnalysisSummary = () => {
               >
                 <Typography variant="body2">
                   <strong>Data Source:</strong> {summaryData.source} 
-                  {summaryData.softwareType && ` (${summaryData.softwareType} Software)`}
+                  {summaryData.softwareType && (' (' + summaryData.softwareType + ' Software)')}
                   {summaryData.isRealData !== undefined && (
                     summaryData.isRealData ? ' - Real Analysis Results' : ' - Demonstration Data'
                   )}

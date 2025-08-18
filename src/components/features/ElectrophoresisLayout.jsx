@@ -650,7 +650,7 @@ const ElectrophoresisLayout = () => {
               
               const isControl = hasControlInLabNumber || hasControlInId;
               
-              - isControl: ${isControl}`);
+              console.log(`Sample ${s.name} - isControl: ${isControl}`);
               return !isControl;
             });
             
@@ -659,9 +659,8 @@ const ElectrophoresisLayout = () => {
             }
         });
       } else {
-        }
-      
-      ));
+        console.log('No batch data to extract samples from');
+      }
       
       // If no samples were extracted, try a less restrictive approach
       if (samplesFromBatch.length === 0) {
