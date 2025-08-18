@@ -1,0 +1,281 @@
+{
+  "timestamp": "2025-08-18T16:38:59.456Z",
+  "total_recovered": 30,
+  "sources": {
+    "main_db": 6,
+    "ashley_lims": 8,
+    "csv_template": 16
+  },
+  "samples": [
+    {
+      "source": "main_db",
+      "lab_number": "25_001",
+      "name": "John",
+      "surname": "Doe",
+      "relation": "child",
+      "status": "pending",
+      "created_at": "2025-08-16 11:16:26"
+    },
+    {
+      "source": "main_db",
+      "lab_number": "25_002",
+      "name": "Jane",
+      "surname": "Doe",
+      "relation": "mother",
+      "status": "pending",
+      "created_at": "2025-08-16 11:16:26"
+    },
+    {
+      "source": "main_db",
+      "lab_number": "25_003",
+      "name": "Robert",
+      "surname": "Doe",
+      "relation": "alleged_father",
+      "status": "pending",
+      "created_at": "2025-08-16 11:16:26"
+    },
+    {
+      "source": "main_db",
+      "lab_number": "25_004",
+      "name": "Emily",
+      "surname": "Smith",
+      "relation": "child",
+      "status": "pending",
+      "created_at": "2025-08-16 11:16:26"
+    },
+    {
+      "source": "main_db",
+      "lab_number": "25_005",
+      "name": "Sarah",
+      "surname": "Smith",
+      "relation": "mother",
+      "status": "pending",
+      "created_at": "2025-08-16 11:16:26"
+    },
+    {
+      "source": "main_db",
+      "lab_number": "25_006",
+      "name": "Michael",
+      "surname": "Smith",
+      "relation": "alleged_father",
+      "status": "pending",
+      "created_at": "2025-08-16 11:16:26"
+    },
+    {
+      "source": "ashley_lims",
+      "lab_number": "TEST_1755528852960",
+      "name": "Test",
+      "surname": "Sample",
+      "relation": "Child",
+      "status": "pending",
+      "created_at": "2025-08-18 14:54:12"
+    },
+    {
+      "source": "ashley_lims",
+      "lab_number": "PCR_TEST_001",
+      "name": "John",
+      "surname": "Doe",
+      "relation": "Child",
+      "status": "pending",
+      "created_at": "2025-08-18 14:58:18"
+    },
+    {
+      "source": "ashley_lims",
+      "lab_number": "PCR_TEST_002",
+      "name": "Jane",
+      "surname": "Doe",
+      "relation": "Mother",
+      "status": "pending",
+      "created_at": "2025-08-18 14:58:18"
+    },
+    {
+      "source": "ashley_lims",
+      "lab_number": "PCR_TEST_003",
+      "name": "Bob",
+      "surname": "Doe",
+      "relation": "Alleged Father",
+      "status": "pending",
+      "created_at": "2025-08-18 14:58:18"
+    },
+    {
+      "source": "ashley_lims",
+      "lab_number": "25_101",
+      "name": "John",
+      "surname": "Doe",
+      "relation": "child",
+      "status": "processing",
+      "created_at": "2025-08-18 15:33:18"
+    },
+    {
+      "source": "ashley_lims",
+      "lab_number": "25_102",
+      "name": "Jane",
+      "surname": "Smith",
+      "relation": "father",
+      "status": "processing",
+      "created_at": "2025-08-18 15:33:18"
+    },
+    {
+      "source": "ashley_lims",
+      "lab_number": "25_103",
+      "name": "Bob",
+      "surname": "Johnson",
+      "relation": "mother",
+      "status": "processing",
+      "created_at": "2025-08-18 15:33:18"
+    },
+    {
+      "source": "ashley_lims",
+      "lab_number": "25_104",
+      "name": "Alice",
+      "surname": "Brown",
+      "relation": "child",
+      "status": "processing",
+      "created_at": "2025-08-18 15:33:18"
+    },
+    {
+      "source": "csv_template",
+      "lab_number": "24_1",
+      "name": "John",
+      "surname": "Smith",
+      "relation": "child(24_2) f",
+      "status": "urgent",
+      "created_at": "2025-08-18 16:38:59"
+    },
+    {
+      "source": "csv_template",
+      "lab_number": "24_2",
+      "name": "Robert",
+      "surname": "Smith",
+      "relation": "alleged father",
+      "status": "urgent",
+      "created_at": "2025-08-18 16:38:59"
+    },
+    {
+      "source": "csv_template",
+      "lab_number": "24_3",
+      "name": "Michael",
+      "surname": "Johnson",
+      "relation": "Child (24_4) M",
+      "status": "urgent",
+      "created_at": "2025-08-18 16:38:59"
+    },
+    {
+      "source": "csv_template",
+      "lab_number": "24_4",
+      "name": "David",
+      "surname": "Johnson",
+      "relation": "alleged father",
+      "status": "urgent",
+      "created_at": "2025-08-18 16:38:59"
+    },
+    {
+      "source": "csv_template",
+      "lab_number": "24_5",
+      "name": "Sarah",
+      "surname": "Williams",
+      "relation": "Child (24_6) F",
+      "status": "urgent",
+      "created_at": "2025-08-18 16:38:59"
+    },
+    {
+      "source": "csv_template",
+      "lab_number": "24_6",
+      "name": "James",
+      "surname": "Williams",
+      "relation": "alleged father",
+      "status": "urgent",
+      "created_at": "2025-08-18 16:38:59"
+    },
+    {
+      "source": "csv_template",
+      "lab_number": "24_7",
+      "name": "Daniel",
+      "surname": "Brown",
+      "relation": "child(24_8) M",
+      "status": "urgent",
+      "created_at": "2025-08-18 16:38:59"
+    },
+    {
+      "source": "csv_template",
+      "lab_number": "24_8",
+      "name": "William",
+      "surname": "Brown",
+      "relation": "Alleged father",
+      "status": "urgent",
+      "created_at": "2025-08-18 16:38:59"
+    },
+    {
+      "source": "csv_template",
+      "lab_number": "24_9",
+      "name": "Matthew",
+      "surname": "Davis",
+      "relation": "child(24_10) M",
+      "status": "pending",
+      "created_at": "2025-08-18 16:38:59"
+    },
+    {
+      "source": "csv_template",
+      "lab_number": "24_10",
+      "name": "Christopher",
+      "surname": "Davis",
+      "relation": "Alleged father",
+      "status": "pending",
+      "created_at": "2025-08-18 16:38:59"
+    },
+    {
+      "source": "csv_template",
+      "lab_number": "24_11",
+      "name": "Emily",
+      "surname": "Miller",
+      "relation": "child(24_12) F",
+      "status": "ReRun",
+      "created_at": "2025-08-18 16:38:59"
+    },
+    {
+      "source": "csv_template",
+      "lab_number": "24_12",
+      "name": "Joseph",
+      "surname": "Miller",
+      "relation": "Alleged father",
+      "status": "ReRun",
+      "created_at": "2025-08-18 16:38:59"
+    },
+    {
+      "source": "csv_template",
+      "lab_number": "LT24_13",
+      "name": "Anthony",
+      "surname": "Wilson",
+      "relation": "child(LT24_14) M",
+      "status": "urgent",
+      "created_at": "2025-08-18 16:38:59"
+    },
+    {
+      "source": "csv_template",
+      "lab_number": "LT24_14",
+      "name": "Thomas",
+      "surname": "Wilson",
+      "relation": "Alleged Father(LT24_13)",
+      "status": "urgent",
+      "created_at": "2025-08-18 16:38:59"
+    },
+    {
+      "source": "csv_template",
+      "lab_number": "LT24_15",
+      "name": "Linda",
+      "surname": "Wilson",
+      "relation": "Mother(LT24_13)",
+      "status": "urgent",
+      "created_at": "2025-08-18 16:38:59"
+    },
+    {
+      "source": "csv_template",
+      "lab_number": "24_16",
+      "name": "Jessica",
+      "surname": "Garcia",
+      "relation": "child(24_17) F",
+      "status": "pending",
+      "created_at": "2025-08-18 16:38:59"
+    }
+  ]
+}
