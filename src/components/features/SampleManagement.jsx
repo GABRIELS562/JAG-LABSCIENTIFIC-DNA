@@ -911,12 +911,19 @@ export default function SampleManagement() {
                                 sx={{ fontWeight: 'bold', minWidth: '120px' }}
                               />
                               
-                              {/* Status Label (Urgent or Peace of Mind) */}
+                              {/* Status Label (Urgent, Legal, or Peace of Mind) */}
                               {kitSamples.some(s => s.is_urgent) ? (
                                 <Chip
                                   label="URGENT"
                                   size="small"
                                   color="error"
+                                  sx={{ fontWeight: 'bold', minWidth: '80px' }}
+                                />
+                              ) : kitSamples[0]?.additional_notes?.includes('legal_proceedings') ? (
+                                <Chip
+                                  label="LEGAL"
+                                  size="small"
+                                  color="warning"
                                   sx={{ fontWeight: 'bold', minWidth: '80px' }}
                                 />
                               ) : kitSamples[0]?.notes?.includes('Peace of Mind') || kitSamples[0]?.additional_notes?.includes('peace_of_mind') ? (
