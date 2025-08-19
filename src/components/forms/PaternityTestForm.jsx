@@ -1870,6 +1870,7 @@ export default function PaternityTestForm({ onSuccess }) {
   const validateSection = (sectionIndex) => {
     const errors = {};
     const contactInfoIndex = 3 + formData.numberOfChildren;
+    const witnessIndex = 3 + formData.numberOfChildren + 2; // After contact info and additional info
     
     // Helper function to check if at least one email is provided
     const validateEmailRequirement = () => {
