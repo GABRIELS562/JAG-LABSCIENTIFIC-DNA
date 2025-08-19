@@ -6,11 +6,6 @@
     "auditLog": "/Users/user/LABSCIENTIFIC-LIMS/backend/logs/.2e02a856c94539ef9c0e07d570579aedfd3f2faf-audit.json",
     "files": [
         {
-            "date": 1752954908563,
-            "name": "/Users/user/LABSCIENTIFIC-LIMS/backend/logs/error-2025-07-19.log",
-            "hash": "ea46829ced1e33767a55ba3201eb595a323125018e6fd7d67006db1e5b60cd1a"
-        },
-        {
             "date": 1752993076498,
             "name": "/Users/user/LABSCIENTIFIC-LIMS/backend/logs/error-2025-07-20.log",
             "hash": "32da11a7e664d3a0f1f324444e8557308976f421ef1d5da7353e74addc37910a"
@@ -124,6 +119,11 @@
             "date": 1755538111706,
             "name": "/Users/user/LABSCIENTIFIC-LIMS/backend/logs/error-2025-08-18.log",
             "hash": "b42d3d6b50f2dd0ad9215a62985e8ea22353bcf20d834f9f527c5fd20c082ca8"
+        },
+        {
+            "date": 1755583691532,
+            "name": "/Users/user/LABSCIENTIFIC-LIMS/backend/logs/error-2025-08-19.log",
+            "hash": "29070ebc4f7ec03572acc7fbcc083659d5b25991881ae2955bd86976492e2c15"
         }
     ],
     "hashType": "sha256"

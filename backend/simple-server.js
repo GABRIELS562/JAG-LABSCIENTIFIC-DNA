@@ -2,9 +2,46 @@ const express = require('express');
 const cors = require('cors');
 const Database = require('better-sqlite3');
 const path = require('path');
+const multer = require('multer');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Ensure upload directory exists
+const uploadDir = path.join(__dirname, 'uploads/legal_ids');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename: timestamp_kitNumber_type_originalname
+    const timestamp = Date.now();
+    const kitNumber = req.body.kitNumber || 'unknown';
+    const type = req.body.type || 'document'; // father, mother, child
+    const ext = path.extname(file.originalname);
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+    cb(null, `${timestamp}_${kitNumber}_${type}_${safeName}`);
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: function (req, file, cb) {
+    // Accept images and PDFs
+    if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only images and PDF files are allowed'));
+    }
+  }
+});
 
 // Middleware
 app.use(cors());
@@ -165,6 +202,35 @@ app.get('/api/samples/turnaround-metrics', (req, res) => {
   });
 });
 
+// File upload endpoint for ID documents
+app.post('/api/upload-id-document', upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No file uploaded' });
+    }
+
+    const { kitNumber, type, labNumber } = req.body;
+    const filePath = `/uploads/legal_ids/${req.file.filename}`;
+    
+    // Update the sample record with the document path if labNumber is provided
+    if (labNumber) {
+      const stmt = db.prepare('UPDATE samples SET id_document_path = ? WHERE lab_number = ?');
+      stmt.run(filePath, labNumber);
+    }
+
+    res.json({ 
+      success: true, 
+      filename: req.file.filename,
+      path: filePath,
+      originalName: req.file.originalname,
+      message: 'File uploaded successfully'
+    });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // General paternity test submission endpoint (for 8-step form)
 app.post('/api/submit-test', (req, res) => {
   try {
@@ -178,13 +244,13 @@ app.post('/api/submit-test', (req, res) => {
         relation, case_number, kit_batch_number,
         collection_date, submission_date,
         email, phone_number, notes, additional_notes,
-        workflow_status, status, gender, is_urgent, created_at, updated_at
+        workflow_status, status, gender, is_urgent, id_document_path, created_at, updated_at
       ) VALUES (
         ?, ?, ?, ?, ?,
         ?, ?, ?,
         ?, ?,
         ?, ?, ?, ?,
-        ?, ?, ?, ?, datetime('now'), datetime('now')
+        ?, ?, ?, ?, ?, datetime('now'), datetime('now')
       )
     `);
     
@@ -209,7 +275,8 @@ app.post('/api/submit-test', (req, res) => {
           'sample_collected',
           'pending',
           'M',
-          data.isUrgent ? 1 : 0
+          data.isUrgent ? 1 : 0,
+          data.idDocumentPaths?.fatherIdPath || null
         );
       }
       
@@ -233,7 +300,8 @@ app.post('/api/submit-test', (req, res) => {
           'sample_collected',
           'pending',
           'F',
-          data.isUrgent ? 1 : 0
+          data.isUrgent ? 1 : 0,
+          data.idDocumentPaths?.motherIdPath || null
         );
       }
       
@@ -259,7 +327,8 @@ app.post('/api/submit-test', (req, res) => {
               'sample_collected',
               'pending',
               child.gender || 'M',
-              data.isUrgent ? 1 : 0
+              data.isUrgent ? 1 : 0,
+              index === 0 ? (data.idDocumentPaths?.childIdPath || null) : null // Only first child gets the ID doc path
             );
           }
         });

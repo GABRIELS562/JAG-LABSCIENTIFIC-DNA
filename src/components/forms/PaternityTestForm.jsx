@@ -441,6 +441,13 @@ export default function PaternityTestForm({ onSuccess }) {
   // Photo capture states
   const [photoCaptureOpen, setPhotoCaptureOpen] = useState(false);
   const [selectedFormType, setSelectedFormType] = useState('paternity');
+  
+  // File upload states for ID documents
+  const [uploadedFiles, setUploadedFiles] = useState({
+    father: null,
+    child: null,
+    mother: null
+  });
 
   // Handle extracted photo data
   const handlePhotoDataExtracted = (extractedData) => {
@@ -870,6 +877,39 @@ export default function PaternityTestForm({ onSuccess }) {
       }
       
       processImageOCR(file);
+    }
+  };
+
+  // Handle ID document upload
+  const handleIdDocumentUpload = async (file, type, kitNumber) => {
+    if (!file) return null;
+    
+    const uploadData = new FormData();
+    uploadData.append('file', file);
+    uploadData.append('type', type);
+    uploadData.append('kitNumber', kitNumber || formData.refKitNumber);
+    
+    try {
+      const response = await fetch(`${API_URL}/upload-id-document`, {
+        method: 'POST',
+        body: uploadData
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        return result.path;
+      } else {
+        throw new Error(result.error || 'Upload failed');
+      }
+    } catch (error) {
+      console.error(`Error uploading ${type} ID document:`, error);
+      setSnackbar({
+        open: true,
+        message: `Failed to upload ${type} ID document: ${error.message}`,
+        severity: 'error'
+      });
+      return null;
     }
   };
 
@@ -1707,6 +1747,36 @@ export default function PaternityTestForm({ onSuccess }) {
       } : null;
 
       // Include signature and witness data
+      // Upload ID documents if this is a legal case
+      let idDocumentPaths = {};
+      if (formData.clientType === 'legal') {
+        console.log('Uploading ID documents for legal case...');
+        
+        // Upload father ID
+        if (uploadedFiles.father) {
+          const fatherIdPath = await handleIdDocumentUpload(uploadedFiles.father, 'father', formData.refKitNumber);
+          if (fatherIdPath) {
+            idDocumentPaths.fatherIdPath = fatherIdPath;
+          }
+        }
+        
+        // Upload child ID
+        if (uploadedFiles.child) {
+          const childIdPath = await handleIdDocumentUpload(uploadedFiles.child, 'child', formData.refKitNumber);
+          if (childIdPath) {
+            idDocumentPaths.childIdPath = childIdPath;
+          }
+        }
+        
+        // Upload mother ID if present
+        if (uploadedFiles.mother && formData.motherPresent === 'YES' && !formData.motherNotAvailable) {
+          const motherIdPath = await handleIdDocumentUpload(uploadedFiles.mother, 'mother', formData.refKitNumber);
+          if (motherIdPath) {
+            idDocumentPaths.motherIdPath = motherIdPath;
+          }
+        }
+      }
+
       const enhancedData = {
         refKitNumber: formData.refKitNumber,
         submissionDate: formData.submissionDate,
@@ -1727,7 +1797,8 @@ export default function PaternityTestForm({ onSuccess }) {
         contactPhone: formData.phoneContact,
         addressArea: formData.addressArea,
         comments: formData.comments,
-        isUrgent: formData.clientType === 'urgent' // Add urgent flag
+        isUrgent: formData.clientType === 'urgent', // Add urgent flag
+        idDocumentPaths: idDocumentPaths // Add uploaded document paths
       };
 
       const submitUrl = `${API_URL}/submit-test`;
@@ -2101,6 +2172,7 @@ export default function PaternityTestForm({ onSuccess }) {
                         onChange={(e) => {
                           const file = e.target.files[0];
                           if (file) {
+                            setUploadedFiles(prev => ({ ...prev, father: file }));
                             setFormData(prev => ({
                               ...prev,
                               ltDocuments: { ...prev.ltDocuments, fatherIdCopy: file.name }
@@ -2150,6 +2222,7 @@ export default function PaternityTestForm({ onSuccess }) {
                         onChange={(e) => {
                           const file = e.target.files[0];
                           if (file) {
+                            setUploadedFiles(prev => ({ ...prev, child: file }));
                             setFormData(prev => ({
                               ...prev,
                               ltDocuments: { ...prev.ltDocuments, childIdCopy: file.name }
@@ -2199,6 +2272,7 @@ export default function PaternityTestForm({ onSuccess }) {
                         onChange={(e) => {
                           const file = e.target.files[0];
                           if (file) {
+                            setUploadedFiles(prev => ({ ...prev, mother: file }));
                             setFormData(prev => ({
                               ...prev,
                               ltDocuments: { ...prev.ltDocuments, motherIdCopy: file.name }
