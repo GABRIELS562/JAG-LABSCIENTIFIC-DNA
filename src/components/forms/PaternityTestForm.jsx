@@ -456,18 +456,74 @@ export default function PaternityTestForm({ onSuccess }) {
     // Auto-populate fields based on extracted data
     const updates = {};
 
+    // Set client type if detected
+    if (extractedData.clientType) {
+      updates.clientType = extractedData.clientType;
+      // Set test purpose based on client type
+      if (extractedData.clientType === 'legal') {
+        updates.testPurpose = 'legal_proceedings';
+      } else if (extractedData.clientType === 'urgent' || extractedData.clientType === 'peace_of_mind') {
+        updates.testPurpose = 'peace_of_mind';
+      }
+    }
+
+    // Extract kit number if found
+    if (extractedData.kitNumber) {
+      updates.refKitNumber = extractedData.kitNumber;
+    }
+
+    // Extract lab numbers and assign to participants
+    if (extractedData.labNumbers && extractedData.labNumbers.length > 0) {
+      const [childLab, fatherLab, motherLab] = extractedData.labNumbers;
+      if (childLab) {
+        updates.children = [{
+          ...formData.children[0],
+          labNo: childLab
+        }];
+      }
+      if (fatherLab) {
+        updates.father = { ...formData.father, labNo: fatherLab };
+      }
+      if (motherLab) {
+        updates.mother = { ...formData.mother, labNo: motherLab };
+      }
+    }
+
     // Map extracted data to form fields
     if (extractedData.detectedNames && extractedData.detectedNames.length > 0) {
       // Try to assign names to appropriate sections
       const names = extractedData.detectedNames;
       if (names[0]) {
-        updates.child = { ...formData.child, name: names[0].split(' ')[0], surname: names[0].split(' ').slice(1).join(' ') };
+        const [firstName, ...surnameParts] = names[0].split(' ');
+        if (updates.children) {
+          updates.children[0] = { 
+            ...updates.children[0], 
+            name: firstName, 
+            surname: surnameParts.join(' ') 
+          };
+        } else {
+          updates.children = [{
+            ...formData.children[0],
+            name: firstName,
+            surname: surnameParts.join(' ')
+          }];
+        }
       }
       if (names[1]) {
-        updates.father = { ...formData.father, name: names[1].split(' ')[0], surname: names[1].split(' ').slice(1).join(' ') };
+        const [firstName, ...surnameParts] = names[1].split(' ');
+        updates.father = { 
+          ...updates.father || formData.father, 
+          name: firstName, 
+          surname: surnameParts.join(' ') 
+        };
       }
       if (names[2]) {
-        updates.mother = { ...formData.mother, name: names[2].split(' ')[0], surname: names[2].split(' ').slice(1).join(' ') };
+        const [firstName, ...surnameParts] = names[2].split(' ');
+        updates.mother = { 
+          ...updates.mother || formData.mother, 
+          name: firstName, 
+          surname: surnameParts.join(' ') 
+        };
       }
     }
 
@@ -489,6 +545,29 @@ export default function PaternityTestForm({ onSuccess }) {
       if (!isNaN(date.getTime())) {
         updates.submissionDate = date.toISOString().split('T')[0];
       }
+    }
+
+    // Extract ID numbers if available
+    if (extractedData.idNumbers && extractedData.idNumbers.length > 0) {
+      extractedData.idNumbers.forEach((idNum, index) => {
+        if (index === 0 && updates.children && updates.children[0]) {
+          updates.children[0].idNumber = idNum;
+        } else if (index === 1 && updates.father) {
+          updates.father.idNumber = idNum;
+        } else if (index === 2 && updates.mother) {
+          updates.mother.idNumber = idNum;
+        }
+      });
+    }
+
+    // For legal forms, apply witness information
+    if (extractedData.witnessName && formData.clientType === 'legal') {
+      const [firstName, ...surnameParts] = extractedData.witnessName.split(' ');
+      updates.witness = {
+        ...formData.witness,
+        name: firstName,
+        surname: surnameParts.join(' ')
+      };
     }
 
     // Apply updates to form
@@ -2123,7 +2202,7 @@ export default function PaternityTestForm({ onSuccess }) {
                         label={
                           <Box>
                             <Typography component="span" sx={{ fontWeight: 500 }}>Legal</Typography>
-                            <Typography variant="caption" sx={{ display: 'block', color: 'error.main', fontSize: '0.75rem' }}>
+                            <Typography variant="caption" sx={{ display: 'block', color: 'error.main', fontSize: '0.75rem', fontWeight: 'bold' }}>
                               (requires ID copies)
                             </Typography>
                           </Box>
@@ -2710,7 +2789,9 @@ export default function PaternityTestForm({ onSuccess }) {
               variant="outlined"
               startIcon={<CameraAlt />}
               onClick={() => {
-                setSelectedFormType('paternity');
+                // Use current client type for form capture
+                const captureType = formData.clientType || 'paternity';
+                setSelectedFormType(captureType);
                 setPhotoCaptureOpen(true);
               }}
               sx={{ 
@@ -2722,7 +2803,7 @@ export default function PaternityTestForm({ onSuccess }) {
                 }
               }}
             >
-              Capture Form
+              Capture Inventory Form
             </Button>
             
             <Button

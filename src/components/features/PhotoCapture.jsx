@@ -145,9 +145,19 @@ const PhotoCapture = ({ open, onClose, onDataExtracted, formType = 'paternity' }
     const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
     const data = {};
 
-    if (type === 'paternity' || type === 'peace_of_mind') {
-      // Extract common paternity form fields
-      data.type = 'Peace of Mind Sample';
+    // Handle all paternity test types (paternity, peace_of_mind, legal, urgent)
+    if (type === 'paternity' || type === 'peace_of_mind' || type === 'legal' || type === 'urgent') {
+      // Set type based on form type
+      if (type === 'legal') {
+        data.type = 'LT Legal Sample';
+        data.clientType = 'legal';
+      } else if (type === 'urgent') {
+        data.type = 'Urgent Sample';
+        data.clientType = 'urgent';
+      } else {
+        data.type = 'Peace of Mind Sample';
+        data.clientType = 'peace_of_mind';
+      }
       
       // Look for names (typically capitalized words)
       const namePatterns = [
@@ -199,22 +209,42 @@ const PhotoCapture = ({ open, onClose, onDataExtracted, formType = 'paternity' }
         data.idNumbers = ids;
       }
 
-    } else if (type === 'legal') {
-      // Extract legal test specific fields
-      data.type = 'LT Legal Sample';
-      
-      // Look for case numbers
-      const casePattern = /case[:\s]+([A-Z0-9\-]+)/gi;
-      const caseMatches = text.match(casePattern);
-      if (caseMatches) {
-        data.caseNumber = caseMatches[0].replace(/^case[:\s]+/i, '');
+      // Extract kit number (BN-XXX pattern)
+      const kitPattern = /\bBN[\-\s]?\d{3,4}\b/gi;
+      const kitMatches = text.match(kitPattern);
+      if (kitMatches && kitMatches.length > 0) {
+        data.kitNumber = kitMatches[0].replace(/\s/g, '-').toUpperCase();
       }
 
-      // Look for legal authority
-      const authorityPattern = /court[:\s]+([A-Za-z\s]+)/gi;
-      const authorityMatches = text.match(authorityPattern);
-      if (authorityMatches) {
-        data.legalAuthority = authorityMatches[0].replace(/^court[:\s]+/i, '');
+      // Extract lab numbers (25_XXX pattern)
+      const labPattern = /\b25[_\s]?\d{3}\b/g;
+      const labMatches = text.match(labPattern);
+      if (labMatches && labMatches.length > 0) {
+        data.labNumbers = labMatches.map(num => num.replace(/\s/g, '_'));
+      }
+
+      // For legal type, extract additional fields
+      if (type === 'legal') {
+        // Look for case numbers
+        const casePattern = /case[:\s]+([A-Z0-9\-]+)/gi;
+        const caseMatches = text.match(casePattern);
+        if (caseMatches) {
+          data.caseNumber = caseMatches[0].replace(/^case[:\s]+/i, '');
+        }
+
+        // Look for legal authority
+        const authorityPattern = /court[:\s]+([A-Za-z\s]+)/gi;
+        const authorityMatches = text.match(authorityPattern);
+        if (authorityMatches) {
+          data.legalAuthority = authorityMatches[0].replace(/^court[:\s]+/i, '');
+        }
+
+        // Look for witness information
+        const witnessPattern = /witness[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi;
+        const witnessMatches = text.match(witnessPattern);
+        if (witnessMatches) {
+          data.witnessName = witnessMatches[0].replace(/^witness[:\s]+/i, '');
+        }
       }
     }
 
