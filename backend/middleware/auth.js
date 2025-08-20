@@ -1,58 +1,132 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const { logger } = require('../utils/logger');
+const { ResponseHandler } = require('../utils/responseHandler');
 
 // Environment variables with fallbacks
 const JWT_SECRET = process.env.JWT_SECRET || 'labdna-lims-secret-key-change-in-production';
 const JWT_EXPIRY = process.env.JWT_EXPIRY || '24h';
 const BCRYPT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS) || 10;
 
-/**
- * Authentication middleware to verify JWT tokens
- */
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+// Token blacklist for logout functionality
+const tokenBlacklist = new Set();
 
-  if (!token) {
-    return res.status(401).json({ 
-      success: false, 
-      error: { 
-        message: 'Access token required',
-        code: 'NO_TOKEN'
+// Clean up blacklist periodically (every hour)
+setInterval(() => {
+  const now = Date.now();
+  for (const token of tokenBlacklist) {
+    try {
+      const decoded = jwt.decode(token);
+      if (decoded && decoded.exp * 1000 < now) {
+        tokenBlacklist.delete(token);
       }
-    });
-  }
-
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
-      console.log('Token verification failed:', err.message);
-      return res.status(403).json({ 
-        success: false, 
-        error: { 
-          message: 'Invalid or expired token',
-          code: 'INVALID_TOKEN'
-        }
-      });
+    } catch (error) {
+      // Invalid token, remove it
+      tokenBlacklist.delete(token);
     }
+  }
+}, 60 * 60 * 1000); // 1 hour
 
-    req.user = user;
-    next();
-  });
+/**
+ * Extract token from request headers
+ */
+const extractToken = (req) => {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader) {
+    return null;
+  }
+  
+  if (authHeader.startsWith('Bearer ')) {
+    return authHeader.slice(7);
+  }
+  
+  return authHeader;
 };
 
 /**
- * Role-based authorization middleware
+ * Enhanced authentication middleware to verify JWT tokens
+ */
+const authenticateToken = (req, res, next) => {
+  try {
+    const token = extractToken(req);
+
+    if (!token) {
+      logger.warn('Authentication attempt without token', {
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        path: req.path
+      });
+      
+      return ResponseHandler.unauthorized(res, 'Access token required');
+    }
+
+    // Check if token is blacklisted
+    if (tokenBlacklist.has(token)) {
+      logger.warn('Attempt to use blacklisted token', {
+        ip: req.ip,
+        path: req.path
+      });
+      
+      return ResponseHandler.unauthorized(res, 'Token has been revoked');
+    }
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+      if (err) {
+        logger.warn('Token verification failed', {
+          error: err.message,
+          ip: req.ip,
+          userAgent: req.get('User-Agent'),
+          path: req.path
+        });
+        
+        return ResponseHandler.unauthorized(res, 'Invalid or expired token');
+      }
+
+      // Attach enhanced user information to request
+      req.user = {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        tokenId: user.jti || null,
+        tokenIssued: user.iat,
+        tokenExpires: user.exp
+      };
+      
+      // Log successful authentication
+      logger.debug('User authenticated successfully', {
+        userId: req.user.id,
+        username: req.user.username,
+        role: req.user.role,
+        ip: req.ip
+      });
+      
+      next();
+    });
+  } catch (error) {
+    logger.error('Authentication error', {
+      error: error.message,
+      stack: error.stack,
+      ip: req.ip
+    });
+    
+    return ResponseHandler.internalError(res, 'Authentication service error');
+  }
+};
+
+/**
+ * Enhanced role-based authorization middleware
  */
 const requireRole = (roles) => {
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({ 
-        success: false, 
-        error: { 
-          message: 'Authentication required',
-          code: 'NOT_AUTHENTICATED'
-        }
+      logger.warn('Authorization attempt without authentication', {
+        ip: req.ip,
+        path: req.path
       });
+      
+      return ResponseHandler.unauthorized(res, 'Authentication required');
     }
 
     const userRoles = Array.isArray(req.user.role) ? req.user.role : [req.user.role];
@@ -61,16 +135,27 @@ const requireRole = (roles) => {
     const hasRole = allowedRoles.some(role => userRoles.includes(role));
     
     if (!hasRole) {
-      return res.status(403).json({ 
-        success: false, 
-        error: { 
-          message: 'Insufficient permissions',
-          code: 'INSUFFICIENT_PERMISSIONS',
-          required: allowedRoles,
-          current: userRoles
-        }
+      logger.warn('Authorization failed - insufficient permissions', {
+        userId: req.user.id,
+        username: req.user.username,
+        userRole: req.user.role,
+        allowedRoles,
+        path: req.path,
+        method: req.method,
+        ip: req.ip
       });
+      
+      return ResponseHandler.forbidden(res, 'Insufficient permissions for this resource');
     }
+
+    // Log successful authorization
+    logger.debug('User authorized successfully', {
+      userId: req.user.id,
+      username: req.user.username,
+      role: req.user.role,
+      requiredRoles: allowedRoles,
+      path: req.path
+    });
 
     next();
   };
@@ -84,21 +169,43 @@ const requireStaff = requireRole(['staff']);
  */
 const tokenUtils = {
   /**
-   * Generate JWT token for user
+   * Generate JWT token for user with enhanced security
    */
-  generateToken(user) {
+  generateToken(user, options = {}) {
+    const {
+      expiresIn = JWT_EXPIRY,
+      includePermissions = false
+    } = options;
+    
     const payload = {
       id: user.id,
       username: user.username,
       email: user.email,
-      role: user.role
+      role: user.role,
+      jti: require('crypto').randomUUID(), // JWT ID for token tracking
+      iat: Math.floor(Date.now() / 1000)
     };
+    
+    if (includePermissions && user.permissions) {
+      payload.permissions = user.permissions;
+    }
 
-    return jwt.sign(payload, JWT_SECRET, { 
-      expiresIn: JWT_EXPIRY,
+    const token = jwt.sign(payload, JWT_SECRET, { 
+      expiresIn,
       issuer: 'labdna-lims',
-      audience: 'labdna-users'
+      audience: 'labdna-users',
+      notBefore: 0 // Token is valid immediately
     });
+    
+    logger.info('Token generated', {
+      userId: user.id,
+      username: user.username,
+      role: user.role,
+      tokenId: payload.jti,
+      expiresIn
+    });
+    
+    return token;
   },
 
   /**
@@ -252,6 +359,84 @@ const authResponse = {
 // Legacy generateToken function for backward compatibility
 const generateToken = tokenUtils.generateToken;
 
+/**
+ * Logout middleware - blacklist token
+ */
+const logout = (req, res, next) => {
+  try {
+    const token = extractToken(req);
+    
+    if (token) {
+      tokenBlacklist.add(token);
+      
+      logger.info('User logged out', {
+        userId: req.user?.id,
+        username: req.user?.username,
+        tokenId: req.user?.tokenId,
+        ip: req.ip
+      });
+    }
+    
+    next();
+  } catch (error) {
+    logger.error('Logout error', { error: error.message });
+    next();
+  }
+};
+
+/**
+ * Optional authentication middleware (doesn't fail if no token)
+ */
+const optionalAuth = (req, res, next) => {
+  try {
+    const token = extractToken(req);
+    
+    if (token && !tokenBlacklist.has(token)) {
+      jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (!err) {
+          req.user = {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            tokenId: user.jti || null
+          };
+        }
+      });
+    }
+  } catch (error) {
+    // Log but don't fail the request
+    logger.debug('Optional authentication failed', {
+      error: error.message,
+      ip: req.ip
+    });
+  }
+  
+  next();
+};
+
+/**
+ * Session activity tracking middleware
+ */
+const trackActivity = (req, res, next) => {
+  if (req.user) {
+    // Update last activity timestamp
+    req.user.lastActivity = new Date();
+    
+    // Log user activity for audit purposes
+    logger.debug('User activity tracked', {
+      userId: req.user.id,
+      username: req.user.username,
+      method: req.method,
+      path: req.path,
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+  }
+  
+  next();
+};
+
 module.exports = {
   authenticateToken,
   requireRole,
@@ -261,6 +446,11 @@ module.exports = {
   validationUtils,
   authResponse,
   generateToken, // Legacy compatibility
+  logout,
+  optionalAuth,
+  trackActivity,
+  extractToken,
+  tokenBlacklist,
   JWT_SECRET,
   JWT_EXPIRY
 };

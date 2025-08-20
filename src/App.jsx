@@ -14,7 +14,7 @@ import ElectrophoresisBatches from './components/features/ElectrophoresisBatches
 import SampleSearch from './components/features/SampleSearch';
 import SampleQueues from './components/features/SampleQueues';
 import Statistics from './components/features/Statistics';
-import QualityControl from './components/features/QualityControl';
+import QualityControlISO17025 from './components/features/QualityControlISO17025';
 import ClientRegister from './components/features/ClientRegister';
 import PCRPlate from './components/features/PCRPlate';
 import PCRBatches from './components/features/PCRBatches';
@@ -23,6 +23,11 @@ import AnalysisSummary from './components/features/AnalysisSummary';
 import ElectrophoresisLayout from './components/features/ElectrophoresisLayout';
 import Reruns from './components/features/Reruns';
 import ApiTest from './components/debug/ApiTest';
+import OsirisAnalysis from './components/features/OsirisAnalysis';
+import DebugPanel from './components/debug/DebugPanel';
+import QualityManagementSystem from './components/features/QualityManagementSystem';
+import InventoryManagement from './components/features/InventoryManagement';
+import AIMachineLearning from './components/features/AIMachineLearning';
 
 // Import authentication components
 import LoginPage from './components/auth/LoginPage';
@@ -87,6 +92,7 @@ function AppContent() {
         
         <main className={`flex-1 overflow-y-auto w-full ${isMobile ? 'pt-16' : ''}`}>
           <ThemeToggle onToggle={toggleTheme} isDarkMode={isDarkMode} />
+          <DebugPanel />
           <Routes>
             {/* Authentication pages - accessible separately */}
             <Route 
@@ -179,11 +185,51 @@ function AppContent() {
               } 
             />
             <Route 
+              path="/osiris-analysis" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <OsirisAnalysis />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
               path="/quality-control" 
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <QualityControl />
+                    <QualityControlISO17025 />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/qms" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <QualityManagementSystem />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/inventory" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <InventoryManagement />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/ai-ml" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <AIMachineLearning />
                   </div>
                 </ErrorBoundary>
               } 

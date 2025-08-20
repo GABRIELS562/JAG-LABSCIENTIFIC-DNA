@@ -18,6 +18,9 @@ const authRoutes = require("./routes/auth");
 const dbViewerRoutes = require("./routes/database-viewer");
 const geneticAnalysisRoutes = require("./routes/genetic-analysis");
 const reportsRoutes = require("./routes/reports");
+const qmsRoutes = require("./routes/qms");
+const inventoryRoutes = require("./routes/inventory");
+const aiMlRoutes = require("./routes/ai-ml");
 // Removed monitoring routes import
 
 // Load environment variables from root
@@ -30,12 +33,23 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
 
-// Initialize database connection
+// Initialize database connection with better configuration
 const dbPath = path.join(__dirname, 'database', 'ashley_lims.db');
 let db = null;
 
 try {
-  db = new Database(dbPath);
+  db = new Database(dbPath, {
+    verbose: process.env.NODE_ENV === 'development' ? console.log : null,
+    fileMustExist: false
+  });
+  
+  // Configure database for better performance
+  db.pragma('journal_mode = WAL');
+  db.pragma('synchronous = NORMAL');
+  db.pragma('cache_size = 1000000');
+  db.pragma('temp_store = memory');
+  db.pragma('mmap_size = 268435456'); // 256MB
+  
   logger.info('Database connected successfully', { dbPath });
 } catch (error) {
   logger.error('Database connection failed', { error: error.message, dbPath });
@@ -67,10 +81,13 @@ app.use(sanitizeInput);
 // Database helper functions
 function getSamplesWithPagination(page = 1, limit = 50, filters = {}) {
   try {
+    // Validate and sanitize inputs
+    page = Math.max(1, parseInt(page) || 1);
+    limit = Math.min(100, Math.max(1, parseInt(limit) || 50));
     const offset = (page - 1) * limit;
+    
     let whereClause = '';
     let params = [];
-    
     const conditions = [];
     if (filters.status && filters.status !== 'all') {
       switch (filters.status) {
@@ -107,8 +124,10 @@ function getSamplesWithPagination(page = 1, limit = 50, filters = {}) {
       whereClause = 'WHERE ' + conditions.join(' AND ');
     }
     
+    // Use prepared statements for better performance
     const countQuery = `SELECT COUNT(*) as total FROM samples ${whereClause}`;
-    const total = db.prepare(countQuery).get(...params).total;
+    const countStmt = db.prepare(countQuery);
+    const total = countStmt.get(...params).total;
     
     const dataQuery = `
       SELECT 
@@ -121,7 +140,8 @@ function getSamplesWithPagination(page = 1, limit = 50, filters = {}) {
     `;
     
     params.push(limit, offset);
-    const samples = db.prepare(dataQuery).all(...params);
+    const dataStmt = db.prepare(dataQuery);
+    const samples = dataStmt.all(...params);
     
     return {
       data: samples,
@@ -138,27 +158,41 @@ function getSamplesWithPagination(page = 1, limit = 50, filters = {}) {
   }
 }
 
+// Cache sample counts for better performance
+let sampleCountsCache = null;
+let sampleCountsCacheExpiry = 0;
+const CACHE_DURATION = 30000; // 30 seconds
+
 function getSampleCounts() {
   try {
-    const totalStmt = db.prepare('SELECT COUNT(*) as count FROM samples');
-    const activeStmt = db.prepare("SELECT COUNT(*) as count FROM samples WHERE status = 'active'");
-    const pendingStmt = db.prepare("SELECT COUNT(*) as count FROM samples WHERE workflow_status IN ('sample_collected', 'pcr_ready') AND batch_id IS NULL");
-    const pcrBatchedStmt = db.prepare("SELECT COUNT(*) as count FROM samples WHERE workflow_status = 'pcr_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'LDS_%' AND lab_batch_number NOT LIKE '%_RR')");
-    const electroBatchedStmt = db.prepare("SELECT COUNT(*) as count FROM samples WHERE workflow_status = 'electro_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'ELEC_%')");
-    const rerunBatchedStmt = db.prepare("SELECT COUNT(*) as count FROM samples WHERE workflow_status = 'rerun_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE '%_RR')");
-    const completedStmt = db.prepare("SELECT COUNT(*) as count FROM samples WHERE workflow_status IN ('analysis_completed')");
-    const processingStmt = db.prepare("SELECT COUNT(*) as count FROM samples WHERE workflow_status IN ('pcr_batched', 'pcr_completed')");
+    const now = Date.now();
     
-    return {
-      total: totalStmt.get().count,
-      active: activeStmt.get().count,
-      pending: pendingStmt.get().count,
-      pcrBatched: pcrBatchedStmt.get().count,
-      electroBatched: electroBatchedStmt.get().count,
-      rerunBatched: rerunBatchedStmt.get().count,
-      completed: completedStmt.get().count,
-      processing: processingStmt.get().count
-    };
+    // Return cached result if still valid
+    if (sampleCountsCache && now < sampleCountsCacheExpiry) {
+      return sampleCountsCache;
+    }
+    
+    // Use a single optimized query instead of multiple queries
+    const stmt = db.prepare(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'active' THEN 1 END) as active,
+        COUNT(CASE WHEN workflow_status IN ('sample_collected', 'pcr_ready') AND batch_id IS NULL THEN 1 END) as pending,
+        COUNT(CASE WHEN workflow_status = 'pcr_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'LDS_%' AND lab_batch_number NOT LIKE '%_RR') THEN 1 END) as pcrBatched,
+        COUNT(CASE WHEN workflow_status = 'electro_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'ELEC_%') THEN 1 END) as electroBatched,
+        COUNT(CASE WHEN workflow_status = 'rerun_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE '%_RR') THEN 1 END) as rerunBatched,
+        COUNT(CASE WHEN workflow_status IN ('analysis_completed') THEN 1 END) as completed,
+        COUNT(CASE WHEN workflow_status IN ('pcr_batched', 'pcr_completed') THEN 1 END) as processing
+      FROM samples
+    `);
+    
+    const result = stmt.get();
+    
+    // Cache the result
+    sampleCountsCache = result;
+    sampleCountsCacheExpiry = now + CACHE_DURATION;
+    
+    return result;
   } catch (error) {
     logger.error('Error getting sample counts', { error: error.message });
     return { total: 0, active: 0, pending: 0, pcrBatched: 0, electroBatched: 0, rerunBatched: 0, completed: 0, processing: 0 };
@@ -166,28 +200,48 @@ function getSampleCounts() {
 }
 
 function createSample(sampleData) {
-  try {
-    const stmt = db.prepare(`
-      INSERT INTO samples (
-        lab_number, name, surname, relation, status, phone_number,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-    `);
-    
-    const result = stmt.run(
-      sampleData.lab_number,
-      sampleData.name,
-      sampleData.surname,
-      sampleData.relation || 'Child',
-      sampleData.status || 'pending',
-      sampleData.phone_number
-    );
-    
-    return { id: result.lastInsertRowid, ...sampleData };
-  } catch (error) {
-    logger.error('Error creating sample', { error: error.message, sampleData });
-    throw error;
-  }
+  const transaction = db.transaction(() => {
+    try {
+      // Validate required fields
+      if (!sampleData.lab_number || !sampleData.name || !sampleData.surname) {
+        throw new Error('Missing required fields: lab_number, name, or surname');
+      }
+      
+      // Check for duplicate lab_number
+      const duplicateCheck = db.prepare('SELECT id FROM samples WHERE lab_number = ?');
+      const existing = duplicateCheck.get(sampleData.lab_number);
+      
+      if (existing) {
+        throw new Error(`Sample with lab number ${sampleData.lab_number} already exists`);
+      }
+      
+      const stmt = db.prepare(`
+        INSERT INTO samples (
+          lab_number, name, surname, relation, status, phone_number,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      `);
+      
+      const result = stmt.run(
+        sampleData.lab_number,
+        sampleData.name.trim(),
+        sampleData.surname.trim(),
+        sampleData.relation || 'Child',
+        sampleData.status || 'pending',
+        sampleData.phone_number
+      );
+      
+      // Clear sample counts cache since we added a new sample
+      sampleCountsCache = null;
+      
+      return { id: result.lastInsertRowid, ...sampleData };
+    } catch (error) {
+      logger.error('Error creating sample', { error: error.message, sampleData });
+      throw error;
+    }
+  });
+  
+  return transaction();
 }
 
 // Use routes with fallback handling
@@ -197,6 +251,9 @@ try {
   // app.use("/api/db", dbViewerRoutes);
   app.use("/api/genetic-analysis", geneticAnalysisRoutes);
   app.use("/api/reports", reportsRoutes);
+  app.use("/api/qms", qmsRoutes);
+  app.use("/api/inventory", inventoryRoutes);
+  app.use("/api/ai-ml", aiMlRoutes);
   // app.use("/monitoring", monitoringRoutes);
 } catch (error) {
   logger.warn('Some routes not available, using fallback endpoints', { error: error.message });
@@ -555,6 +612,30 @@ app.post("/api/refresh-database", (req, res) => {
     ResponseHandler.success(res, {
       message: "Database refreshed",
       statistics: { samples: 0, cases: 0, batches: 0, reports: 0 }
+    });
+  }
+});
+
+// Workflow stats endpoint
+app.get("/api/workflow-stats", (req, res) => {
+  try {
+    const counts = getSampleCounts();
+    ResponseHandler.success(res, {
+      registered: counts.pending || 0,
+      inPCR: counts.pcr_batched || 0,
+      inElectrophoresis: counts.electro_batched || 0,
+      reruns: counts.rerun_batched || 0,
+      completed: counts.completed || 0,
+      total: counts.total || 0
+    });
+  } catch (error) {
+    ResponseHandler.success(res, {
+      registered: 0,
+      inPCR: 0,
+      inElectrophoresis: 0,
+      reruns: 0,
+      completed: 0,
+      total: 0
     });
   }
 });

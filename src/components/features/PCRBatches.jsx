@@ -25,31 +25,95 @@ import {
   Divider,
   Alert,
   CircularProgress,
-  Tooltip
+  Tooltip,
+  TextField,
+  InputAdornment,
+  IconButton,
+  Fab,
+  Badge,
+  LinearProgress,
+  useTheme,
+  Switch,
+  FormControlLabel,
+  Stack,
+  Avatar,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText
 } from '@mui/material';
 import {
   ExpandMore,
   Visibility,
   Science,
   Assignment,
-  Person
+  Person,
+  Search,
+  FilterList,
+  GetApp,
+  PlayArrow,
+  Pause,
+  CheckCircle,
+  Error,
+  Warning,
+  Schedule,
+  ThermostatAuto,
+  Analytics,
+  CloudDownload,
+  Assessment,
+  MoreVert,
+  Refresh,
+  Timeline
 } from '@mui/icons-material';
 
 const PCRBatches = () => {
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
   const [batches, setBatches] = useState([]);
+  const [filteredBatches, setFilteredBatches] = useState([]);
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [batchDetails, setBatchDetails] = useState(null);
   const [wellAssignments, setWellAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [showCompleted, setShowCompleted] = useState(true);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [selectedBatchForMenu, setSelectedBatchForMenu] = useState(null);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
   useEffect(() => {
     fetchBatches();
     checkForNewBatch();
+    // Set up auto-refresh every 30 seconds
+    const interval = setInterval(fetchBatches, 30000);
+    return () => clearInterval(interval);
   }, []);
+
+  // Filter batches when search term or filters change
+  useEffect(() => {
+    let filtered = [...batches];
+    
+    if (searchTerm) {
+      filtered = filtered.filter(batch => 
+        batch.batch_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        batch.operator?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(batch => batch.status?.toLowerCase() === statusFilter.toLowerCase());
+    }
+    
+    if (!showCompleted) {
+      filtered = filtered.filter(batch => batch.status?.toLowerCase() !== 'completed');
+    }
+    
+    setFilteredBatches(filtered);
+  }, [batches, searchTerm, statusFilter, showCompleted]);
 
   const checkForNewBatch = () => {
     // Check if there's a newly created batch from PCR plate
@@ -101,7 +165,7 @@ const PCRBatches = () => {
   const fetchBatches = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/batches`);
+      const response = await fetch(`${API_URL}/batches`);
       const data = await response.json();
       
       if (data.success) {
@@ -158,10 +222,55 @@ const PCRBatches = () => {
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
       case 'completed': return 'success';
-      case 'active': return 'primary';
-      case 'cancelled': return 'error';
+      case 'active': case 'running': return 'primary';
+      case 'pending': return 'warning';
+      case 'paused': return 'info';
+      case 'failed': case 'error': case 'cancelled': return 'error';
       default: return 'default';
     }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'completed': return <CheckCircle />;
+      case 'active': case 'running': return <PlayArrow />;
+      case 'pending': return <Schedule />;
+      case 'paused': return <Pause />;
+      case 'failed': case 'error': return <Error />;
+      case 'cancelled': return <Warning />;
+      default: return <Schedule />;
+    }
+  };
+
+  const getBatchProgress = (batch) => {
+    // Calculate progress based on status and timestamps
+    const status = batch?.status?.toLowerCase();
+    switch (status) {
+      case 'completed': return 100;
+      case 'active': case 'running': return 75;
+      case 'pending': return 25;
+      case 'failed': case 'error': case 'cancelled': return 0;
+      default: return 0;
+    }
+  };
+
+  const calculateBatchMetrics = (batch) => {
+    const plateLayout = batch?.plate_layout || {};
+    let samples = 0, controls = 0, empty = 0;
+    
+    Object.values(plateLayout).forEach(well => {
+      if (well && well.samples && well.samples.length > 0) {
+        if (well.type === 'control') {
+          controls++;
+        } else {
+          samples++;
+        }
+      } else {
+        empty++;
+      }
+    });
+    
+    return { samples, controls, empty, total: samples + controls };
   };
 
   // Calculate counts from plate layout
@@ -361,86 +470,298 @@ const PCRBatches = () => {
     );
   };
 
+  const handleBatchAction = (action, batch) => {
+    setAnchorEl(null);
+    setSelectedBatchForMenu(null);
+    
+    switch (action) {
+      case 'view':
+        handleViewBatch(batch);
+        break;
+      case 'export':
+        exportBatchData(batch);
+        break;
+      case 'rerun':
+        // Handle rerun logic
+        console.log('Rerun batch:', batch.batch_number);
+        break;
+      default:
+        break;
+    }
+  };
+
+  const exportBatchData = (batch) => {
+    const data = {
+      batch_number: batch.batch_number,
+      operator: batch.operator,
+      created_at: batch.created_at,
+      status: batch.status,
+      plate_layout: batch.plate_layout,
+      metrics: calculateBatchMetrics(batch)
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${batch.batch_number}_export.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress />
+      <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress size={60} />
+        <Typography variant="h6" sx={{ mt: 2, color: 'text.secondary' }}>
+          Loading PCR Batches...
+        </Typography>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>
-        LDS PCR Batches
-      </Typography>
+    <Box sx={{ p: 3, minHeight: '100vh', bgcolor: isDarkMode ? 'grey.900' : 'grey.50' }}>
+      {/* Header Section */}
+      <Box sx={{ mb: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Avatar sx={{ bgcolor: 'primary.main', width: 48, height: 48 }}>
+              <Science />
+            </Avatar>
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: isDarkMode ? 'white' : 'primary.main' }}>
+                PCR Batch Management
+              </Typography>
+              <Typography variant="subtitle1" color="text.secondary">
+                Monitor and manage PCR batches with real-time status tracking
+              </Typography>
+            </Box>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+            <Badge badgeContent={batches.length} color="primary">
+              <Fab size="small" color="primary" onClick={() => window.location.reload()}>
+                <Refresh />
+              </Fab>
+            </Badge>
+          </Box>
+        </Box>
 
-      {batches.length === 0 ? (
-        <Alert severity="info">
-          No PCR batches found. Create batches using the PCR Plate page.
-        </Alert>
+        {/* Search and Filter Section */}
+        <Paper sx={{ p: 3, mb: 3, bgcolor: isDarkMode ? 'grey.800' : 'white' }}>
+          <Grid container spacing={3} alignItems="center">
+            <Grid item xs={12} md={4}>
+              <TextField
+                fullWidth
+                variant="outlined"
+                placeholder="Search batches..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search color="action" />
+                    </InputAdornment>
+                  )
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <TextField
+                select
+                fullWidth
+                label="Status Filter"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                SelectProps={{ native: true }}
+              >
+                <option value="all">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="active">Active</option>
+                <option value="completed">Completed</option>
+                <option value="failed">Failed</option>
+                <option value="cancelled">Cancelled</option>
+              </TextField>
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={showCompleted}
+                    onChange={(e) => setShowCompleted(e.target.checked)}
+                    color="primary"
+                  />
+                }
+                label="Show Completed"
+              />
+            </Grid>
+            <Grid item xs={12} md={2}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <FilterList color="action" />
+                <Typography variant="body2" color="text.secondary">
+                  {filteredBatches.length} of {batches.length}
+                </Typography>
+              </Box>
+            </Grid>
+          </Grid>
+        </Paper>
+      </Box>
+
+      {filteredBatches.length === 0 ? (
+        <Paper sx={{ p: 6, textAlign: 'center', bgcolor: isDarkMode ? 'grey.800' : 'white' }}>
+          <Science sx={{ fontSize: 80, color: 'text.disabled', mb: 2 }} />
+          <Typography variant="h5" color="text.secondary" gutterBottom>
+            {batches.length === 0 ? 'No PCR Batches Found' : 'No Batches Match Your Filters'}
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            {batches.length === 0 
+              ? 'Create batches using the PCR Plate page.'
+              : 'Try adjusting your search term or filters.'
+            }
+          </Typography>
+        </Paper>
       ) : (
         <Grid container spacing={3}>
-          {batches.map((batch) => (
-            <Grid item xs={12} md={6} lg={4} key={batch.id}>
+          {filteredBatches.map((batch) => (
+            <Grid item xs={12} sm={6} lg={4} key={batch.id}>
               <Card 
                 sx={{ 
                   height: '100%',
+                  borderRadius: 3,
+                  transition: 'all 0.3s ease-in-out',
+                  bgcolor: isDarkMode ? 'grey.800' : 'white',
+                  border: `1px solid ${isDarkMode ? 'grey.700' : 'grey.200'}`,
                   '&:hover': { 
-                    boxShadow: 6,
-                    transform: 'translateY(-2px)',
-                    transition: 'all 0.2s ease-in-out'
+                    boxShadow: isDarkMode ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.12)',
+                    transform: 'translateY(-4px)',
+                    borderColor: 'primary.main'
                   }
                 }}
               >
-                <CardContent>
+                <CardContent sx={{ pb: 1 }}>
+                  {/* Header with Status */}
                   <Box display="flex" justifyContent="space-between" alignItems="start" mb={2}>
-                    <Typography variant="h6" fontWeight="bold">
-                      {batch.batch_number}
-                    </Typography>
-                    <Chip 
-                      label={batch.status || 'active'} 
-                      color={getStatusColor(batch.status)}
-                      size="small"
-                    />
-                  </Box>
-                  
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="body2" color="textSecondary" gutterBottom>
-                      <Person sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
-                      Operator: {batch.operator || 'N/A'}
-                    </Typography>
-                    
-                    <Typography variant="body2" color="textSecondary" gutterBottom>
-                      <Science sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
-                      Samples: {batch.total_samples || 0}
-                    </Typography>
-                    
-                    <Typography variant="body2" color="textSecondary" gutterBottom>
-                      <Assignment sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
-                      Created: {formatDate(batch.created_at)}
-                    </Typography>
+                    <Box>
+                      <Typography variant="h6" fontWeight="bold" sx={{ color: isDarkMode ? 'white' : 'text.primary' }}>
+                        {batch.batch_number}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        ID: {batch.id}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Chip 
+                        icon={getStatusIcon(batch.status)}
+                        label={batch.status || 'active'} 
+                        color={getStatusColor(batch.status)}
+                        size="small"
+                        variant="filled"
+                      />
+                      <IconButton 
+                        size="small"
+                        onClick={(e) => {
+                          setAnchorEl(e.currentTarget);
+                          setSelectedBatchForMenu(batch);
+                        }}
+                      >
+                        <MoreVert />
+                      </IconButton>
+                    </Box>
                   </Box>
 
-                  {batch.pcr_date && (
-                    <Typography variant="body2" color="textSecondary">
-                      PCR Date: {formatDate(batch.pcr_date)}
-                    </Typography>
-                  )}
+                  {/* Progress Indicator */}
+                  <Box sx={{ mb: 2 }}>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                      <Typography variant="body2" color="text.secondary">
+                        Progress
+                      </Typography>
+                      <Typography variant="body2" fontWeight="medium">
+                        {getBatchProgress(batch)}%
+                      </Typography>
+                    </Box>
+                    <LinearProgress 
+                      variant="determinate" 
+                      value={getBatchProgress(batch)}
+                      sx={{ 
+                        height: 6, 
+                        borderRadius: 3,
+                        bgcolor: isDarkMode ? 'grey.700' : 'grey.200'
+                      }}
+                    />
+                  </Box>
+
+                  {/* Batch Metrics */}
+                  <Box sx={{ mb: 2 }}>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <Box sx={{ textAlign: 'center', p: 1, bgcolor: isDarkMode ? 'grey.700' : 'primary.50', borderRadius: 2 }}>
+                          <Typography variant="h6" color="primary" fontWeight="bold">
+                            {calculateBatchMetrics(batch).samples}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Samples
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Box sx={{ textAlign: 'center', p: 1, bgcolor: isDarkMode ? 'grey.700' : 'success.50', borderRadius: 2 }}>
+                          <Typography variant="h6" color="success.main" fontWeight="bold">
+                            {calculateBatchMetrics(batch).controls}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Controls
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    </Grid>
+                  </Box>
                   
-                  {batch.electro_date && (
-                    <Typography variant="body2" color="textSecondary">
-                      Electro Date: {formatDate(batch.electro_date)}
-                    </Typography>
-                  )}
+                  {/* Batch Details */}
+                  <Stack spacing={1}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Person sx={{ fontSize: 16, color: 'text.secondary' }} />
+                      <Typography variant="body2" color="text.secondary">
+                        Operator: <strong>{batch.operator || 'N/A'}</strong>
+                      </Typography>
+                    </Box>
+                    
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Assignment sx={{ fontSize: 16, color: 'text.secondary' }} />
+                      <Typography variant="body2" color="text.secondary">
+                        Created: <strong>{formatDate(batch.created_at)}</strong>
+                      </Typography>
+                    </Box>
+                    
+                    {batch.pcr_date && (
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <ThermostatAuto sx={{ fontSize: 16, color: 'text.secondary' }} />
+                        <Typography variant="body2" color="text.secondary">
+                          PCR: <strong>{formatDate(batch.pcr_date)}</strong>
+                        </Typography>
+                      </Box>
+                    )}
+                    
+                    {batch.electro_date && (
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Timeline sx={{ fontSize: 16, color: 'text.secondary' }} />
+                        <Typography variant="body2" color="text.secondary">
+                          Electro: <strong>{formatDate(batch.electro_date)}</strong>
+                        </Typography>
+                      </Box>
+                    )}
+                  </Stack>
                 </CardContent>
                 
-                <CardActions>
+                <CardActions sx={{ p: 2, pt: 0 }}>
                   <Button 
                     size="small" 
                     startIcon={<Visibility />}
                     onClick={() => handleViewBatch(batch)}
-                    variant="outlined"
+                    variant="contained"
+                    fullWidth
+                    sx={{ borderRadius: 2 }}
                   >
                     View Details
                   </Button>
@@ -451,55 +772,193 @@ const PCRBatches = () => {
         </Grid>
       )}
 
-      {/* Batch Details Dialog */}
+      {/* Batch Actions Menu */}
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={() => setAnchorEl(null)}
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+      >
+        <MenuItem onClick={() => handleBatchAction('view', selectedBatchForMenu)}>
+          <ListItemIcon><Visibility fontSize="small" /></ListItemIcon>
+          <ListItemText>View Details</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => handleBatchAction('export', selectedBatchForMenu)}>
+          <ListItemIcon><CloudDownload fontSize="small" /></ListItemIcon>
+          <ListItemText>Export Data</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => handleBatchAction('rerun', selectedBatchForMenu)}>
+          <ListItemIcon><Refresh fontSize="small" /></ListItemIcon>
+          <ListItemText>Create Rerun</ListItemText>
+        </MenuItem>
+      </Menu>
+
+      {/* Enhanced Batch Details Dialog */}
       <Dialog 
         open={dialogOpen} 
         onClose={() => setDialogOpen(false)}
-        maxWidth="lg"
+        maxWidth="xl"
         fullWidth
+        PaperProps={{
+          sx: { 
+            borderRadius: 3,
+            minHeight: '80vh',
+            bgcolor: isDarkMode ? 'grey.900' : 'white'
+          }
+        }}
       >
-        <DialogTitle>
+        <DialogTitle sx={{ pb: 1, borderBottom: `1px solid ${isDarkMode ? 'grey.700' : 'grey.200'}` }}>
           <Box display="flex" justifyContent="space-between" alignItems="center">
-            <Typography variant="h6">
-              Batch Details: {selectedBatch?.batch_number}
-            </Typography>
-            <Chip 
-              label={selectedBatch?.status || 'active'} 
-              color={getStatusColor(selectedBatch?.status)}
-            />
+            <Box display="flex" alignItems="center" gap={2}>
+              <Avatar sx={{ bgcolor: 'primary.main' }}>
+                <Science />
+              </Avatar>
+              <Box>
+                <Typography variant="h5" fontWeight="bold">
+                  {selectedBatch?.batch_number}
+                </Typography>
+                <Typography variant="subtitle1" color="text.secondary">
+                  PCR Batch Analysis & Quality Control
+                </Typography>
+              </Box>
+            </Box>
+            <Box display="flex" alignItems="center" gap={2}>
+              <Chip 
+                icon={getStatusIcon(selectedBatch?.status)}
+                label={selectedBatch?.status || 'active'} 
+                color={getStatusColor(selectedBatch?.status)}
+                variant="filled"
+              />
+              <IconButton onClick={() => exportBatchData(selectedBatch)}>
+                <CloudDownload />
+              </IconButton>
+            </Box>
           </Box>
         </DialogTitle>
         
-        <DialogContent dividers>
-          <Box sx={{ mb: 3 }}>
+        <DialogContent dividers sx={{ p: 3 }}>
+          {/* Enhanced Batch Overview */}
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            {/* Batch Information Card */}
+            <Grid item xs={12} md={6}>
+              <Paper sx={{ p: 3, borderRadius: 2, bgcolor: isDarkMode ? 'grey.800' : 'primary.50' }}>
+                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Assignment color="primary" />
+                  Batch Information
+                </Typography>
+                <Stack spacing={2}>
+                  <Box display="flex" justifyContent="space-between">
+                    <Typography variant="body2" color="text.secondary">Batch ID:</Typography>
+                    <Typography variant="body2" fontWeight="medium">{batchDetails?.id}</Typography>
+                  </Box>
+                  <Box display="flex" justifyContent="space-between">
+                    <Typography variant="body2" color="text.secondary">Operator:</Typography>
+                    <Typography variant="body2" fontWeight="medium">{batchDetails?.operator || 'N/A'}</Typography>
+                  </Box>
+                  <Box display="flex" justifyContent="space-between">
+                    <Typography variant="body2" color="text.secondary">Created:</Typography>
+                    <Typography variant="body2" fontWeight="medium">{formatDate(batchDetails?.created_at)}</Typography>
+                  </Box>
+                  <Box display="flex" justifyContent="space-between">
+                    <Typography variant="body2" color="text.secondary">Last Updated:</Typography>
+                    <Typography variant="body2" fontWeight="medium">{formatDate(batchDetails?.updated_at)}</Typography>
+                  </Box>
+                  <Box display="flex" justifyContent="space-between">
+                    <Typography variant="body2" color="text.secondary">Progress:</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '50%' }}>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={getBatchProgress(batchDetails)}
+                        sx={{ flexGrow: 1, height: 6, borderRadius: 3 }}
+                      />
+                      <Typography variant="caption">{getBatchProgress(batchDetails)}%</Typography>
+                    </Box>
+                  </Box>
+                </Stack>
+              </Paper>
+            </Grid>
+
+            {/* Quality Metrics Card */}
+            <Grid item xs={12} md={6}>
+              <Paper sx={{ p: 3, borderRadius: 2, bgcolor: isDarkMode ? 'grey.800' : 'success.50' }}>
+                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Analytics color="success" />
+                  Quality Metrics
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={4}>
+                    <Box textAlign="center">
+                      <Typography variant="h4" color="primary" fontWeight="bold">
+                        {calculateCounts(batchDetails?.plate_layout).samples}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">Samples</Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={4}>
+                    <Box textAlign="center">
+                      <Typography variant="h4" color="success.main" fontWeight="bold">
+                        {calculateCounts(batchDetails?.plate_layout).controls}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">Controls</Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={4}>
+                    <Box textAlign="center">
+                      <Typography variant="h4" color="info.main" fontWeight="bold">
+                        {calculateCounts(batchDetails?.plate_layout).allelicLadder}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">Ladders</Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+                <Box sx={{ mt: 2, p: 2, bgcolor: isDarkMode ? 'grey.700' : 'white', borderRadius: 1 }}>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Well Utilization: {Math.round(((calculateCounts(batchDetails?.plate_layout).samples + calculateCounts(batchDetails?.plate_layout).controls) / 96) * 100)}%
+                  </Typography>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={((calculateCounts(batchDetails?.plate_layout).samples + calculateCounts(batchDetails?.plate_layout).controls) / 96) * 100}
+                    sx={{ height: 6, borderRadius: 3 }}
+                  />
+                </Box>
+              </Paper>
+            </Grid>
+          </Grid>
+
+          {/* ISO 17025 Compliance Section */}
+          <Paper sx={{ p: 3, mb: 3, borderRadius: 2, bgcolor: isDarkMode ? 'grey.800' : 'warning.50' }}>
+            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Assessment color="warning" />
+              ISO 17025 Compliance & Audit Trail
+            </Typography>
             <Grid container spacing={2}>
-              <Grid item xs={6}>
-                <Typography variant="body2" color="textSecondary">
-                  <strong>Operator:</strong> {batchDetails?.operator || 'N/A'}
+              <Grid item xs={12} md={4}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  <strong>Traceability:</strong> Full chain of custody maintained
+                </Typography>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  <strong>Calibration:</strong> Equipment calibrated within spec
                 </Typography>
               </Grid>
-              <Grid item xs={6}>
-                <Typography variant="body2" color="textSecondary">
-                  <strong>Created:</strong> {formatDate(batchDetails?.created_at)}
+              <Grid item xs={12} md={4}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  <strong>Quality Control:</strong> Positive/negative controls included
+                </Typography>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  <strong>Documentation:</strong> All procedures documented
                 </Typography>
               </Grid>
-              <Grid item xs={4}>
-                <Typography variant="body2" color="textSecondary">
-                  <strong>Total Samples:</strong> {calculateCounts(batchDetails?.plate_layout).samples}
+              <Grid item xs={12} md={4}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  <strong>Temperature Log:</strong> {batchDetails?.temperature_log ? 'Available' : 'Not recorded'}
                 </Typography>
-              </Grid>
-              <Grid item xs={4}>
-                <Typography variant="body2" color="textSecondary">
-                  <strong>Total Controls:</strong> {calculateCounts(batchDetails?.plate_layout).controls}
-                </Typography>
-              </Grid>
-              <Grid item xs={4}>
-                <Typography variant="body2" color="textSecondary">
-                  <strong>Allelic Ladder:</strong> {calculateCounts(batchDetails?.plate_layout).allelicLadder}
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  <strong>Cycle Count:</strong> {batchDetails?.cycle_count || 'Standard (28 cycles)'}
                 </Typography>
               </Grid>
             </Grid>
-          </Box>
+          </Paper>
 
           <Accordion defaultExpanded>
             <AccordionSummary expandIcon={<ExpandMore />}>

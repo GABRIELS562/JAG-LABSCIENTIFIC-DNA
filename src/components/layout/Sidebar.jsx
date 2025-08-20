@@ -39,7 +39,10 @@ import {
   ElectricBolt,
   Replay,
   AccountCircle,
-  Logout
+  Logout,
+  Assignment,
+  Inventory,
+  PsychologyOutlined as AI
 } from '@mui/icons-material';
 import Logo from '../ui/Logo';
 
@@ -149,6 +152,14 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       roles: ['staff']
     },
     { 
+      icon: <Science />, 
+      label: 'OSIRIS Analysis',
+      hasSubMenu: false,
+      path: '/osiris-analysis',
+      onClick: () => navigate('/osiris-analysis'),
+      roles: ['staff']
+    },
+    { 
       icon: <Assessment />, 
       label: 'Analysis Summary',
       hasSubMenu: false,
@@ -178,6 +189,30 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       hasSubMenu: true,
       path: '/quality-control',
       onClick: () => navigate('/quality-control'),
+      roles: ['staff']
+    },
+    { 
+      icon: <Assignment />, 
+      label: 'Quality Management System',
+      hasSubMenu: false,
+      path: '/qms',
+      onClick: () => navigate('/qms'),
+      roles: ['staff']
+    },
+    { 
+      icon: <Inventory />, 
+      label: 'Inventory Management',
+      hasSubMenu: false,
+      path: '/inventory',
+      onClick: () => navigate('/inventory'),
+      roles: ['staff']
+    },
+    { 
+      icon: <AI />, 
+      label: 'AI & Machine Learning',
+      hasSubMenu: false,
+      path: '/ai-ml',
+      onClick: () => navigate('/ai-ml'),
       roles: ['staff']
     },
     { 

@@ -36,7 +36,7 @@ import { Print, Download, Save, ArrowDownward, ViewList, ViewModule, Science } f
 import { batchApi } from '../../services/api';
 import WellPlateVisualization from './WellPlateVisualization';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 const validateBatchData = (batchNumber, operator) => {
   const errors = {};
@@ -383,7 +383,7 @@ const ElectrophoresisPlate = () => {
       
       // Fetch actual sample data
       if (sampleIds.length > 0) {
-        const sampleResponse = await fetch(`${API_URL}/api/samples`);
+        const sampleResponse = await fetch(`${API_URL}/samples`);
         const sampleData = await sampleResponse.json();
         if (sampleData.success) {
           const allSamples = sampleData.data || [];
@@ -1116,7 +1116,7 @@ const ElectrophoresisPlate = () => {
   const loadAvailablePCRBatches = async () => {
     try {
       setLoadingBatches(true);
-      const response = await fetch(`${API_URL}/api/batches`);
+      const response = await fetch(`${API_URL}/batches`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -1176,7 +1176,7 @@ const ElectrophoresisPlate = () => {
       let samples = [];
       
       try {
-        const sampleResponse = await fetch(`${API_URL}/api/batches/${selectedPCRBatch}/samples`);
+        const sampleResponse = await fetch(`${API_URL}/batches/${selectedPCRBatch}/samples`);
         if (!sampleResponse.ok) {
           throw new Error(`HTTP error! status: ${sampleResponse.status}`);
         }
@@ -1185,7 +1185,7 @@ const ElectrophoresisPlate = () => {
           samples = sampleData.data || [];
         } else {
           // If no samples found for this batch, use a subset of available samples as fallback
-          const allSamplesResponse = await fetch(`${API_URL}/api/samples`);
+          const allSamplesResponse = await fetch(`${API_URL}/samples`);
           if (allSamplesResponse.ok) {
             const allSamplesData = await allSamplesResponse.json();
             if (allSamplesData.success && allSamplesData.data) {
@@ -1343,7 +1343,7 @@ const ElectrophoresisPlate = () => {
       };
 
       // Save the electrophoresis batch
-      const response = await fetch(`${API_URL}/api/save-batch`, {
+      const response = await fetch(`${API_URL}/save-batch`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1367,7 +1367,7 @@ const ElectrophoresisPlate = () => {
       ).filter(Boolean);
 
       if (sampleIds.length > 0) {
-        const updateResponse = await fetch(`${API_URL}/api/samples/workflow-status`, {
+        const updateResponse = await fetch(`${API_URL}/samples/workflow-status`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',

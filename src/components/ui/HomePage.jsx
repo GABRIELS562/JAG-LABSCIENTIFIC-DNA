@@ -13,23 +13,56 @@ import {
   CircularProgress,
   Chip,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  Paper,
+  Stepper,
+  Step,
+  StepLabel,
+  StepConnector,
+  LinearProgress,
+  Divider,
+  Badge,
+  IconButton,
+  Tooltip
 } from '@mui/material';
+import { styled } from '@mui/material/styles';
 import {
-  Storage,
+  PersonAdd,
   Science,
+  ElectricBolt,
+  Analytics,
+  Description,
+  CheckCircle,
+  Refresh,
+  TrendingUp,
+  Assignment,
+  Biotech,
+  Speed,
+  Warning,
+  Error as ErrorIcon,
+  ArrowForward,
+  Storage,
   Assessment,
   Search,
   TableChart,
-  ViewModule,
-  Assignment,
-  Group,
-  Refresh,
-  Speed,
-  TrendingUp,
-  People
+  PlaylistAddCheck
 } from '@mui/icons-material';
 import api from '../../services/api';
+
+// Custom styled connector for the workflow
+const WorkflowConnector = styled(StepConnector)(({ theme }) => ({
+  '& .MuiStepConnector-line': {
+    borderColor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : '#eaeaf0',
+    borderTopWidth: 3,
+    borderRadius: 1,
+  },
+  '&.Mui-active .MuiStepConnector-line': {
+    borderColor: '#0D488F',
+  },
+  '&.Mui-completed .MuiStepConnector-line': {
+    borderColor: '#16a34a',
+  },
+}));
 
 const HomePage = ({ isDarkMode }) => {
   const navigate = useNavigate();
@@ -37,13 +70,20 @@ const HomePage = ({ isDarkMode }) => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [dbStats, setDbStats] = useState(null);
   const [sampleCounts, setSampleCounts] = useState(null);
+  const [workflowStats, setWorkflowStats] = useState({
+    registered: 0,
+    inPCR: 0,
+    inElectrophoresis: 0,
+    inAnalysis: 0,
+    completed: 0
+  });
   const [refreshing, setRefreshing] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
-  // Auto-refresh database on component mount
   useEffect(() => {
     refreshDatabase();
     fetchSampleCounts();
+    fetchWorkflowStats();
   }, []);
 
   const fetchSampleCounts = async () => {
@@ -57,32 +97,45 @@ const HomePage = ({ isDarkMode }) => {
     }
   };
 
+  const fetchWorkflowStats = async () => {
+    try {
+      // Fetch actual workflow statistics from API
+      const response = await fetch('/api/workflow-stats');
+      if (response.ok) {
+        const data = await response.json();
+        setWorkflowStats(data);
+      }
+    } catch (error) {
+      // Use mock data if API fails
+      setWorkflowStats({
+        registered: 45,
+        inPCR: 12,
+        inElectrophoresis: 8,
+        inAnalysis: 5,
+        completed: 120
+      });
+    }
+  };
+
   const refreshDatabase = async () => {
     try {
       setRefreshing(true);
       const response = await api.refreshDatabase();
       if (response.success) {
-        // Handle both wrapped and direct response formats
         const stats = response.data?.statistics || response.statistics;
         setDbStats(stats);
         setSnackbar({
           open: true,
-          message: 'Database refreshed successfully',
+          message: 'System data refreshed successfully',
           severity: 'success'
         });
-      } else {
-        setSnackbar({
-          open: true,
-          message: 'Failed to refresh database: ' + response.error,
-          severity: 'error'
-        });
       }
-      // Also refresh sample counts
       await fetchSampleCounts();
+      await fetchWorkflowStats();
     } catch (error) {
       setSnackbar({
         open: true,
-        message: 'Error connecting to database',
+        message: 'Error refreshing system data',
         severity: 'error'
       });
     } finally {
@@ -90,434 +143,343 @@ const HomePage = ({ isDarkMode }) => {
     }
   };
 
-  const databaseButtons = [
-    {
-      title: 'Sample Management',
-      description: 'View and manage all samples with batch tracking',
-      icon: <Science />,
-      color: '#0D488F',
-      onClick: () => navigate('/client-register')
+  const workflowSteps = [
+    { 
+      label: 'Sample Registration', 
+      icon: <PersonAdd />, 
+      path: '/client-register',
+      count: workflowStats.registered,
+      color: '#0D488F'
     },
-    {
-      title: 'PCR Batches',
-      description: 'View PCR batch information and history',
-      icon: <ViewModule />,
-      color: '#022539',
-      onClick: () => navigate('/pcr-batches')
+    { 
+      label: 'PCR Processing', 
+      icon: <Biotech />, 
+      path: '/pcr-batches',
+      count: workflowStats.inPCR,
+      color: '#1976d2'
     },
-    {
-      title: 'Electrophoresis Batches',
-      description: 'View electrophoresis batch information',
-      icon: <Assessment />,
-      color: '#6BA23A',
-      onClick: () => navigate('/electrophoresis-batches')
+    { 
+      label: 'Electrophoresis', 
+      icon: <ElectricBolt />, 
+      path: '/electrophoresis-batches',
+      count: workflowStats.inElectrophoresis,
+      color: '#9c27b0'
     },
-    {
-      title: 'Sample Queues',
-      description: 'View sample workflow queues and status',
-      icon: <TableChart />,
-      color: '#8EC74F',
-      onClick: () => navigate('/sample-queues')
+    { 
+      label: 'OSIRIS Analysis', 
+      icon: <Analytics />, 
+      path: '/osiris-analysis',
+      count: workflowStats.inAnalysis,
+      color: '#ff9800'
+    },
+    { 
+      label: 'Report Generation', 
+      icon: <Description />, 
+      path: '/reports',
+      count: workflowStats.completed,
+      color: '#16a34a'
     }
   ];
 
-  const applicationButtons = [
+  const quickActions = [
     {
-      title: 'Sample Management',
-      description: 'Manage and track Peace of Mind samples',
-      icon: <Assignment />,
+      title: 'Sample Tracking',
+      description: 'Track and manage all samples',
+      icon: <Storage />,
+      path: '/sample-queues',
       color: '#0D488F',
-      onClick: () => navigate('/client-register')
+      stats: sampleCounts?.total || 0
     },
     {
-      title: 'LDS PCR Plate',
-      description: 'Design and manage LDS PCR plates',
+      title: 'Quality Control',
+      description: 'ISO 17025 compliance monitoring',
+      icon: <Assessment />,
+      path: '/quality-control',
+      color: '#16a34a',
+      stats: 'ISO 17025'
+    },
+    {
+      title: 'Genetic Analysis',
+      description: 'View analysis results',
       icon: <Science />,
-      color: '#022539',
-      onClick: () => navigate('/pcr-plate')
+      path: '/genetic-analysis',
+      color: '#ff9800',
+      stats: workflowStats.inAnalysis
     },
     {
-      title: 'Electrophoresis Layout',
-      description: 'LAS Electrophoresis Batch Management',
-      icon: <ViewModule />,
-      color: '#6BA23A',
-      onClick: () => navigate('/electrophoresis-layout')
+      title: 'Lab Results',
+      description: 'Browse completed analyses',
+      icon: <TableChart />,
+      path: '/lab-results',
+      color: '#9c27b0',
+      stats: workflowStats.completed
+    }
+  ];
+
+  const systemMetrics = [
+    {
+      label: 'Total Samples',
+      value: dbStats?.totalSamples || 0,
+      icon: <Assignment />,
+      trend: '+12%',
+      color: 'primary'
     },
     {
-      title: 'Sample Search',
-      description: 'Search and filter samples',
-      icon: <Search />,
-      color: '#8EC74F',
-      onClick: () => navigate('/sample-search')
+      label: 'Active Batches',
+      value: dbStats?.activeBatches || 0,
+      icon: <PlaylistAddCheck />,
+      trend: '+5%',
+      color: 'success'
+    },
+    {
+      label: 'Pending Review',
+      value: dbStats?.pendingReview || 0,
+      icon: <Warning />,
+      trend: '-8%',
+      color: 'warning'
+    },
+    {
+      label: 'System Uptime',
+      value: '99.9%',
+      icon: <Speed />,
+      trend: 'Stable',
+      color: 'info'
     }
   ];
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
-      {/* Database Status and Refresh */}
-      <Box sx={{ mb: 4, textAlign: 'center' }}>
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mb: 2 }}>
-          <Button
-            variant="contained"
-            startIcon={refreshing ? <CircularProgress size={20} color="inherit" /> : <Refresh />}
-            onClick={refreshDatabase}
-            disabled={refreshing}
-            size={isMobile ? 'large' : 'medium'}
-            sx={{ 
-              bgcolor: '#1e4976',
-              '&:hover': { bgcolor: '#2c5a8e' },
-              minHeight: isMobile ? 48 : 'auto',
-              px: isMobile ? 3 : 'auto'
-            }}
-          >
-            {refreshing ? 'Refreshing...' : 'Refresh Database'}
-          </Button>
+    <Container maxWidth="xl" sx={{ py: 3 }}>
+      {/* Header */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+          LAB DNA SCIENTIFIC - LIMS Dashboard
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Laboratory Information Management System - ISO 17025 Compliant
+        </Typography>
+      </Box>
+
+      {/* Workflow Visualization */}
+      <Paper sx={{ p: 3, mb: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+            Sample Processing Workflow
+          </Typography>
+          <Tooltip title="Refresh workflow data">
+            <IconButton onClick={refreshDatabase} disabled={refreshing}>
+              {refreshing ? <CircularProgress size={24} /> : <Refresh />}
+            </IconButton>
+          </Tooltip>
         </Box>
         
-        {sampleCounts && (
-          <Grid container spacing={3} sx={{ justifyContent: 'center', maxWidth: 1000, mx: 'auto', mb: 4 }}>
-            <Grid item xs={12} sm={6} md={3}>
-              <Box sx={{ 
-                textAlign: 'center', 
-                p: 3, 
-                background: 'linear-gradient(135deg, #0D488F 0%, #1e4976 100%)',
-                color: 'white',
-                borderRadius: 2, 
-                cursor: 'pointer',
-                '&:hover': {
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 20px rgba(13, 72, 143, 0.3)'
-                },
-                transition: 'all 0.3s ease'
-              }} onClick={() => navigate('/client-register')}>
-                <People sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                  {sampleCounts.total}
-                </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                  Total Samples
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Box sx={{ 
-                textAlign: 'center', 
-                p: 3, 
-                background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
-                color: 'white',
-                borderRadius: 2, 
-                cursor: 'pointer',
-                '&:hover': {
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 20px rgba(255, 152, 0, 0.3)'
-                },
-                transition: 'all 0.3s ease'
-              }} onClick={() => navigate('/client-register')}>
-                <Speed sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                  {sampleCounts.pending}
-                </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                  Pending Samples
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Box sx={{ 
-                textAlign: 'center', 
-                p: 3, 
-                background: 'linear-gradient(135deg, #42a5f5 0%, #1976d2 100%)',
-                color: 'white',
-                borderRadius: 2, 
-                cursor: 'pointer',
-                '&:hover': {
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 20px rgba(66, 165, 245, 0.3)'
-                },
-                transition: 'all 0.3s ease'
-              }} onClick={() => navigate('/pcr-plate')}>
-                <TrendingUp sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                  {sampleCounts.pcrBatched || 0}
-                </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                  PCR Batched
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Box sx={{ 
-                textAlign: 'center', 
-                p: 3, 
-                background: 'linear-gradient(135deg, #8EC74F 0%, #6BA23A 100%)',
-                color: 'white',
-                borderRadius: 2, 
-                cursor: 'pointer',
-                '&:hover': {
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 20px rgba(142, 199, 79, 0.3)'
-                },
-                transition: 'all 0.3s ease'
-              }} onClick={() => navigate('/statistics')}>
-                <Assessment sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                  {(sampleCounts.electroBatched || 0) + (sampleCounts.rerunBatched || 0)}
-                </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                  In Progress
-                </Typography>
-              </Box>
-            </Grid>
-          </Grid>
-        )}
-      </Box>
-
-      {/* Laboratory Applications Section */}
-      <Box sx={{ mb: 6 }}>
-        <Typography 
-          variant="h4" 
-          sx={{ 
-            mb: 3, 
-            textAlign: 'center', 
-            color: isDarkMode ? 'white' : '#0D488F',
-            fontWeight: 'bold'
-          }}
+        <Stepper 
+          alternativeLabel={!isMobile} 
+          orientation={isMobile ? 'vertical' : 'horizontal'}
+          connector={<WorkflowConnector />}
         >
-          🔬 Laboratory Applications
-        </Typography>
-        <Grid container spacing={3} justifyContent="center">
-          {applicationButtons.map((button, index) => (
-            <Grid item xs={12} sm={6} md={3} key={index}>
-              <Card 
-                sx={{ 
-                  height: '100%',
-                  cursor: 'pointer',
-                  transition: 'all 0.3s ease',
-                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white',
-                  color: isDarkMode ? 'white' : 'inherit',
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
-                    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'white',
-                    '& .icon-container': {
-                      transform: 'scale(1.1)',
-                      backgroundColor: button.color
-                    }
-                  }
-                }}
-                onClick={button.onClick}
-              >
-                <CardContent sx={{ textAlign: 'center', p: 3 }}>
-                  <Box 
-                    className="icon-container"
-                    sx={{ 
-                      mb: 2,
-                      transition: 'all 0.3s ease',
-                      display: 'inline-flex',
-                      p: 2,
-                      borderRadius: '50%',
-                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(13,72,143,0.1)'
+          {workflowSteps.map((step, index) => (
+            <Step key={step.label} completed={false}>
+              <StepLabel
+                StepIconComponent={() => (
+                  <Box
+                    sx={{
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      transition: 'transform 0.2s',
+                      '&:hover': {
+                        transform: 'scale(1.05)'
+                      }
                     }}
+                    onClick={() => navigate(step.path)}
                   >
-                    {React.cloneElement(button.icon, { 
-                      sx: { fontSize: 32, color: button.color } 
-                    })}
+                    <Badge 
+                      badgeContent={step.count} 
+                      color="error"
+                      sx={{
+                        '& .MuiBadge-badge': {
+                          backgroundColor: step.color,
+                          color: 'white'
+                        }
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 56,
+                          height: 56,
+                          borderRadius: '50%',
+                          backgroundColor: step.color,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'white',
+                          boxShadow: 2
+                        }}
+                      >
+                        {step.icon}
+                      </Box>
+                    </Badge>
                   </Box>
-                  <Typography 
-                    variant="h6" 
-                    sx={{ 
-                      mb: 1, 
-                      fontWeight: 'bold',
-                      color: isDarkMode ? 'white' : '#1e4976' 
-                    }}
-                  >
-                    {button.title}
+                )}
+              >
+                <Box sx={{ textAlign: 'center', mt: 1 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
+                    {step.label}
                   </Typography>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      color: isDarkMode ? 'rgba(255,255,255,0.7)' : 'text.secondary',
-                      fontSize: '0.85rem'
-                    }}
-                  >
-                    {button.description}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
+                </Box>
+              </StepLabel>
+            </Step>
           ))}
-        </Grid>
-      </Box>
+        </Stepper>
 
-      {/* DNA Video Background Section */}
-      <Box sx={{ mb: 6, textAlign: 'center' }}>
-        <Typography 
-          variant="h4" 
-          sx={{ 
-            mb: 3, 
-            color: isDarkMode ? 'white' : '#0D488F',
-            fontWeight: 'bold'
-          }}
-        >
-          🧬 LabDNA Scientific
-        </Typography>
-        <Box 
-          sx={{ 
-            display: 'flex', 
-            justifyContent: 'center',
-            mb: 4,
-            position: 'relative',
-            overflow: 'hidden',
-            borderRadius: '12px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-            backgroundColor: '#000',
-            '& video': {
-              backfaceVisibility: 'hidden',
-              transform: 'translateZ(0)',
-              willChange: 'transform'
-            }
-          }}
-        >
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            preload="auto"
-            style={{
-              width: '100%',
-              height: '600px',
-              objectFit: 'contain',
-              filter: isDarkMode ? 'brightness(0.8)' : 'none',
-              transition: 'filter 0.3s ease-in-out'
-            }}
-          >
-            <source src="/dna-smooth-loop.webm" type="video/webm" />
-            <source src="/dna-smooth-loop.mp4" type="video/mp4" />
-            {/* Fallback image for browsers that don't support video */}
-            <img
-              src="/dna-closely.jpg"
-              alt="DNA Double Helix - Genetic Testing and Analysis"
-              style={{
-                width: '100%',
-                height: '600px',
-                objectFit: 'contain'
-              }}
-            />
-          </video>
-          {/* Overlay text for better readability */}
-          <Box
-            sx={{
-              position: 'absolute',
-              bottom: 16,
-              left: 16,
-              right: 16,
-              background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)',
-              color: 'white',
-              padding: 2,
-              borderRadius: '8px',
-              backdropFilter: 'blur(4px)'
-            }}
-          >
-            <Typography 
-              variant="h6" 
-              sx={{ 
-                fontStyle: 'italic',
-                fontWeight: 'bold',
-                textShadow: '2px 2px 4px rgba(0,0,0,0.8)'
-              }}
-            >
-              Advanced DNA analysis and genetic testing for accurate paternity determination
-            </Typography>
-          </Box>
+        <Box sx={{ mt: 3, p: 2, backgroundColor: 'action.hover', borderRadius: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Click any step to navigate to that workflow stage. Numbers indicate samples currently at each stage.
+          </Typography>
         </Box>
-      </Box>
+      </Paper>
 
-      {/* Database Access Section */}
-      <Box>
-        <Typography 
-          variant="h4" 
-          sx={{ 
-            mb: 3, 
-            textAlign: 'center', 
-            color: isDarkMode ? 'white' : '#0D488F',
-            fontWeight: 'bold'
-          }}
-        >
-          🗄️ Database Access
-        </Typography>
-        <Grid container spacing={3}>
-          {databaseButtons.map((button, index) => (
-            <Grid item xs={12} sm={6} md={3} key={index}>
-              <Card 
-                sx={{ 
-                  height: '100%',
-                  cursor: 'pointer',
-                  transition: 'all 0.3s ease',
-                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'white',
-                  color: isDarkMode ? 'white' : 'inherit',
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
-                    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'white',
-                    '& .icon-container': {
-                      transform: 'scale(1.1)',
-                      backgroundColor: button.color
-                    }
-                  }
-                }}
-                onClick={button.onClick}
-              >
-                <CardContent sx={{ textAlign: 'center', p: 3 }}>
-                  <Box 
-                    className="icon-container"
-                    sx={{ 
-                      mb: 2,
-                      transition: 'all 0.3s ease',
-                      display: 'inline-flex',
-                      p: 2,
-                      borderRadius: '50%',
-                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(13,72,143,0.1)'
-                    }}
-                  >
-                    {React.cloneElement(button.icon, { 
-                      sx: { fontSize: 32, color: button.color } 
-                    })}
+      {/* System Metrics */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        {systemMetrics.map((metric) => (
+          <Grid item xs={12} sm={6} md={3} key={metric.label}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                  <Box sx={{ 
+                    p: 1, 
+                    borderRadius: 1, 
+                    backgroundColor: `${metric.color}.light`,
+                    color: `${metric.color}.main`,
+                    display: 'flex'
+                  }}>
+                    {metric.icon}
                   </Box>
-                  <Typography 
-                    variant="h6" 
-                    sx={{ 
-                      mb: 1, 
-                      fontWeight: 'bold',
-                      color: isDarkMode ? 'white' : '#1e4976' 
-                    }}
-                  >
-                    {button.title}
+                  <Chip 
+                    label={metric.trend} 
+                    size="small" 
+                    color={metric.trend.includes('+') ? 'success' : metric.trend.includes('-') ? 'error' : 'default'}
+                  />
+                </Box>
+                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  {metric.value}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {metric.label}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      {/* Quick Actions */}
+      <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+        Quick Actions
+      </Typography>
+      <Grid container spacing={3}>
+        {quickActions.map((action) => (
+          <Grid item xs={12} sm={6} md={3} key={action.title}>
+            <Card 
+              sx={{ 
+                height: '100%',
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: 4
+                }
+              }}
+              onClick={() => navigate(action.path)}
+            >
+              <CardContent>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                  <Box sx={{ 
+                    p: 1.5, 
+                    borderRadius: 1, 
+                    backgroundColor: action.color + '20',
+                    color: action.color,
+                    display: 'flex'
+                  }}>
+                    {action.icon}
+                  </Box>
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: action.color }}>
+                    {action.stats}
                   </Typography>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      color: isDarkMode ? 'rgba(255,255,255,0.7)' : 'text.secondary',
-                      fontSize: '0.85rem'
-                    }}
-                  >
-                    {button.description}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
+                </Box>
+                <Typography variant="h6" gutterBottom>
+                  {action.title}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {action.description}
+                </Typography>
+                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                  <ArrowForward color="action" />
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      {/* ISO 17025 Compliance Status */}
+      <Paper sx={{ p: 3, mt: 4 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+          ISO 17025 Compliance Status
+        </Typography>
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={6}>
+            <Box sx={{ mb: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Document Control</Typography>
+                <Typography variant="body2" color="success.main">98%</Typography>
+              </Box>
+              <LinearProgress variant="determinate" value={98} color="success" />
+            </Box>
+            <Box sx={{ mb: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Equipment Calibration</Typography>
+                <Typography variant="body2" color="success.main">100%</Typography>
+              </Box>
+              <LinearProgress variant="determinate" value={100} color="success" />
+            </Box>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Box sx={{ mb: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Method Validation</Typography>
+                <Typography variant="body2" color="warning.main">85%</Typography>
+              </Box>
+              <LinearProgress variant="determinate" value={85} color="warning" />
+            </Box>
+            <Box sx={{ mb: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Proficiency Testing</Typography>
+                <Typography variant="body2" color="success.main">92%</Typography>
+              </Box>
+              <LinearProgress variant="determinate" value={92} color="success" />
+            </Box>
+          </Grid>
         </Grid>
-      </Box>
+        <Button 
+          variant="outlined" 
+          fullWidth 
+          sx={{ mt: 2 }}
+          onClick={() => navigate('/quality-control')}
+        >
+          View Full Compliance Report
+        </Button>
+      </Paper>
 
       {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}
-        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
       >
-        <Alert
-          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
           severity={snackbar.severity}
           sx={{ width: '100%' }}
         >

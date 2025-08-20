@@ -33,7 +33,7 @@ import {
   PlaylistAdd
 } from '@mui/icons-material';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 const SampleQueues = () => {
   const [activeQueue, setActiveQueue] = useState(0); // Use index for Material-UI tabs
@@ -73,7 +73,7 @@ const SampleQueues = () => {
 
   const loadQueueCounts = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/samples/queue-counts`);
+      const response = await fetch(`${API_URL}/samples/queue-counts`);
       if (response.ok) {
         const data = await response.json();
         setQueueCounts(data.data || {});
@@ -89,9 +89,9 @@ const SampleQueues = () => {
       setError(null);
       
       const currentQueue = queueTypes[activeQueue];
-      let url = `${API_URL}/api/samples`;
+      let url = `${API_URL}/samples`;
       if (currentQueue.id !== 'all') {
-        url = `${API_URL}/api/samples/queue/${currentQueue.id}`;
+        url = `${API_URL}/samples/queue/${currentQueue.id}`;
       }
       
       const response = await fetch(url);

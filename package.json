@@ -7,6 +7,9 @@
   "homepage": "./",
   "scripts": {
     "dev": "vite",
+    "dev:debug": "vite --debug",
+    "debug:backend": "node --inspect backend/server.js",
+    "debug:all": "concurrently \"npm run dev:debug\" \"npm run debug:backend\"",
     "start": "pm2 start ecosystem.config.js",
     "stop": "pm2 stop all",
     "restart": "pm2 restart all",
@@ -56,6 +59,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cors": "^2.8.5",
+    "date-fns": "^4.1.0",
     "dotenv": "^16.4.5",
     "express": "^4.18.2",
     "file-saver": "^2.0.5",

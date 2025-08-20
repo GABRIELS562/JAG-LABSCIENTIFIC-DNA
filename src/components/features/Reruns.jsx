@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -37,13 +37,13 @@ import {
   ElectricBolt
 } from '@mui/icons-material';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
-// Sample Selection Dialog Component
-const SampleSelectionDialog = ({ open, onClose, samples, batchInfo, onSelectionComplete }) => {
+// Sample Selection Dialog Component - Memoized for performance
+const SampleSelectionDialog = memo(({ open, onClose, samples, batchInfo, onSelectionComplete }) => {
   const [selectedSamples, setSelectedSamples] = useState([]);
 
-  const handleSampleToggle = (sample) => {
+  const handleSampleToggle = useCallback((sample) => {
     setSelectedSamples(prev => {
       const isSelected = prev.some(s => s.id === sample.id);
       if (isSelected) {
@@ -52,25 +52,25 @@ const SampleSelectionDialog = ({ open, onClose, samples, batchInfo, onSelectionC
         return [...prev, sample];
       }
     });
-  };
+  }, []);
 
-  const handleSelectAll = () => {
+  const handleSelectAll = useCallback(() => {
     setSelectedSamples([...samples]);
-  };
+  }, [samples]);
 
-  const handleDeselectAll = () => {
+  const handleDeselectAll = useCallback(() => {
     setSelectedSamples([]);
-  };
+  }, []);
 
-  const handleConfirm = () => {
+  const handleConfirm = useCallback(() => {
     onSelectionComplete(selectedSamples);
     setSelectedSamples([]);
-  };
+  }, [selectedSamples, onSelectionComplete]);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     setSelectedSamples([]);
     onClose();
-  };
+  }, [onClose]);
 
   return (
     <Dialog open={open} onClose={handleCancel} maxWidth="md" fullWidth>
@@ -141,7 +141,9 @@ const SampleSelectionDialog = ({ open, onClose, samples, batchInfo, onSelectionC
       </DialogActions>
     </Dialog>
   );
-};
+});
+
+SampleSelectionDialog.displayName = 'SampleSelectionDialog';
 
 const Reruns = () => {
   const navigate = useNavigate();
@@ -170,20 +172,51 @@ const Reruns = () => {
   const [dragHoverWells, setDragHoverWells] = useState([]);
 
   useEffect(() => {
-    // Get selected samples from sessionStorage
-    const storedSamples = sessionStorage.getItem('selectedSamplesForReruns');
-    if (storedSamples) {
-      setSelectedSamples(JSON.parse(storedSamples));
-    }
+    let isMounted = true;
     
-    // Generate next batch number
-    generateBatchNumber();
-    initializePlate();
+    const initializeComponent = async () => {
+      try {
+        // Get selected samples from sessionStorage
+        const storedSamples = sessionStorage.getItem('selectedSamplesForReruns');
+        if (storedSamples && isMounted) {
+          setSelectedSamples(JSON.parse(storedSamples));
+        }
+        
+        // Generate next batch number
+        if (isMounted) {
+          await generateBatchNumber();
+          initializePlate();
+        }
+      } catch (error) {
+        console.error('Error initializing Reruns component:', error);
+        if (isMounted) {
+          setSnackbar({
+            open: true,
+            message: 'Failed to initialize component',
+            severity: 'error'
+          });
+        }
+      }
+    };
+    
+    initializeComponent();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const generateBatchNumber = async () => {
+  const generateBatchNumber = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/api/batches`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch(`${API_URL}/batches`, {
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
       if (response.ok) {
         const data = await response.json();
         const existingBatches = data.data || [];
@@ -209,12 +242,13 @@ const Reruns = () => {
         setBatchNumber(`LDS_${timestamp}_RR`);
       }
     } catch (error) {
+      console.error('Error generating batch number:', error);
       const timestamp = Date.now().toString().slice(-4);
       setBatchNumber(`LDS_${timestamp}_RR`);
     }
-  };
+  }, [API_URL]);
 
-  const initializePlate = () => {
+  const initializePlate = useCallback(() => {
     const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
     const cols = Array.from({ length: 12 }, (_, i) => i + 1);
     
@@ -231,7 +265,7 @@ const Reruns = () => {
     });
     
     setPlateData(initialData);
-  };
+  }, []);
 
   const handleDragStart = (e, item) => {
     setDraggedItem(item);
@@ -681,7 +715,7 @@ const Reruns = () => {
         headers['Authorization'] = `Bearer ${authToken}`;
       }
       
-      const response = await fetch(`${API_URL}/api/generate-batch`, {
+      const response = await fetch(`${API_URL}/generate-batch`, {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(batchData)
@@ -723,7 +757,7 @@ const Reruns = () => {
 
   const loadElectroBatches = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/batches`);
+      const response = await fetch(`${API_URL}/batches`);
       
       if (response.ok) {
         const data = await response.json();
@@ -753,7 +787,7 @@ const Reruns = () => {
 
   const loadSamplesFromElectroBatch = async (batch) => {
     try {
-      const response = await fetch(`${API_URL}/api/well-assignments/${batch.id}`);
+      const response = await fetch(`${API_URL}/well-assignments/${batch.id}`);
       
       if (response.ok) {
         const data = await response.json();

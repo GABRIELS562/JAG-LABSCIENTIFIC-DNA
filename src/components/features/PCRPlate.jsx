@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -36,7 +36,7 @@ import {
   Refresh
 } from '@mui/icons-material';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 const PCRPlate = () => {
   const navigate = useNavigate();
@@ -72,21 +72,52 @@ const PCRPlate = () => {
   const [dragHoverWells, setDragHoverWells] = useState([]);
 
   useEffect(() => {
-    // Get selected samples from sessionStorage or localStorage
-    const storedSamples = sessionStorage.getItem('selectedSamplesForBatch');
-    if (storedSamples) {
-      setSelectedSamples(JSON.parse(storedSamples));
-    }
+    let isMounted = true;
     
-    // Generate next batch number
-    generateBatchNumber();
-    initializePlate();
+    const initializeComponent = async () => {
+      try {
+        // Get selected samples from sessionStorage or localStorage
+        const storedSamples = sessionStorage.getItem('selectedSamplesForBatch');
+        if (storedSamples && isMounted) {
+          setSelectedSamples(JSON.parse(storedSamples));
+        }
+        
+        // Generate next batch number
+        if (isMounted) {
+          await generateBatchNumber();
+          initializePlate();
+        }
+      } catch (error) {
+        console.error('Error initializing PCR Plate component:', error);
+        if (isMounted) {
+          setSnackbar({
+            open: true,
+            message: 'Failed to initialize component',
+            severity: 'error'
+          });
+        }
+      }
+    };
+    
+    initializeComponent();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const generateBatchNumber = async () => {
+  const generateBatchNumber = useCallback(async () => {
     try {
       // Try to get the next batch number from the server
-      const response = await fetch(`${API_URL}/api/batches`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const response = await fetch(`${API_URL}/batches`, {
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
       if (response.ok) {
         const data = await response.json();
         const existingBatches = data.data || [];
@@ -95,9 +126,12 @@ const PCRPlate = () => {
         let maxNumber = 0;
         existingBatches.forEach(batch => {
           if (batch.batch_number && batch.batch_number.startsWith('LDS_')) {
-            const num = parseInt(batch.batch_number.split('_')[1]);
-            if (!isNaN(num) && num > maxNumber) {
-              maxNumber = num;
+            const match = batch.batch_number.match(/LDS_(\d+)/);
+            if (match) {
+              const num = parseInt(match[1]);
+              if (!isNaN(num) && num > maxNumber) {
+                maxNumber = num;
+              }
             }
           }
         });
@@ -109,11 +143,12 @@ const PCRPlate = () => {
         setBatchNumber(`LDS_${timestamp}`);
       }
     } catch (error) {
+      console.error('Error generating batch number:', error);
       // Fallback to timestamp
       const timestamp = Date.now().toString().slice(-4);
       setBatchNumber(`LDS_${timestamp}`);
     }
-  };
+  }, [API_URL]);
 
   const initializePlate = () => {
     const plate = {};
@@ -134,12 +169,14 @@ const PCRPlate = () => {
     setPlateData(plate);
   };
 
-  const groupSamplesByCase = (samples) => {
+  const groupSamplesByCase = useCallback((samples) => {
+    if (!Array.isArray(samples)) return { groups: [], individual: [] };
+    
     const groups = {};
     const individual = [];
     
     samples.forEach(sample => {
-      if (sample.case_number) {
+      if (sample && sample.case_number) {
         if (!groups[sample.case_number]) {
           groups[sample.case_number] = {
             caseNumber: sample.case_number,
@@ -147,7 +184,7 @@ const PCRPlate = () => {
           };
         }
         groups[sample.case_number].samples.push(sample);
-      } else {
+      } else if (sample) {
         individual.push(sample);
       }
     });
@@ -162,7 +199,7 @@ const PCRPlate = () => {
     }));
     
     return { groups: groupsWithSortedSamples, individual };
-  };
+  }, []);
 
   const handleDragStart = (e, item) => {
     setDraggedItem(item);
@@ -683,7 +720,7 @@ const PCRPlate = () => {
         date: batchData.date
       });
       console.log('🧪 Wells data:', transformedWells);
-      console.log('📡 API URL:', `${API_URL}/api/generate-batch`);
+      console.log('📡 API URL:', `${API_URL}/generate-batch`);
 
       // Call the API to generate the batch
       const authToken = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
@@ -697,7 +734,7 @@ const PCRPlate = () => {
       }
       
       console.log('📤 Sending request to backend...');
-      const response = await fetch(`${API_URL}/api/generate-batch`, {
+      const response = await fetch(`${API_URL}/generate-batch`, {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(batchData)
@@ -717,7 +754,7 @@ const PCRPlate = () => {
           
         if (sampleIds.length > 0) {
           try {
-            await fetch(`${API_URL}/api/samples/workflow-status`, {
+            await fetch(`${API_URL}/samples/workflow-status`, {
               method: 'PUT',
               headers: {
                 'Content-Type': 'application/json'
@@ -826,7 +863,7 @@ const PCRPlate = () => {
     });
   };
 
-  const { groups, individual } = groupSamplesByCase(selectedSamples);
+  const { groups, individual } = useMemo(() => groupSamplesByCase(selectedSamples), [selectedSamples, groupSamplesByCase]);
 
   // Ensure plateData is initialized before rendering
   if (!plateData || Object.keys(plateData).length === 0) {

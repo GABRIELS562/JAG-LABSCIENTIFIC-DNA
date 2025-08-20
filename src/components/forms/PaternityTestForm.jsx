@@ -317,7 +317,7 @@ const FormSummary = ({ formData, onEdit }) => {
   );
 };
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export default function PaternityTestForm() {
   const [formData, setFormData] = useState(initialFormState);
@@ -1208,7 +1208,7 @@ export default function PaternityTestForm() {
       };
 
 
-      const response = await fetch(`${API_URL}/api/submit-test`, {
+      const response = await fetch(`${API_URL}/submit-test`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

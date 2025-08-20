@@ -131,6 +131,11 @@ export default function ClientRegister() {
     gender: '',
     additionalNotes: ''
   });
+  
+  // Workflow status update dialog
+  const [statusUpdateDialog, setStatusUpdateDialog] = useState({ open: false, sample: null });
+  const [selectedWorkflowStatus, setSelectedWorkflowStatus] = useState('');
+  const [statusUpdateNotes, setStatusUpdateNotes] = useState('');
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
   
@@ -479,8 +484,71 @@ export default function ClientRegister() {
       return { label: '⚡ Electro Batched', color: 'secondary' };
     } else if (sample.workflow_status === 'sample_collected' || sample.workflow_status === 'pcr_ready') {
       return { label: '📋 Pending', color: 'warning' };
+    } else if (sample.workflow_status === 'pcr_completed') {
+      return { label: '✓ PCR Complete', color: 'info' };
+    } else if (sample.workflow_status === 'electro_ready') {
+      return { label: '🗘 Electro Ready', color: 'info' };
+    } else if (sample.workflow_status === 'electro_completed') {
+      return { label: '⚡ Electro Complete', color: 'secondary' };
+    } else if (sample.workflow_status === 'analysis_ready') {
+      return { label: '📊 Analysis Ready', color: 'secondary' };
+    } else if (sample.workflow_status === 'report_ready') {
+      return { label: '📄 Report Ready', color: 'success' };
     } else {
       return { label: 'N/A', color: 'default' };
+    }
+  };
+  
+  const getWorkflowSteps = () => [
+    { value: 'sample_collected', label: 'Sample Collected', description: 'Initial sample registration' },
+    { value: 'pcr_ready', label: 'PCR Ready', description: 'Ready for PCR processing' },
+    { value: 'pcr_batched', label: 'PCR Batched', description: 'Assigned to PCR batch' },
+    { value: 'pcr_completed', label: 'PCR Completed', description: 'PCR amplification finished' },
+    { value: 'electro_ready', label: 'Electrophoresis Ready', description: 'Ready for electrophoresis' },
+    { value: 'electro_batched', label: 'Electrophoresis Batched', description: 'Assigned to electrophoresis batch' },
+    { value: 'electro_completed', label: 'Electrophoresis Completed', description: 'Fragment separation finished' },
+    { value: 'analysis_ready', label: 'Analysis Ready', description: 'Ready for data analysis' },
+    { value: 'analysis_completed', label: 'Analysis Completed', description: 'Genetic analysis finished' },
+    { value: 'report_ready', label: 'Report Ready', description: 'Ready for report generation' },
+    { value: 'rerun_required', label: 'Rerun Required', description: 'Sample needs to be reprocessed' },
+    { value: 'rerun_batched', label: 'Rerun Batched', description: 'Assigned to rerun batch' }
+  ];
+  
+  const handleUpdateSampleStatus = (sample) => {
+    setStatusUpdateDialog({ open: true, sample });
+    setSelectedWorkflowStatus(sample.workflow_status || 'sample_collected');
+    setStatusUpdateNotes('');
+  };
+  
+  const handleStatusUpdateSubmit = async () => {
+    try {
+      const response = await optimizedApi.updateSampleWorkflowStatus(
+        [statusUpdateDialog.sample.id], 
+        selectedWorkflowStatus,
+        statusUpdateNotes
+      );
+      
+      if (response.success) {
+        setSamples(prev => prev.map(s => 
+          s.id === statusUpdateDialog.sample.id 
+            ? { ...s, workflow_status: selectedWorkflowStatus }
+            : s
+        ));
+        
+        setSnackbar({
+          open: true,
+          message: `Status updated to ${getWorkflowSteps().find(step => step.value === selectedWorkflowStatus)?.label}`,
+          severity: 'success'
+        });
+      }
+      
+      setStatusUpdateDialog({ open: false, sample: null });
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to update sample status: ' + error.message,
+        severity: 'error'
+      });
     }
   };
 
@@ -696,12 +764,28 @@ export default function ClientRegister() {
                   <Typography variant="caption" color="text.secondary" display="block">
                     Status
                   </Typography>
-                  <Chip 
-                    label={getBatchStatus(sample).label} 
-                    color={getBatchStatus(sample).color} 
-                    size="small"
-                    sx={{ mt: 0.5 }}
-                  />
+                  <Box sx={{ display: 'flex', gap: 1, mt: 0.5, alignItems: 'center' }}>
+                    <Chip 
+                      label={getBatchStatus(sample).label} 
+                      color={getBatchStatus(sample).color} 
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUpdateSampleStatus(sample);
+                      }}
+                      sx={{ cursor: 'pointer' }}
+                    />
+                    <IconButton 
+                      size="small" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUpdateSampleStatus(sample);
+                      }}
+                      sx={{ color: 'primary.main', p: 0.5 }}
+                    >
+                      <Edit sx={{ fontSize: 16 }} />
+                    </IconButton>
+                  </Box>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="caption" color="text.secondary" display="block">
@@ -729,9 +813,10 @@ export default function ClientRegister() {
             <TableCell>Name</TableCell>
             <TableCell>Surname</TableCell>
             <TableCell>Relation</TableCell>
-            <TableCell>Batch Status</TableCell>
+            <TableCell>Workflow Status</TableCell>
             <TableCell>Batch Number</TableCell>
             <TableCell>Collection Date</TableCell>
+            <TableCell>Actions</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -771,6 +856,8 @@ export default function ClientRegister() {
                     label={getBatchStatus(sample).label} 
                     color={getBatchStatus(sample).color} 
                     size="small" 
+                    onClick={() => handleUpdateSampleStatus(sample)}
+                    sx={{ cursor: 'pointer' }}
                   />
                 </TableCell>
                 <TableCell>
@@ -779,6 +866,17 @@ export default function ClientRegister() {
                   </Typography>
                 </TableCell>
                 <TableCell>{formatDate(sample.collection_date)}</TableCell>
+                <TableCell>
+                  <Tooltip title="Update Status">
+                    <IconButton 
+                      size="small" 
+                      onClick={() => handleUpdateSampleStatus(sample)}
+                      sx={{ color: 'primary.main' }}
+                    >
+                      <Edit />
+                    </IconButton>
+                  </Tooltip>
+                </TableCell>
               </TableRow>
             );
           })}
@@ -893,7 +991,10 @@ export default function ClientRegister() {
               color: isDarkMode ? 'white' : '#0D488F', 
               fontWeight: 'bold' 
             }}>
-              Peace of Mind Samples
+              Sample Management System
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              ISO 17025 Compliant Laboratory Information Management
             </Typography>
             {connectionStatus ? (
               <CloudDone sx={{ color: 'success.main' }} />
@@ -1284,6 +1385,74 @@ export default function ClientRegister() {
         </DialogActions>
       </Dialog>
 
+      {/* Status Update Dialog */}
+      <Dialog 
+        open={statusUpdateDialog.open} 
+        onClose={() => setStatusUpdateDialog({ open: false, sample: null })}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Update Sample Status - {statusUpdateDialog.sample?.lab_number}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Current: <strong>{statusUpdateDialog.sample?.name} {statusUpdateDialog.sample?.surname}</strong> ({statusUpdateDialog.sample?.relation})
+            </Typography>
+            
+            <FormControl fullWidth sx={{ mb: 3 }}>
+              <InputLabel>Workflow Status</InputLabel>
+              <Select
+                value={selectedWorkflowStatus}
+                onChange={(e) => setSelectedWorkflowStatus(e.target.value)}
+                label="Workflow Status"
+              >
+                {getWorkflowSteps().map((step) => (
+                  <MenuItem key={step.value} value={step.value}>
+                    <Box>
+                      <Typography variant="body1">{step.label}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {step.description}
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="Notes (Optional)"
+              value={statusUpdateNotes}
+              onChange={(e) => setStatusUpdateNotes(e.target.value)}
+              placeholder="Add any notes about this status change..."
+              helperText="These notes will be recorded in the audit trail"
+            />
+            
+            <Alert severity="info" sx={{ mt: 2 }}>
+              <Typography variant="body2">
+                <strong>ISO 17025 Compliance:</strong> All status changes are logged with timestamp and operator information for full traceability.
+              </Typography>
+            </Alert>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setStatusUpdateDialog({ open: false, sample: null })}>
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={handleStatusUpdateSubmit}
+            startIcon={<Save />}
+          >
+            Update Status
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
       {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}

@@ -45,7 +45,7 @@ const ElectrophoresisBatches = () => {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
   useEffect(() => {
     fetchElectrophoresisBatches();
@@ -54,7 +54,7 @@ const ElectrophoresisBatches = () => {
   const fetchElectrophoresisBatches = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/batches`);
+      const response = await fetch(`${API_URL}/batches`);
       const data = await response.json();
       
       if (data.success) {

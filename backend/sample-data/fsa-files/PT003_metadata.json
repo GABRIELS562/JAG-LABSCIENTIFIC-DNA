@@ -1,0 +1,45 @@
+{
+  "caseId": "PT003",
+  "generated": "2025-08-20T16:20:47.385Z",
+  "instrument": "Applied Biosystems 3130xl Genetic Analyzer",
+  "kit": "PowerPlex ESX 17 System",
+  "samples": [
+    {
+      "name": "PT003_Child_001",
+      "type": "child",
+      "path": "/Users/user/LABSCIENTIFIC-LIMS/backend/sample-data/fsa-files/PT003_Child_001.fsa",
+      "size": 42528
+    },
+    {
+      "name": "PT003_Father_001",
+      "type": "alleged_father",
+      "path": "/Users/user/LABSCIENTIFIC-LIMS/backend/sample-data/fsa-files/PT003_Father_001.fsa",
+      "size": 42528
+    },
+    {
+      "name": "PT003_Mother_001",
+      "type": "mother",
+      "path": "/Users/user/LABSCIENTIFIC-LIMS/backend/sample-data/fsa-files/PT003_Mother_001.fsa",
+      "size": 42528
+    },
+    {
+      "name": "PT003_PosCtrl_001",
+      "type": "positive_control",
+      "path": "/Users/user/LABSCIENTIFIC-LIMS/backend/sample-data/fsa-files/PT003_PosCtrl_001.fsa",
+      "size": 42528
+    },
+    {
+      "name": "PT003_NegCtrl_001",
+      "type": "negative_control",
+      "path": "/Users/user/LABSCIENTIFIC-LIMS/backend/sample-data/fsa-files/PT003_NegCtrl_001.fsa",
+      "size": 42528
+    },
+    {
+      "name": "PT003_Ladder_001",
+      "type": "allelic_ladder",
+      "path": "/Users/user/LABSCIENTIFIC-LIMS/backend/sample-data/fsa-files/PT003_Ladder_001.fsa",
+      "size": 42528
+    }
+  ],
+  "notes": "Sample FSA files generated for OSIRIS demonstration purposes"
+}
