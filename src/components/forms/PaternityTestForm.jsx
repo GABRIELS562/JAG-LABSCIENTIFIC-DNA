@@ -70,7 +70,7 @@ const idTypes = [
 const initialFormState = {
   refKitNumber: 'BN-',
   submissionDate: new Date().toISOString().split('T')[0],
-  motherPresent: 'NO',
+  motherPresent: 'NO',  // Whether mother is physically present at collection
   numberOfChildren: 1,
   
   // Client type selection - single selection only
@@ -585,18 +585,31 @@ export default function PaternityTestForm({ onSuccess }) {
   };
 
   const handleChange = (section, field, value) => {
-    setFormData(prevState => ({
-      ...prevState,
-      [section]: {
+    setFormData(prevState => {
+      const updatedSection = {
         ...prevState[section],
         [field]: value
+      };
+      
+      // Auto-populate surname with name if surname is empty (for father and mother)
+      if ((section === 'father' || section === 'mother') && field === 'name' && value && !prevState[section].surname) {
+        updatedSection.surname = value;
       }
-    }));
+      
+      return {
+        ...prevState,
+        [section]: updatedSection
+      };
+    });
     
     if (errors[`${section}.${field}`]) {
       setErrors(prevState => {
         const newErrors = { ...prevState };
         delete newErrors[`${section}.${field}`];
+        // Also clear surname error if name was entered
+        if (field === 'name' && value) {
+          delete newErrors[`${section}.surname`];
+        }
         return newErrors;
       });
     }
@@ -605,17 +618,29 @@ export default function PaternityTestForm({ onSuccess }) {
   const handleChildChange = (childIndex, field, value) => {
     setFormData(prevState => ({
       ...prevState,
-      children: prevState.children.map((child, index) => 
-        index === childIndex 
-          ? { ...child, [field]: value }
-          : child
-      )
+      children: prevState.children.map((child, index) => {
+        if (index === childIndex) {
+          const updatedChild = { ...child, [field]: value };
+          
+          // Auto-populate surname with name if surname is empty
+          if (field === 'name' && value && !child.surname) {
+            updatedChild.surname = value;
+          }
+          
+          return updatedChild;
+        }
+        return child;
+      })
     }));
     
     if (errors[`child${childIndex}.${field}`]) {
       setErrors(prevState => {
         const newErrors = { ...prevState };
         delete newErrors[`child${childIndex}.${field}`];
+        // Also clear surname error if name was entered
+        if (field === 'name' && value) {
+          delete newErrors[`child${childIndex}.surname`];
+        }
         return newErrors;
       });
     }
@@ -1001,8 +1026,9 @@ export default function PaternityTestForm({ onSuccess }) {
 
   const generateLabNumbers = async (numberOfChildren = 1, clientType = 'peace_of_mind') => {
     try {
-      // Calculate total lab numbers needed: children + father + (mother if present)
-      const includeMotherInCount = formData.motherPresent === 'YES' && !formData.motherNotAvailable;
+      // Calculate total lab numbers needed: children + father + (mother if not marked as not available)
+      // Mother gets a lab number if she's not marked as "not available", regardless of whether she's present
+      const includeMotherInCount = !formData.motherNotAvailable;
       const totalParticipants = numberOfChildren + 1 + (includeMotherInCount ? 1 : 0);
       
       // Get sequential lab numbers from backend
@@ -1073,7 +1099,7 @@ export default function PaternityTestForm({ onSuccess }) {
       }
       
       // Generate mother lab number
-      const fallbackMotherLabNo = (formData.motherPresent === 'YES' && !formData.motherNotAvailable) ? 
+      const fallbackMotherLabNo = (!formData.motherNotAvailable) ? 
         `25_${(fallbackFatherNum + 1).toString().padStart(3, '0')}` : null;
       
       console.log('Using fallback lab numbers:', {
@@ -1521,6 +1547,31 @@ export default function PaternityTestForm({ onSuccess }) {
             />
           )}
         </Box>
+        
+        {/* Add Mother Present checkbox for mother section across all client types */}
+        {isMother && (
+          <Box sx={{ mb: 2, p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={formData.motherPresent === 'YES'}
+                  onChange={(e) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      motherPresent: e.target.checked ? 'YES' : 'NO'
+                    }));
+                  }}
+                  name="motherPresent"
+                />
+              }
+              label="Mother is present at collection"
+              sx={{ '& .MuiFormControlLabel-label': { fontWeight: 500 } }}
+            />
+            <Typography variant="caption" display="block" sx={{ mt: 1, color: 'text.secondary' }}>
+              Check this box if the mother is physically present during sample collection, regardless of whether her information is available
+            </Typography>
+          </Box>
+        )}
 
         <PhotoUploadComponent sectionTitle={title} />
 
@@ -1805,6 +1856,8 @@ export default function PaternityTestForm({ onSuccess }) {
       // Format data for backend including new fields - support multiple children
       const childrenRows = formData.children.map((child, index) => ({
         ...child,
+        // Ensure surname is never empty - use name if surname is missing
+        surname: child.surname || child.name || '',
         refKitNumber: formData.refKitNumber,
         submissionDate: formData.submissionDate,
         emailContact: formData.emailContact,
@@ -1818,11 +1871,15 @@ export default function PaternityTestForm({ onSuccess }) {
       }));
 
       const fatherRow = !formData.fatherNotAvailable ? {
-        ...formData.father
+        ...formData.father,
+        // Ensure surname is never empty - use name if surname is missing
+        surname: formData.father.surname || formData.father.name || ''
       } : null;
 
       const motherRow = !formData.motherNotAvailable ? {
-        ...formData.mother
+        ...formData.mother,
+        // Ensure surname is never empty - use name if surname is missing
+        surname: formData.mother.surname || formData.mother.name || ''
       } : null;
 
       // Include signature and witness data
@@ -1847,8 +1904,8 @@ export default function PaternityTestForm({ onSuccess }) {
           }
         }
         
-        // Upload mother ID if present
-        if (uploadedFiles.mother && formData.motherPresent === 'YES' && !formData.motherNotAvailable) {
+        // Upload mother ID if mother information is available
+        if (uploadedFiles.mother && !formData.motherNotAvailable) {
           const motherIdPath = await handleIdDocumentUpload(uploadedFiles.mother, 'mother', formData.refKitNumber);
           if (motherIdPath) {
             idDocumentPaths.motherIdPath = motherIdPath;
@@ -2046,9 +2103,9 @@ export default function PaternityTestForm({ onSuccess }) {
           if (!formData.ltDocuments.childIdCopy) {
             errors['ltDocuments.childIdCopy'] = 'Child ID copy is required for legal testing';
           }
-          // Mother ID is optional but required if mother is present
-          if (formData.motherPresent === 'YES' && !formData.motherNotAvailable && !formData.ltDocuments.motherIdCopy) {
-            errors['ltDocuments.motherIdCopy'] = 'Mother ID copy is required when mother is present';
+          // Mother ID is required if mother information is being collected
+          if (!formData.motherNotAvailable && !formData.ltDocuments.motherIdCopy) {
+            errors['ltDocuments.motherIdCopy'] = 'Mother ID copy is required when mother information is provided';
           }
         }
         break;
@@ -2259,18 +2316,47 @@ export default function PaternityTestForm({ onSuccess }) {
                           }
                         }}
                       />
-                      <label htmlFor="father-id-upload">
-                        <Button
-                          variant="outlined"
-                          component="span"
-                          startIcon={<CloudUpload />}
-                          size="small"
-                          sx={{ mb: 1 }}
-                          color={errors['ltDocuments.fatherIdCopy'] ? 'error' : 'primary'}
-                        >
-                          Upload
-                        </Button>
-                      </label>
+                      <input
+                        accept="image/*"
+                        capture="environment"
+                        style={{ display: 'none' }}
+                        id="father-id-camera"
+                        type="file"
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            setUploadedFiles(prev => ({ ...prev, father: file }));
+                            setFormData(prev => ({
+                              ...prev,
+                              ltDocuments: { ...prev.ltDocuments, fatherIdCopy: file.name }
+                            }));
+                          }
+                        }}
+                      />
+                      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                        <label htmlFor="father-id-upload">
+                          <Button
+                            variant="outlined"
+                            component="span"
+                            startIcon={<CloudUpload />}
+                            size="small"
+                            color={errors['ltDocuments.fatherIdCopy'] ? 'error' : 'primary'}
+                          >
+                            Upload
+                          </Button>
+                        </label>
+                        <label htmlFor="father-id-camera">
+                          <Button
+                            variant="outlined"
+                            component="span"
+                            startIcon={<PhotoCamera />}
+                            size="small"
+                            color={errors['ltDocuments.fatherIdCopy'] ? 'error' : 'primary'}
+                          >
+                            Camera
+                          </Button>
+                        </label>
+                      </Box>
                       {formData.ltDocuments.fatherIdCopy && (
                         <Typography variant="caption" color="success.main" sx={{ display: 'block' }}>
                           ✓ {formData.ltDocuments.fatherIdCopy}
@@ -2309,18 +2395,47 @@ export default function PaternityTestForm({ onSuccess }) {
                           }
                         }}
                       />
-                      <label htmlFor="child-id-upload">
-                        <Button
-                          variant="outlined"
-                          component="span"
-                          startIcon={<CloudUpload />}
-                          size="small"
-                          sx={{ mb: 1 }}
-                          color={errors['ltDocuments.childIdCopy'] ? 'error' : 'primary'}
-                        >
-                          Upload
-                        </Button>
-                      </label>
+                      <input
+                        accept="image/*"
+                        capture="environment"
+                        style={{ display: 'none' }}
+                        id="child-id-camera"
+                        type="file"
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            setUploadedFiles(prev => ({ ...prev, child: file }));
+                            setFormData(prev => ({
+                              ...prev,
+                              ltDocuments: { ...prev.ltDocuments, childIdCopy: file.name }
+                            }));
+                          }
+                        }}
+                      />
+                      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                        <label htmlFor="child-id-upload">
+                          <Button
+                            variant="outlined"
+                            component="span"
+                            startIcon={<CloudUpload />}
+                            size="small"
+                            color={errors['ltDocuments.childIdCopy'] ? 'error' : 'primary'}
+                          >
+                            Upload
+                          </Button>
+                        </label>
+                        <label htmlFor="child-id-camera">
+                          <Button
+                            variant="outlined"
+                            component="span"
+                            startIcon={<PhotoCamera />}
+                            size="small"
+                            color={errors['ltDocuments.childIdCopy'] ? 'error' : 'primary'}
+                          >
+                            Camera
+                          </Button>
+                        </label>
+                      </Box>
                       {formData.ltDocuments.childIdCopy && (
                         <Typography variant="caption" color="success.main" sx={{ display: 'block' }}>
                           ✓ {formData.ltDocuments.childIdCopy}
@@ -2341,7 +2456,7 @@ export default function PaternityTestForm({ onSuccess }) {
                       border: errors['ltDocuments.motherIdCopy'] ? '2px solid #f44336' : 'none'
                     }}>
                       <Typography variant="subtitle2" sx={{ mb: 2 }}>
-                        Mother ID Copy {formData.motherPresent === 'YES' && !formData.motherNotAvailable && <span style={{ color: 'red' }}>*</span>}
+                        Mother ID Copy {!formData.motherNotAvailable && <span style={{ color: 'red' }}>*</span>}
                       </Typography>
                       <input
                         accept="image/*,.pdf"
@@ -2359,18 +2474,47 @@ export default function PaternityTestForm({ onSuccess }) {
                           }
                         }}
                       />
-                      <label htmlFor="mother-id-upload">
-                        <Button
-                          variant="outlined"
-                          component="span"
-                          startIcon={<CloudUpload />}
-                          size="small"
-                          sx={{ mb: 1 }}
-                          color={errors['ltDocuments.motherIdCopy'] ? 'error' : 'primary'}
-                        >
-                          Upload
-                        </Button>
-                      </label>
+                      <input
+                        accept="image/*"
+                        capture="environment"
+                        style={{ display: 'none' }}
+                        id="mother-id-camera"
+                        type="file"
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            setUploadedFiles(prev => ({ ...prev, mother: file }));
+                            setFormData(prev => ({
+                              ...prev,
+                              ltDocuments: { ...prev.ltDocuments, motherIdCopy: file.name }
+                            }));
+                          }
+                        }}
+                      />
+                      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                        <label htmlFor="mother-id-upload">
+                          <Button
+                            variant="outlined"
+                            component="span"
+                            startIcon={<CloudUpload />}
+                            size="small"
+                            color={errors['ltDocuments.motherIdCopy'] ? 'error' : 'primary'}
+                          >
+                            Upload
+                          </Button>
+                        </label>
+                        <label htmlFor="mother-id-camera">
+                          <Button
+                            variant="outlined"
+                            component="span"
+                            startIcon={<PhotoCamera />}
+                            size="small"
+                            color={errors['ltDocuments.motherIdCopy'] ? 'error' : 'primary'}
+                          >
+                            Camera
+                          </Button>
+                        </label>
+                      </Box>
                       {formData.ltDocuments.motherIdCopy && (
                         <Typography variant="caption" color="success.main" sx={{ display: 'block' }}>
                           ✓ {formData.ltDocuments.motherIdCopy}
