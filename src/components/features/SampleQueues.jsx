@@ -33,7 +33,7 @@ import {
   PlaylistAdd
 } from '@mui/icons-material';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const SampleQueues = () => {
   const [activeQueue, setActiveQueue] = useState(0); // Use index for Material-UI tabs

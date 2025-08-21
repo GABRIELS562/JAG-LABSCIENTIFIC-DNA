@@ -261,10 +261,10 @@ const HomePage = ({ isDarkMode }) => {
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
-          LAB DNA SCIENTIFIC - LIMS Dashboard
+          JAG DNA Scientific - LIMS Dashboard
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Laboratory Information Management System - ISO 17025 Compliant
+          Your Paternity Testing Solution - ISO 17025 Compliant Features
         </Typography>
       </Box>
 
@@ -495,6 +495,13 @@ const HomePage = ({ isDarkMode }) => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+      
+      {/* Footer Tagline */}
+      <Box sx={{ textAlign: 'center', mt: 4, py: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+          JAG DNA Scientific - Your Paternity Testing Solution
+        </Typography>
+      </Box>
     </Container>
   );
 };

@@ -60,7 +60,7 @@ import {
   Schedule
 } from '@mui/icons-material';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const DNAExtraction = () => {
   const [activeTab, setActiveTab] = useState(0);

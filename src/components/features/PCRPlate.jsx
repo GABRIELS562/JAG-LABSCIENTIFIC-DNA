@@ -36,7 +36,7 @@ import {
   Refresh
 } from '@mui/icons-material';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const PCRPlate = () => {
   const navigate = useNavigate();
@@ -125,8 +125,8 @@ const PCRPlate = () => {
         // Find the highest LDS batch number
         let maxNumber = 0;
         existingBatches.forEach(batch => {
-          if (batch.batch_number && batch.batch_number.startsWith('LDS_')) {
-            const match = batch.batch_number.match(/LDS_(\d+)/);
+          if (batch.batch_number && batch.batch_number.startsWith('JDS_')) {
+            const match = batch.batch_number.match(/JDS_(\d+)/);
             if (match) {
               const num = parseInt(match[1]);
               if (!isNaN(num) && num > maxNumber) {
@@ -136,11 +136,11 @@ const PCRPlate = () => {
           }
         });
         
-        setBatchNumber(`LDS_${maxNumber + 1}`);
+        setBatchNumber(`JDS_${maxNumber + 1}`);
       } else {
         // Fallback to timestamp if API fails
         const timestamp = Date.now().toString().slice(-4);
-        setBatchNumber(`LDS_${timestamp}`);
+        setBatchNumber(`JDS_${timestamp}`);
       }
     } catch (error) {
       console.error('Error generating batch number:', error);

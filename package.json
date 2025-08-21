@@ -1,5 +1,5 @@
 {
-  "name": "labscientific-lims",
+  "name": "jag-dna-scientific-lims",
   "private": true,
   "version": "0.0.0",
   "type": "commonjs",
@@ -136,8 +136,8 @@
     "wait-on": "^8.0.3"
   },
   "build": {
-    "appId": "com.labscientific.lims",
-    "productName": "LabScientific LIMS",
+    "appId": "com.jagdnascientific.lims",
+    "productName": "JAG DNA Scientific LIMS",
     "directories": {
       "buildResources": "build"
     },

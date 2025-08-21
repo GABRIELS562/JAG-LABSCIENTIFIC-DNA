@@ -246,10 +246,10 @@ const OsirisAnalysis = () => {
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography variant="h4" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <ScienceIcon /> OSIRIS STR Analysis
+            <ScienceIcon /> OSIRIS STR Analysis - 3500 Genetic Analyzer
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Process FSA files through OSIRIS for STR genotyping
+            Process FSA files from 3500 Genetic Analyzer using Identifiler Plus kit
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 2 }}>
@@ -376,7 +376,7 @@ const OsirisAnalysis = () => {
                   <TableRow key={analysis.analysis_id}>
                     <TableCell>#{analysis.analysis_id}</TableCell>
                     <TableCell>{analysis.sample_name || `Sample ${analysis.sample_id}`}</TableCell>
-                    <TableCell>{analysis.kit_name || 'PowerPlex 16'}</TableCell>
+                    <TableCell>{analysis.kit_name || 'Identifiler Plus'}</TableCell>
                     <TableCell>
                       {new Date(analysis.analysis_date).toLocaleDateString()}
                     </TableCell>

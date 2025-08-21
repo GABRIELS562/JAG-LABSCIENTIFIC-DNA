@@ -406,7 +406,7 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       </DialogTitle>
       <DialogContent>
         <Typography>
-          Are you sure you want to logout from LabDNA LIMS?
+          Are you sure you want to logout from JAG DNA Scientific?
         </Typography>
       </DialogContent>
       <DialogActions>

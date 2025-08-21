@@ -60,6 +60,7 @@ import {
   Assignment,
   Science,
   PlaylistAdd,
+  PersonAdd,
   Group,
   Refresh,
   CloudOff,
@@ -107,7 +108,8 @@ export default function ClientRegister() {
   
   const [newClientDialogOpen, setNewClientDialogOpen] = useState(false);
   const [clientFormData, setClientFormData] = useState({
-    clientName: '',
+    firstName: '',
+    surname: '',
     contactNumber: '',
     emailAddress: '',
     address: '',
@@ -116,7 +118,10 @@ export default function ClientRegister() {
     relationship: '',
     dateOfBirth: '',
     gender: '',
-    additionalNotes: ''
+    additionalNotes: '',
+    caseNumber: '',
+    caseType: 'paternity',
+    specialInstructions: ''
   });
   
   // Workflow status update dialog
@@ -180,7 +185,7 @@ export default function ClientRegister() {
         if (currentPage === 1) {
           setSnackbar({
             open: true,
-            message: `Loaded ${samplesData.length} of ${data.pagination?.total || 0} Peace of Mind samples`,
+            message: `Loaded ${samplesData.length} of ${data.pagination?.total || 0} paternity test samples`,
             severity: 'success'
           });
         }
@@ -224,33 +229,47 @@ export default function ClientRegister() {
   const handleSubmitNewClient = async () => {
     try {
       // Validate required fields
-      if (!clientFormData.clientName || !clientFormData.contactNumber) {
+      if (!clientFormData.firstName || !clientFormData.surname || !clientFormData.contactNumber) {
         setSnackbar({
           open: true,
-          message: 'Client name and contact number are required',
+          message: 'First name, surname and contact number are required',
           severity: 'error'
         });
         return;
       }
       
+      // Generate case number if not provided
+      const caseNumber = clientFormData.caseNumber || 
+        `${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}/${new Date().getFullYear()}`;
+      
       // Submit to API
       const response = await optimizedApi.createSample({
-        ...clientFormData,
+        lab_number: caseNumber,
+        name: clientFormData.firstName,
+        surname: clientFormData.surname,
+        phone_number: clientFormData.contactNumber,
+        email_contact: clientFormData.emailAddress || '',
+        address_area: clientFormData.address || '',
+        sample_type: clientFormData.sampleType || 'Buccal Swab',
+        case_type: clientFormData.caseType || 'paternity',
         status: 'pending',
-        dateCreated: new Date().toISOString(),
-        createdBy: 'Manual_Entry'
+        workflow_status: 'sample_collected',
+        collection_date: new Date().toISOString().split('T')[0],
+        submission_date: new Date().toISOString().split('T')[0],
+        special_instructions: clientFormData.specialInstructions || ''
       });
       
       if (response.success) {
         setSnackbar({
           open: true,
-          message: 'Client registered successfully!',
+          message: 'Client registered successfully for paternity testing!',
           severity: 'success'
         });
         
         setNewClientDialogOpen(false);
         setClientFormData({
-          clientName: '',
+          firstName: '',
+          surname: '',
           contactNumber: '',
           emailAddress: '',
           address: '',
@@ -259,7 +278,10 @@ export default function ClientRegister() {
           relationship: '',
           dateOfBirth: '',
           gender: '',
-          additionalNotes: ''
+          additionalNotes: '',
+          caseNumber: '',
+          caseType: 'paternity',
+          specialInstructions: ''
         });
         
         // Refresh the samples list
@@ -816,10 +838,10 @@ export default function ClientRegister() {
               color: isDarkMode ? 'white' : '#0D488F', 
               fontWeight: 'bold' 
             }}>
-              Sample Management System
+              Client & Sample Registration
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              ISO 17025 Compliant Laboratory Information Management
+              JAG DNA Scientific - Your Paternity Testing Solution
             </Typography>
             {connectionStatus ? (
               <CloudDone sx={{ color: 'success.main' }} />
@@ -1093,6 +1115,164 @@ export default function ClientRegister() {
           Showing {samples.length} of {totalSamples} total samples
         </Typography>
       </Box>
+
+      {/* New Client Registration Dialog */}
+      <Dialog open={newClientDialogOpen} onClose={() => setNewClientDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Register New Client for Paternity Testing
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                  Case Information
+                </Typography>
+              </Grid>
+              
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Case Number"
+                  value={clientFormData.caseNumber || ''}
+                  onChange={(e) => setClientFormData({...clientFormData, caseNumber: e.target.value})}
+                  placeholder="001/2025"
+                  helperText="Format: XXX/YYYY"
+                />
+              </Grid>
+              
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Case Type"
+                  select
+                  value={clientFormData.caseType || 'paternity'}
+                  onChange={(e) => setClientFormData({...clientFormData, caseType: e.target.value})}
+                >
+                  <MenuItem value="paternity">Paternity Testing</MenuItem>
+                  <MenuItem value="maternity">Maternity Testing</MenuItem>
+                  <MenuItem value="siblingship">Siblingship Testing</MenuItem>
+                  <MenuItem value="relationship">Other Relationship</MenuItem>
+                </TextField>
+              </Grid>
+              
+              <Grid item xs={12}>
+                <Divider sx={{ my: 1 }} />
+                <Typography variant="subtitle2" sx={{ mt: 2, mb: 1, fontWeight: 'bold' }}>
+                  Client Information
+                </Typography>
+              </Grid>
+              
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  required
+                  label="First Name"
+                  value={clientFormData.firstName || ''}
+                  onChange={(e) => setClientFormData({...clientFormData, firstName: e.target.value})}
+                />
+              </Grid>
+              
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  required
+                  label="Surname"
+                  value={clientFormData.surname || ''}
+                  onChange={(e) => setClientFormData({...clientFormData, surname: e.target.value})}
+                />
+              </Grid>
+              
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  required
+                  label="Contact Number"
+                  value={clientFormData.contactNumber || ''}
+                  onChange={(e) => setClientFormData({...clientFormData, contactNumber: e.target.value})}
+                />
+              </Grid>
+              
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Email Address"
+                  type="email"
+                  value={clientFormData.email || ''}
+                  onChange={(e) => setClientFormData({...clientFormData, email: e.target.value})}
+                />
+              </Grid>
+              
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Address"
+                  multiline
+                  rows={2}
+                  value={clientFormData.address || ''}
+                  onChange={(e) => setClientFormData({...clientFormData, address: e.target.value})}
+                />
+              </Grid>
+              
+              <Grid item xs={12}>
+                <Divider sx={{ my: 1 }} />
+                <Typography variant="subtitle2" sx={{ mt: 2, mb: 1, fontWeight: 'bold' }}>
+                  Sample Information
+                </Typography>
+              </Grid>
+              
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Sample Type"
+                  select
+                  value={clientFormData.sampleType || 'buccal_swab'}
+                  onChange={(e) => setClientFormData({...clientFormData, sampleType: e.target.value})}
+                >
+                  <MenuItem value="buccal_swab">Buccal Swab</MenuItem>
+                  <MenuItem value="blood">Blood Sample</MenuItem>
+                  <MenuItem value="saliva">Saliva Sample</MenuItem>
+                </TextField>
+              </Grid>
+              
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Number of Participants"
+                  type="number"
+                  value={clientFormData.participantCount || 3}
+                  onChange={(e) => setClientFormData({...clientFormData, participantCount: e.target.value})}
+                  helperText="e.g., Father, Mother, Child"
+                />
+              </Grid>
+              
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Special Instructions"
+                  multiline
+                  rows={2}
+                  value={clientFormData.specialInstructions || ''}
+                  onChange={(e) => setClientFormData({...clientFormData, specialInstructions: e.target.value})}
+                  placeholder="Any special requirements or notes..."
+                />
+              </Grid>
+            </Grid>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNewClientDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSubmitNewClient}
+            variant="contained"
+            startIcon={<PersonAdd />}
+          >
+            Register Client
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Batch Creation Dialog */}
       <Dialog open={batchDialogOpen} onClose={() => setBatchDialogOpen(false)} maxWidth="md" fullWidth>

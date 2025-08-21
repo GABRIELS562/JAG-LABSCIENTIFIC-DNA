@@ -1,5 +1,5 @@
 /**
- * ISO 17025 Compliant Quality Control Module
+ * ISO 17025 Compliant Features Quality Control Module
  * 
  * This module implements all requirements of ISO/IEC 17025:2017 for
  * testing and calibration laboratories.
@@ -194,14 +194,17 @@ const ISO17025Dashboard = ({ data }) => {
                   </Box>
                 </Box>
                 <Typography variant="h6" sx={{ mt: 2 }}>
-                  ISO 17025 Compliance Score
+                  ISO 17025 Compliant Features Score
                 </Typography>
                 <Chip 
-                  label="COMPLIANT" 
+                  label="COMPLIANT FEATURES" 
                   color="success" 
                   icon={<VerifiedUser />}
                   sx={{ mt: 1 }}
                 />
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, fontStyle: 'italic' }}>
+                  System includes ISO 17025 compliant documentation and quality control features
+                </Typography>
               </Box>
             </Grid>
             <Grid item xs={12} md={8}>
@@ -239,7 +242,7 @@ const ISO17025Dashboard = ({ data }) => {
 
       {/* Detailed Compliance by Section */}
       <Typography variant="h6" gutterBottom>
-        Compliance by ISO 17025 Section
+        Compliance by ISO 17025 Features Section
       </Typography>
       {complianceSections.map((section) => (
         <Accordion key={section.id} defaultExpanded={section.id === 'section7'}>

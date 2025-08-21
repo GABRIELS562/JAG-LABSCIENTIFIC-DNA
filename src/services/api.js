@@ -1,6 +1,6 @@
 import { errorHandler, ApiError, NetworkError } from '../utils/errorHandler';
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+const BASE_URL = import.meta.env.VITE_API_URL || "/api";
 
 // Unified API client with caching, retry logic, and connection handling
 class UnifiedApiClient {
@@ -51,7 +51,9 @@ class UnifiedApiClient {
 
   // Enhanced fetch with retry logic, caching, and connection handling
   async enhancedFetch(url, options = {}, useCache = true) {
-    const fullUrl = url.startsWith('http') ? url : `${this.baseURL}${url}`;
+    // Always use relative URLs through proxy
+    const baseURL = url.startsWith('/api') ? '' : '/api';
+    const fullUrl = url.startsWith('http') ? url : `${baseURL}${url}`;
     const cacheKey = `${url}:${JSON.stringify(options)}`;
     
     // Check cache for GET requests
@@ -201,7 +203,14 @@ export const api = {
   // Core API methods
 
   async submitPaternityTest(data) {
-    return apiClient.fetchJson('/submit-test', {
+    return apiClient.fetchJson('/samples', {
+      method: "POST",
+      body: JSON.stringify(data),
+    }, false);
+  },
+  
+  async createSample(data) {
+    return apiClient.fetchJson('/samples', {
       method: "POST",
       body: JSON.stringify(data),
     }, false);

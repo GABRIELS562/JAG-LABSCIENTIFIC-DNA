@@ -36,7 +36,7 @@ import { Print, Download, Save, ArrowDownward, ViewList, ViewModule, Science } f
 import { batchApi } from '../../services/api';
 import WellPlateVisualization from './WellPlateVisualization';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const validateBatchData = (batchNumber, operator) => {
   const errors = {};

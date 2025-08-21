@@ -37,7 +37,7 @@ import {
   ElectricBolt
 } from '@mui/icons-material';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 // Sample Selection Dialog Component - Memoized for performance
 const SampleSelectionDialog = memo(({ open, onClose, samples, batchInfo, onSelectionComplete }) => {
@@ -221,12 +221,12 @@ const Reruns = () => {
         const data = await response.json();
         const existingBatches = data.data || [];
         
-        // Find the highest rerun batch number (LDS_X_RR format)
+        // Find the highest rerun batch number (JDS_X_RR format)
         let maxNumber = 0;
         existingBatches.forEach(batch => {
           if (batch.batch_number && batch.batch_number.includes('_RR')) {
-            // Extract the number from LDS_X_RR format
-            const match = batch.batch_number.match(/LDS_(\d+)_RR/);
+            // Extract the number from JDS_X_RR format
+            const match = batch.batch_number.match(/JDS_(\d+)_RR/);
             if (match) {
               const num = parseInt(match[1]);
               if (!isNaN(num) && num > maxNumber) {
@@ -236,10 +236,10 @@ const Reruns = () => {
           }
         });
         
-        setBatchNumber(`LDS_${maxNumber + 1}_RR`);
+        setBatchNumber(`JDS_${maxNumber + 1}_RR`);
       } else {
         const timestamp = Date.now().toString().slice(-4);
-        setBatchNumber(`LDS_${timestamp}_RR`);
+        setBatchNumber(`JDS_${timestamp}_RR`);
       }
     } catch (error) {
       // Error generating batch number

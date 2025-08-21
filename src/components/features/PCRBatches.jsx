@@ -83,7 +83,7 @@ const PCRBatches = () => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedBatchForMenu, setSelectedBatchForMenu] = useState(null);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+  const API_URL = import.meta.env.VITE_API_URL || '/api';
 
   useEffect(() => {
     fetchBatches();
@@ -172,7 +172,7 @@ const PCRBatches = () => {
         // Filter to only show PCR batches (LDS_XX format, excluding reruns with _RR)
         const pcrBatches = (data.data || []).filter(batch => {
           const batchNumber = batch.lab_batch_number || batch.batch_number || '';
-          return batchNumber.startsWith('LDS_') && !batchNumber.includes('_RR');
+          return batchNumber.startsWith('JDS_') && !batchNumber.includes('_RR');
         });
         setBatches(pcrBatches);
       }
@@ -819,7 +819,7 @@ const PCRBatches = () => {
                   {selectedBatch?.batch_number}
                 </Typography>
                 <Typography variant="subtitle1" color="text.secondary">
-                  PCR Batch Analysis & Quality Control
+                  PCR Batch Analysis - Identifiler Plus Kit
                 </Typography>
               </Box>
             </Box>
@@ -935,10 +935,10 @@ const PCRBatches = () => {
             <Grid container spacing={2}>
               <Grid item xs={12} md={4}>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
-                  <strong>Traceability:</strong> Full chain of custody maintained
+                  <strong>Kit:</strong> Identifiler Plus STR Amplification Kit
                 </Typography>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
-                  <strong>Calibration:</strong> Equipment calibrated within spec
+                  <strong>Thermal Cycler:</strong> Applied Biosystems 9700
                 </Typography>
               </Grid>
               <Grid item xs={12} md={4}>
@@ -946,7 +946,7 @@ const PCRBatches = () => {
                   <strong>Quality Control:</strong> Positive/negative controls included
                 </Typography>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
-                  <strong>Documentation:</strong> All procedures documented
+                  <strong>Protocol:</strong> JAG DNA Scientific validated method
                 </Typography>
               </Grid>
               <Grid item xs={12} md={4}>

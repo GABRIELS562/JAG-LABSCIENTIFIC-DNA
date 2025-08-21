@@ -196,7 +196,7 @@ function getSampleCounts() {
         COUNT(CASE WHEN workflow_status IN ('sample_collected', 'extraction_ready', 'pcr_ready') AND batch_id IS NULL AND extraction_id IS NULL THEN 1 END) as pending,
         COUNT(CASE WHEN workflow_status IN ('sample_collected', 'extraction_ready') AND extraction_id IS NULL THEN 1 END) as extraction_ready,
         COUNT(CASE WHEN workflow_status IN ('extraction_batched', 'extraction_in_progress', 'extraction_completed') AND extraction_id IS NOT NULL THEN 1 END) as extraction_batched,
-        COUNT(CASE WHEN workflow_status = 'pcr_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'LDS_%' AND lab_batch_number NOT LIKE '%_RR') THEN 1 END) as pcrBatched,
+        COUNT(CASE WHEN workflow_status = 'pcr_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'JDS_%' AND lab_batch_number NOT LIKE '%_RR') THEN 1 END) as pcrBatched,
         COUNT(CASE WHEN workflow_status = 'electro_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'ELEC_%') THEN 1 END) as electroBatched,
         COUNT(CASE WHEN workflow_status = 'rerun_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE '%_RR') THEN 1 END) as rerunBatched,
         COUNT(CASE WHEN workflow_status IN ('analysis_completed') THEN 1 END) as completed,
@@ -375,7 +375,7 @@ app.get("/api/samples/queue/:queueType", (req, res) => {
         whereClause = "WHERE workflow_status = 'extraction_completed'";
         break;
       case 'pcr_batched':
-        whereClause = "WHERE workflow_status = 'pcr_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'LDS_%' AND lab_batch_number NOT LIKE '%_RR')";
+        whereClause = "WHERE workflow_status = 'pcr_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'JDS_%' AND lab_batch_number NOT LIKE '%_RR')";
         break;
       case 'electro_ready':
         whereClause = "WHERE workflow_status = 'pcr_completed' OR workflow_status = 'electro_ready'";
@@ -447,29 +447,29 @@ app.post("/api/generate-batch", (req, res) => {
 
     let finalBatchNumber = batchNumber;
     if (!batchNumber) {
-      finalBatchNumber = 'LDS_1';
+      finalBatchNumber = 'JDS_1';
     }
     
-    let batchPrefix = 'LDS_';
+    let batchPrefix = 'JDS_';
     let isRerunBatch = false;
     
     if (finalBatchNumber.startsWith('ELEC_')) {
       batchPrefix = 'ELEC_';
     } else if (finalBatchNumber.includes('_RR')) {
-      batchPrefix = 'LDS_';
+      batchPrefix = 'JDS_';
       isRerunBatch = true;
-    } else if (finalBatchNumber.startsWith('LDS_')) {
-      batchPrefix = 'LDS_';
+    } else if (finalBatchNumber.startsWith('JDS_')) {
+      batchPrefix = 'JDS_';
     }
     
-    if (!batchNumber || finalBatchNumber === 'LDS_1' || finalBatchNumber === 'ELEC_1') {
+    if (!batchNumber || finalBatchNumber === 'JDS_1' || finalBatchNumber === 'ELEC_1') {
       if (isRerunBatch) {
-        const lastRerunStmt = db.prepare(`SELECT batch_number FROM batches WHERE batch_number LIKE 'LDS_%_RR' ORDER BY id DESC LIMIT 1`);
+        const lastRerunStmt = db.prepare(`SELECT batch_number FROM batches WHERE batch_number LIKE 'JDS_%_RR' ORDER BY id DESC LIMIT 1`);
         const lastRerunBatch = lastRerunStmt.get();
         
         let nextNumber = 1;
         if (lastRerunBatch) {
-          const match = lastRerunBatch.batch_number.match(/LDS_(\d+)_RR/);
+          const match = lastRerunBatch.batch_number.match(/JDS_(\d+)_RR/);
           if (match) {
             const lastNumber = parseInt(match[1]);
             if (!isNaN(lastNumber)) {
@@ -477,7 +477,7 @@ app.post("/api/generate-batch", (req, res) => {
             }
           }
         }
-        finalBatchNumber = `LDS_${nextNumber}_RR`;
+        finalBatchNumber = `JDS_${nextNumber}_RR`;
       } else {
         const lastBatchStmt = db.prepare(`SELECT batch_number FROM batches WHERE batch_number LIKE '${batchPrefix}%' ORDER BY id DESC LIMIT 1`);
         const lastBatch = lastBatchStmt.get();
@@ -616,9 +616,9 @@ app.get("/api/get-last-lab-number", (req, res) => {
   try {
     const stmt = db.prepare('SELECT lab_number FROM samples ORDER BY id DESC LIMIT 1');
     const result = stmt.get();
-    ResponseHandler.success(res, result ? result.lab_number : '25_001');
+    ResponseHandler.success(res, result ? result.lab_number : '001/2025');
   } catch (error) {
-    ResponseHandler.success(res, '25_001');
+    ResponseHandler.success(res, '001/2025');
   }
 });
 
@@ -1110,7 +1110,7 @@ app.get("/test", (req, res) => {
 // Root endpoint
 app.get("/", (req, res) => {
   ResponseHandler.success(res, {
-    message: "LabScientific LIMS Backend API",
+    message: "JAG DNA Scientific LIMS Backend API",
     version: "3.0.0-unified",
     status: "running",
     endpoints: {
@@ -1159,7 +1159,7 @@ const server = app
       console.log('   To enable DevOps features, use: ENABLE_DEVOPS_FEATURES=true npm start');
     }
     
-    console.log(`✅ LabScientific LIMS Backend running on http://localhost:${port}`);
+    console.log(`✅ JAG DNA Scientific LIMS Backend running on http://localhost:${port}`);
     console.log(`📊 Health check: http://localhost:${port}/health`);
     console.log(`📈 Metrics: http://localhost:${port}/metrics`);
     console.log(`🔗 API endpoints: http://localhost:${port}/`);
@@ -1182,7 +1182,7 @@ const server = app
       logger.warn('Port in use, trying next port', { port, nextPort: port + 1 });
       console.log(`❌ Port ${port} is in use, trying port ${port + 1}`);
       server.listen(port + 1, '0.0.0.0', () => {
-        console.log(`✅ Backend server running on http://localhost:${port + 1}`);
+        console.log(`✅ JAG DNA Scientific Backend server running on http://localhost:${port + 1}`);
       });
     } else {
       logger.error('Server startup error', { error: err.message, code: err.code });

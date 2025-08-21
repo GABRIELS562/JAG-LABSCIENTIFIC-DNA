@@ -64,7 +64,7 @@ import {
   MonitorHeart
 } from '@mui/icons-material';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const ElectrophoresisLayout = () => {
   const navigate = useNavigate();
@@ -624,9 +624,9 @@ const ElectrophoresisLayout = () => {
         const data = await response.json();
         // Batches loaded successfully
         
-        // Filter for completed PCR batches (those with LDS_ prefix)
+        // Filter for completed PCR batches (those with JDS_ prefix)
         const pcrBatches = (data.data || []).filter(batch => 
-          batch.batch_number?.startsWith('LDS_') && batch.status !== 'cancelled'
+          batch.batch_number?.startsWith('JDS_') && batch.status !== 'cancelled'
         );
         // PCR batches filtered
         
@@ -828,7 +828,7 @@ const ElectrophoresisLayout = () => {
       'Container Name\tDescription\tContainerType\tAppType\tOwner\tOperator',
       `electrophoresis batch\t${batchNumber}_electro_run\t96-Well\tRegular\tLAB DNA\t${operator}`,
       'AppServer\tAppInstance',
-      'ElectrophoresisAnalyzer\tElectrophoresis_1ae27b545c1511deab1400101834f966',
+      '3500GeneticAnalyzer\tElectrophoresis_1ae27b545c1511deab1400101834f966',
       'Well\tSample Name\tComment\tPriority\tSize Standard\tSnp Set\tUser-Defined 3\tUser-Defined 2\tUser-Defined 1\tPanel\tStudy\tSample Type\tAnalysis Method\tResults Group 1\tInstrument Protocol 1'
     ];
 
@@ -837,7 +837,7 @@ const ElectrophoresisLayout = () => {
       .map(([wellId, well]) => {
         const sample = well.samples[0];
         const sampleName = sample.lab_number || `Sample_${wellId}`;
-        return `${wellId}\t${sampleName}\t\t100\tCE_G5_IdentifilerDirect_GS500\t\t\t\t\tIdentifilerDirect_GS500_Panels_v1\t\tSample\tIdentifilerDirect_AnalysisMethod_v1\tFA_Run_36cm_POP4_5s\tGMHID`;
+        return `${wellId}\t${sampleName}\t\t100\tGeneScan_LIZ500\t\t\t\t\tIdentifilerPlus_Panels_v1\t\tSample\tIdentifilerPlus_AnalysisMethod_v1\tFA_Run_36cm_POP4_5s\tGMHID`;
       });
 
     const fileContent = [...headerRows, ...wellRows].join('\n');
@@ -1394,7 +1394,7 @@ const ElectrophoresisLayout = () => {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
               <Typography variant="h6" sx={{ fontWeight: 'bold', color: isDarkMode ? 'white' : 'primary.main', display: 'flex', alignItems: 'center', gap: 1 }}>
                 <ElectricBolt />
-                Capillary Electrophoresis Plate: {batchNumber}
+                3500 Genetic Analyzer - GeneScan LIZ 500: {batchNumber}
               </Typography>
               <Chip 
                 label={`${getPlacedSamplesCount()}/96 Wells`}
