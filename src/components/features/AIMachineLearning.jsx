@@ -37,7 +37,11 @@ import {
   Switch,
   FormControlLabel,
   Slider,
-  Tooltip
+  Tooltip,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import {
   PsychologyOutlined as AI,
@@ -442,14 +446,14 @@ const AIMachineLearning = () => {
                       primary={`${sensor.equipment_name} - ${sensor.sensor_name}`}
                       secondary={
                         <Box>
-                          <Typography variant="body2">
+                          <span>
                             Current: {sensor.latest_reading} 
                             (Range: {sensor.normal_range_min}-{sensor.normal_range_max})
-                          </Typography>
+                          </span>
                           {sensor.alerts_24h > 0 && (
-                            <Typography variant="body2" color="warning.main">
+                            <Box component="span" color="warning.main" display="block">
                               {sensor.alerts_24h} alerts in last 24h
-                            </Typography>
+                            </Box>
                           )}
                         </Box>
                       }
@@ -481,12 +485,12 @@ const AIMachineLearning = () => {
                       primary={prediction.equipment_name}
                       secondary={
                         <Box>
-                          <Typography variant="body2">
+                          <span>
                             {prediction.prediction_type.replace('_', ' ')} - {prediction.days_until_predicted} days
-                          </Typography>
-                          <Typography variant="body2" sx={{ mb: 1 }}>
+                          </span>
+                          <Box component="span" sx={{ mb: 1, display: 'block' }}>
                             {prediction.recommendation}
-                          </Typography>
+                          </Box>
                           <Box display="flex" gap={1} alignItems="center">
                             {getRiskChip(prediction.risk_level)}
                             <Chip 
@@ -587,13 +591,13 @@ const AIMachineLearning = () => {
                       primary={pattern.pattern_name}
                       secondary={
                         <Box>
-                          <Typography variant="body2">
+                          <span>
                             Type: {pattern.pattern_type}
-                          </Typography>
+                          </span>
                           <Box display="flex" alignItems="center" mt={1}>
-                            <Typography variant="body2" sx={{ mr: 1 }}>
+                            <Box component="span" sx={{ mr: 1 }}>
                               Sensitivity: {(pattern.sensitivity * 100).toFixed(0)}%
-                            </Typography>
+                            </Box>
                             <Switch
                               size="small"
                               checked={pattern.active}
@@ -684,9 +688,9 @@ const AIMachineLearning = () => {
                       primary={suggestion.title}
                       secondary={
                         <Box>
-                          <Typography variant="body2" paragraph>
+                          <Box component="span" display="block" mb={2}>
                             {suggestion.description}
-                          </Typography>
+                          </Box>
                           <Box display="flex" gap={1} alignItems="center" mb={1}>
                             <Chip 
                               label={suggestion.suggestion_type.replace('_', ' ')} 

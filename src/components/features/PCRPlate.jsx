@@ -711,16 +711,7 @@ const PCRPlate = () => {
       };
 
       // Add comprehensive logging
-      console.log('🔍 PCR Plate - Starting batch finalization');
-      console.log('📊 Batch data:', {
-        batchNumber,
-        operator,
-        sampleCount: getPlacedSamplesCount(),
-        wellCount: Object.keys(transformedWells).length,
-        date: batchData.date
-      });
-      console.log('🧪 Wells data:', transformedWells);
-      console.log('📡 API URL:', `${API_URL}/generate-batch`);
+      // Starting batch finalization
 
       // Call the API to generate the batch
       const authToken = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
@@ -733,19 +724,18 @@ const PCRPlate = () => {
         headers['Authorization'] = `Bearer ${authToken}`;
       }
       
-      console.log('📤 Sending request to backend...');
+      // Sending request to backend
       const response = await fetch(`${API_URL}/generate-batch`, {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(batchData)
       });
       
-      console.log('📥 Response status:', response.status);
-      console.log('📥 Response ok:', response.ok);
+      // Response received
 
       if (response.ok) {
         const result = await response.json();
-        console.log('✅ Success response:', result);
+        // Success response received
         
         // Update sample status to 'pcr_batched' in the database
         const sampleIds = Object.values(plateData)
@@ -765,7 +755,7 @@ const PCRPlate = () => {
               })
             });
           } catch (error) {
-            console.warn('Failed to update sample status:', error);
+            // Failed to update sample status
           }
         }
         
@@ -810,7 +800,7 @@ const PCRPlate = () => {
         }, 2000);
       } else {
         const error = await response.json();
-        console.log('❌ Error response:', error);
+        // Error in batch finalization
         setSnackbar({
           open: true,
           message: `Error finalizing batch: ${error.error || 'Unknown error'}`,

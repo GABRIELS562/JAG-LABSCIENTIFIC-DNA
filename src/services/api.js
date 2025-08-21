@@ -194,6 +194,9 @@ export const api = {
   isOnline: () => apiClient.isOnline,
   checkHealth: () => apiClient.checkHealth(),
   clearCache: () => apiClient.clearCache(),
+  
+  // Expose fetchJson for direct API calls
+  fetchJson: (url, options = {}, useCache = true) => apiClient.fetchJson(url, options, useCache),
 
   // Core API methods
 
@@ -381,6 +384,53 @@ export const api = {
     }
     
     return { success: true, data: results };
+  }
+};
+
+// DNA Extraction API Methods
+export const extractionApi = {
+  // Get all extraction batches
+  async getBatches() {
+    return apiClient.fetchJson('/extraction/batches');
+  },
+
+  // Get specific extraction batch
+  async getBatch(batchId) {
+    return apiClient.fetchJson(`/extraction/batches/${batchId}`);
+  },
+
+  // Create new extraction batch
+  async createBatch(batchData) {
+    return apiClient.fetchJson('/extraction/create-batch', {
+      method: 'POST',
+      body: JSON.stringify(batchData)
+    }, false);
+  },
+
+  // Add quantification results
+  async addQuantificationResult(resultData) {
+    return apiClient.fetchJson('/extraction/quantification', {
+      method: 'POST',
+      body: JSON.stringify(resultData)
+    }, false);
+  },
+
+  // Complete extraction batch
+  async completeBatch(batchId, qualityControlPassed, notes = '') {
+    return apiClient.fetchJson('/extraction/complete-batch', {
+      method: 'PUT',
+      body: JSON.stringify({ batchId, qualityControlPassed, notes })
+    }, false);
+  },
+
+  // Get extraction results for a batch
+  async getBatchResults(batchId) {
+    return apiClient.fetchJson(`/extraction/${batchId}/results`);
+  },
+
+  // Get samples ready for extraction
+  async getSamplesReadyForExtraction() {
+    return apiClient.fetchJson('/extraction/samples-ready');
   }
 };
 

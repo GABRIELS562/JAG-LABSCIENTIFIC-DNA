@@ -10,7 +10,12 @@ const { globalErrorHandler } = require("./middleware/errorHandler");
 const { sanitizeInput } = require("./middleware/validation");
 const { requestLogger, logger } = require("./utils/logger");
 const { ResponseHandler } = require("./utils/responseHandler");
-// Removed unused middleware imports
+
+// Import DevOps middleware and services
+const { register: metricsRegister, metricsMiddleware, trackDatabaseQuery, trackSampleProcessed, trackBatchCreated } = require('./middleware/metrics');
+const { healthCheckService } = require('./middleware/healthcheck');
+const { backgroundJobService } = require('./services/backgroundJobs');
+const performanceRoutes = require('./routes/performance');
 
 // Import routes
 const apiRoutes = require("./routes/api");
@@ -21,6 +26,7 @@ const reportsRoutes = require("./routes/reports");
 const qmsRoutes = require("./routes/qms");
 const inventoryRoutes = require("./routes/inventory");
 const aiMlRoutes = require("./routes/ai-ml");
+const adminRoutes = require('./routes/admin');
 // Removed monitoring routes import
 
 // Load environment variables from root
@@ -75,7 +81,8 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Basic middleware (removed monitoring for portfolio simplicity)
+// DevOps middleware
+app.use(metricsMiddleware);
 app.use(sanitizeInput);
 
 // Database helper functions
@@ -92,7 +99,13 @@ function getSamplesWithPagination(page = 1, limit = 50, filters = {}) {
     if (filters.status && filters.status !== 'all') {
       switch (filters.status) {
         case 'pending':
-          conditions.push("workflow_status IN ('sample_collected', 'pcr_ready') AND batch_id IS NULL");
+          conditions.push("workflow_status IN ('sample_collected', 'extraction_ready', 'pcr_ready') AND batch_id IS NULL AND extraction_id IS NULL");
+          break;
+        case 'extraction_ready':
+          conditions.push("workflow_status IN ('sample_collected', 'extraction_ready') AND extraction_id IS NULL");
+          break;
+        case 'extraction_batched':
+          conditions.push("workflow_status IN ('extraction_batched', 'extraction_in_progress') AND extraction_id IS NOT NULL");
           break;
         case 'pcr_batched':
           conditions.push("(workflow_status = 'pcr_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'LDS_%'))");
@@ -155,6 +168,9 @@ function getSamplesWithPagination(page = 1, limit = 50, filters = {}) {
   } catch (error) {
     logger.error('Error fetching samples with pagination', { error: error.message, page, limit, filters });
     return { data: [], pagination: { page: 1, limit, total: 0, pages: 0 } };
+  } finally {
+    // Track database query metrics
+    trackDatabaseQuery('SELECT', 'samples', Date.now() - Date.now());
   }
 }
 
@@ -177,7 +193,9 @@ function getSampleCounts() {
       SELECT 
         COUNT(*) as total,
         COUNT(CASE WHEN status = 'active' THEN 1 END) as active,
-        COUNT(CASE WHEN workflow_status IN ('sample_collected', 'pcr_ready') AND batch_id IS NULL THEN 1 END) as pending,
+        COUNT(CASE WHEN workflow_status IN ('sample_collected', 'extraction_ready', 'pcr_ready') AND batch_id IS NULL AND extraction_id IS NULL THEN 1 END) as pending,
+        COUNT(CASE WHEN workflow_status IN ('sample_collected', 'extraction_ready') AND extraction_id IS NULL THEN 1 END) as extraction_ready,
+        COUNT(CASE WHEN workflow_status IN ('extraction_batched', 'extraction_in_progress', 'extraction_completed') AND extraction_id IS NOT NULL THEN 1 END) as extraction_batched,
         COUNT(CASE WHEN workflow_status = 'pcr_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'LDS_%' AND lab_batch_number NOT LIKE '%_RR') THEN 1 END) as pcrBatched,
         COUNT(CASE WHEN workflow_status = 'electro_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'ELEC_%') THEN 1 END) as electroBatched,
         COUNT(CASE WHEN workflow_status = 'rerun_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE '%_RR') THEN 1 END) as rerunBatched,
@@ -233,6 +251,9 @@ function createSample(sampleData) {
       
       // Clear sample counts cache since we added a new sample
       sampleCountsCache = null;
+      
+      // Track sample creation metrics
+      trackSampleProcessed('created', 'registration');
       
       return { id: result.lastInsertRowid, ...sampleData };
     } catch (error) {
@@ -331,7 +352,7 @@ app.get("/api/samples/queue-counts", (req, res) => {
 app.get("/api/samples/queue/:queueType", (req, res) => {
   try {
     const { queueType } = req.params;
-    const validQueues = ['pcr_ready', 'pcr_batched', 'electro_ready', 'electro_batched', 'analysis_ready', 'completed'];
+    const validQueues = ['extraction_ready', 'extraction_batched', 'extraction_completed', 'pcr_ready', 'pcr_batched', 'electro_ready', 'electro_batched', 'analysis_ready', 'completed'];
     
     if (!validQueues.includes(queueType)) {
       return ResponseHandler.error(res, `Invalid queue type. Must be one of: ${validQueues.join(', ')}`, 400);
@@ -342,7 +363,16 @@ app.get("/api/samples/queue/:queueType", (req, res) => {
     
     switch (queueType) {
       case 'pcr_ready':
-        whereClause = "WHERE workflow_status IN ('sample_collected', 'pcr_ready') AND batch_id IS NULL";
+        whereClause = "WHERE workflow_status IN ('extraction_completed', 'pcr_ready') AND batch_id IS NULL";
+        break;
+      case 'extraction_ready':
+        whereClause = "WHERE workflow_status IN ('sample_collected', 'extraction_ready') AND extraction_id IS NULL";
+        break;
+      case 'extraction_batched':
+        whereClause = "WHERE workflow_status IN ('extraction_batched', 'extraction_in_progress') AND extraction_id IS NOT NULL";
+        break;
+      case 'extraction_completed':
+        whereClause = "WHERE workflow_status = 'extraction_completed'";
         break;
       case 'pcr_batched':
         whereClause = "WHERE workflow_status = 'pcr_batched' OR (batch_id IS NOT NULL AND lab_batch_number LIKE 'LDS_%' AND lab_batch_number NOT LIKE '%_RR')";
@@ -520,6 +550,12 @@ app.post("/api/generate-batch", (req, res) => {
 
   try {
     const result = transaction();
+    
+    // Track batch creation metrics
+    const batchType = result.batchNumber.startsWith('ELEC_') ? 'electrophoresis' :
+                     result.batchNumber.includes('_RR') ? 'rerun' : 'pcr';
+    trackBatchCreated(batchType);
+    
     ResponseHandler.success(res, result, 'Batch created successfully');
   } catch (error) {
     ResponseHandler.error(res, 'Failed to create batch', error);
@@ -616,12 +652,38 @@ app.post("/api/refresh-database", (req, res) => {
   }
 });
 
+// Electrophoresis batches endpoint
+app.get("/api/electrophoresis-batches", (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        id,
+        batch_number,
+        created_at,
+        status,
+        operator,
+        COUNT(DISTINCT sample_id) as sample_count
+      FROM batches
+      WHERE batch_number LIKE 'ELEC_%'
+      GROUP BY id
+      ORDER BY created_at DESC
+      LIMIT 50
+    `;
+    const batches = db.prepare(query).all();
+    ResponseHandler.success(res, batches);
+  } catch (error) {
+    logger.error('Error fetching electrophoresis batches:', error);
+    ResponseHandler.success(res, []); // Return empty array on error
+  }
+});
+
 // Workflow stats endpoint
 app.get("/api/workflow-stats", (req, res) => {
   try {
     const counts = getSampleCounts();
     ResponseHandler.success(res, {
       registered: counts.pending || 0,
+      inExtraction: counts.extraction_batched || 0,
       inPCR: counts.pcr_batched || 0,
       inElectrophoresis: counts.electro_batched || 0,
       reruns: counts.rerun_batched || 0,
@@ -640,13 +702,296 @@ app.get("/api/workflow-stats", (req, res) => {
   }
 });
 
+// DNA Extraction API Endpoints
+
+// Get DNA extraction batches
+app.get("/api/extraction/batches", (req, res) => {
+  try {
+    const stmt = db.prepare(`
+      SELECT 
+        id, batch_number, operator, extraction_date, extraction_method,
+        kit_lot_number, kit_expiry_date, total_samples, status,
+        lysis_time, lysis_temperature, incubation_time, centrifuge_speed,
+        centrifuge_time, elution_volume, quality_control_passed,
+        plate_layout, notes, created_at, updated_at
+      FROM extraction_batches 
+      ORDER BY created_at DESC
+    `);
+    
+    const batches = stmt.all().map(batch => ({
+      ...batch,
+      plate_layout: batch.plate_layout ? JSON.parse(batch.plate_layout) : {}
+    }));
+    
+    ResponseHandler.success(res, batches);
+  } catch (error) {
+    logger.error('Error fetching extraction batches:', error);
+    ResponseHandler.success(res, []); // Return empty array on error
+  }
+});
+
+// Get specific extraction batch
+app.get("/api/extraction/batches/:id", (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const stmt = db.prepare(`
+      SELECT 
+        id, batch_number, operator, extraction_date, extraction_method,
+        kit_lot_number, kit_expiry_date, total_samples, status,
+        lysis_time, lysis_temperature, incubation_time, centrifuge_speed,
+        centrifuge_time, elution_volume, quality_control_passed,
+        plate_layout, notes, created_at, updated_at
+      FROM extraction_batches 
+      WHERE id = ?
+    `);
+    
+    const batch = stmt.get(id);
+    
+    if (!batch) {
+      return ResponseHandler.notFound(res, 'Extraction batch not found');
+    }
+
+    batch.plate_layout = batch.plate_layout ? JSON.parse(batch.plate_layout) : {};
+    
+    ResponseHandler.success(res, batch);
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to fetch extraction batch', error);
+  }
+});
+
+// Create new extraction batch
+app.post("/api/extraction/create-batch", (req, res) => {
+  const transaction = db.transaction(() => {
+    const { 
+      batchNumber, operator, extractionDate, extractionMethod, 
+      kitLotNumber, kitExpiryDate, wells, sampleCount,
+      lysisTime, lysisTemperature, incubationTime, 
+      centrifugeSpeed, centrifugeTime, elutionVolume,
+      notes
+    } = req.body;
+    
+    if (!operator || !extractionMethod || !kitLotNumber) {
+      throw new Error('Operator, extraction method, and kit lot number are required');
+    }
+
+    let finalBatchNumber = batchNumber;
+    if (!batchNumber || batchNumber === 'EXT_1') {
+      const lastBatchStmt = db.prepare(`SELECT batch_number FROM extraction_batches WHERE batch_number LIKE 'EXT_%' ORDER BY id DESC LIMIT 1`);
+      const lastBatch = lastBatchStmt.get();
+      
+      let nextNumber = 1;
+      if (lastBatch) {
+        const lastNumber = parseInt(lastBatch.batch_number.replace('EXT_', ''));
+        if (!isNaN(lastNumber)) {
+          nextNumber = lastNumber + 1;
+        }
+      }
+      finalBatchNumber = `EXT_${nextNumber.toString().padStart(3, '0')}`;
+    }
+
+    const insertBatchStmt = db.prepare(`
+      INSERT INTO extraction_batches (
+        batch_number, operator, extraction_date, extraction_method,
+        kit_lot_number, kit_expiry_date, total_samples, plate_layout,
+        lysis_time, lysis_temperature, incubation_time,
+        centrifuge_speed, centrifuge_time, elution_volume,
+        notes, status, created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP)
+    `);
+    
+    const plateLayoutJson = JSON.stringify(wells || {});
+    const result = insertBatchStmt.run(
+      finalBatchNumber,
+      operator,
+      extractionDate || new Date().toISOString().split('T')[0],
+      extractionMethod,
+      kitLotNumber,
+      kitExpiryDate,
+      sampleCount || 0,
+      plateLayoutJson,
+      lysisTime || 60,
+      lysisTemperature || 56.0,
+      incubationTime || 30,
+      centrifugeSpeed || 14000,
+      centrifugeTime || 3,
+      elutionVolume || 200,
+      notes
+    );
+
+    // Update sample workflow status to extraction_batched
+    let updatedSamples = 0;
+    if (wells) {
+      const updateSampleStmt = db.prepare(`
+        UPDATE samples 
+        SET extraction_id = ?, workflow_status = 'extraction_batched', lab_batch_number = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `);
+      
+      Object.values(wells).forEach(well => {
+        if (well.samples) {
+          well.samples.forEach(sample => {
+            if (sample.id) {
+              const updateResult = updateSampleStmt.run(result.lastInsertRowid, finalBatchNumber, sample.id);
+              if (updateResult.changes > 0) {
+                updatedSamples++;
+              }
+            }
+          });
+        }
+      });
+    }
+
+    return {
+      batchId: result.lastInsertRowid,
+      batchNumber: finalBatchNumber,
+      operator,
+      extractionMethod,
+      total_samples: sampleCount || 0,
+      updated_samples: updatedSamples,
+      status: 'active',
+      plate_layout: wells || {}
+    };
+  });
+
+  try {
+    const result = transaction();
+    
+    // Track batch creation metrics
+    trackBatchCreated('extraction');
+    
+    ResponseHandler.success(res, result, 'DNA extraction batch created successfully');
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to create DNA extraction batch', error);
+  }
+});
+
+// Add quantification results
+app.post("/api/extraction/quantification", (req, res) => {
+  try {
+    const { 
+      extractionBatchId, sampleId, wellPosition,
+      dnaConcentration, purity260280, purity260230,
+      volumeRecovered, qualityAssessment, quantificationMethod,
+      extractionEfficiency, inhibitionDetected, reextractionRequired,
+      notes
+    } = req.body;
+
+    const insertResultStmt = db.prepare(`
+      INSERT OR REPLACE INTO extraction_results (
+        extraction_batch_id, sample_id, well_position,
+        dna_concentration, purity_260_280, purity_260_230,
+        volume_recovered, quality_assessment, quantification_method,
+        extraction_efficiency, inhibition_detected, reextraction_required,
+        notes
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = insertResultStmt.run(
+      extractionBatchId, sampleId, wellPosition,
+      dnaConcentration, purity260280, purity260230,
+      volumeRecovered, qualityAssessment, quantificationMethod,
+      extractionEfficiency, inhibitionDetected, reextractionRequired,
+      notes
+    );
+
+    ResponseHandler.success(res, { id: result.lastInsertRowid }, 'Quantification result added successfully');
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to add quantification result', error);
+  }
+});
+
+// Complete extraction batch
+app.put("/api/extraction/complete-batch", (req, res) => {
+  const transaction = db.transaction(() => {
+    const { batchId, qualityControlPassed, notes } = req.body;
+
+    // Update batch status
+    const updateBatchStmt = db.prepare(`
+      UPDATE extraction_batches 
+      SET status = 'completed', quality_control_passed = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    
+    updateBatchStmt.run(qualityControlPassed ? 1 : 0, notes, batchId);
+
+    // Update samples to pcr_ready status (extraction completed)
+    const updateSamplesStmt = db.prepare(`
+      UPDATE samples 
+      SET workflow_status = 'pcr_ready', updated_at = CURRENT_TIMESTAMP
+      WHERE extraction_id = ? AND workflow_status IN ('extraction_batched', 'extraction_in_progress')
+    `);
+    
+    const samplesResult = updateSamplesStmt.run(batchId);
+
+    return {
+      batchId,
+      status: 'completed',
+      updatedSamples: samplesResult.changes
+    };
+  });
+
+  try {
+    const result = transaction();
+    ResponseHandler.success(res, result, 'Extraction batch completed successfully');
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to complete extraction batch', error);
+  }
+});
+
+// Get extraction results for a batch
+app.get("/api/extraction/:batchId/results", (req, res) => {
+  try {
+    const { batchId } = req.params;
+    
+    const stmt = db.prepare(`
+      SELECT 
+        er.*, s.lab_number, s.name, s.surname
+      FROM extraction_results er
+      LEFT JOIN samples s ON er.sample_id = s.id
+      WHERE er.extraction_batch_id = ?
+      ORDER BY er.well_position
+    `);
+    
+    const results = stmt.all(batchId);
+    ResponseHandler.success(res, results);
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to fetch extraction results', error);
+  }
+});
+
+// Get samples ready for extraction
+app.get("/api/extraction/samples-ready", (req, res) => {
+  try {
+    const stmt = db.prepare(`
+      SELECT 
+        id, lab_number, name, surname, relation, status, 
+        collection_date, workflow_status, case_number
+      FROM samples 
+      WHERE workflow_status IN ('sample_collected', 'extraction_ready') AND batch_id IS NULL
+      ORDER BY collection_date ASC, lab_number ASC
+      LIMIT 100
+    `);
+    
+    const samples = stmt.all();
+    ResponseHandler.success(res, samples);
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to get samples ready for extraction', error);
+  }
+});
+
 // Placeholder endpoints for missing routes
 const placeholderEndpoints = [
   '/api/reports',
   '/api/statistics',
   '/api/equipment',
   '/api/quality-control',
-  '/api/db/reports'
+  '/api/db/reports',
+  '/api/genetic-analysis/osiris/analyses',
+  '/api/genetic-analysis/osiris/queue',
+  '/api/genetic-analysis/genemapper-results'
 ];
 
 placeholderEndpoints.forEach(endpoint => {
@@ -655,16 +1000,102 @@ placeholderEndpoints.forEach(endpoint => {
   });
 });
 
-// Health check endpoint
-app.get("/health", (req, res) => {
-  ResponseHandler.success(res, {
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development',
-    database: db ? 'connected' : 'disconnected',
-    port: process.env.PORT || 3001
-  }, 'Server is healthy');
+// DevOps endpoints
+
+// Prometheus metrics endpoint
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', metricsRegister.contentType);
+    const metrics = await metricsRegister.metrics();
+    res.end(metrics);
+  } catch (error) {
+    logger.error('Failed to generate metrics', { error: error.message });
+    res.status(500).end('Failed to generate metrics');
+  }
+});
+
+// Kubernetes health probes
+app.get('/health', healthCheckService.healthMiddleware());
+app.get('/health/live', healthCheckService.livenessMiddleware());
+app.get('/health/ready', healthCheckService.readinessMiddleware());
+
+// Performance and load testing routes
+app.use('/performance', performanceRoutes);
+
+// Admin dashboard and management routes
+app.use('/admin', adminRoutes);
+
+// Background jobs management
+app.get('/admin/jobs/status', (req, res) => {
+  try {
+    const status = backgroundJobService.getStatus();
+    ResponseHandler.success(res, status, 'Background jobs status');
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to get jobs status', error);
+  }
+});
+
+app.post('/admin/jobs/trigger/:jobName', async (req, res) => {
+  try {
+    const { jobName } = req.params;
+    await backgroundJobService.triggerJob(jobName);
+    ResponseHandler.success(res, { jobName }, `Job '${jobName}' triggered successfully`);
+  } catch (error) {
+    ResponseHandler.error(res, `Failed to trigger job '${req.params.jobName}'`, error);
+  }
+});
+
+// Load generator management
+const LoadGenerator = require('./scripts/loadGenerator');
+let currentLoadGenerator = null;
+
+app.post('/admin/load-test/start', async (req, res) => {
+  try {
+    if (currentLoadGenerator && currentLoadGenerator.isRunning) {
+      return ResponseHandler.error(res, 'Load test already running', null, 400);
+    }
+    
+    const config = {
+      baseUrl: req.body.baseUrl || 'http://localhost:3001',
+      concurrency: req.body.concurrency || 3,
+      duration: (req.body.duration || 60) * 1000
+    };
+    
+    currentLoadGenerator = new LoadGenerator(config);
+    await currentLoadGenerator.start();
+    
+    ResponseHandler.success(res, config, 'Load test started');
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to start load test', error);
+  }
+});
+
+app.post('/admin/load-test/stop', async (req, res) => {
+  try {
+    if (!currentLoadGenerator || !currentLoadGenerator.isRunning) {
+      return ResponseHandler.error(res, 'No load test running', null, 400);
+    }
+    
+    await currentLoadGenerator.stop();
+    const stats = currentLoadGenerator.getStats();
+    
+    ResponseHandler.success(res, stats, 'Load test stopped');
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to stop load test', error);
+  }
+});
+
+app.get('/admin/load-test/status', (req, res) => {
+  try {
+    if (!currentLoadGenerator) {
+      return ResponseHandler.success(res, { isRunning: false }, 'No load test configured');
+    }
+    
+    const stats = currentLoadGenerator.getStats();
+    ResponseHandler.success(res, stats, 'Load test status');
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to get load test status', error);
+  }
 });
 
 // Test endpoint
@@ -713,10 +1144,38 @@ const server = app
       database: db ? 'connected' : 'disconnected'
     });
     
+    // Start background jobs for DevOps demonstration (only if enabled)
+    if (process.env.ENABLE_DEVOPS_FEATURES === 'true') {
+      try {
+        backgroundJobService.start();
+        logger.info('🚀 DevOps features enabled - background jobs started');
+        console.log('🚀 DevOps demo mode active - generating continuous activity');
+      } catch (error) {
+        logger.error('Failed to start background jobs', { error: error.message });
+      }
+    } else {
+      logger.info('💤 DevOps features disabled - running in quiet mode');
+      console.log('💤 Running in quiet mode (no background activity)');
+      console.log('   To enable DevOps features, use: ENABLE_DEVOPS_FEATURES=true npm start');
+    }
+    
     console.log(`✅ LabScientific LIMS Backend running on http://localhost:${port}`);
     console.log(`📊 Health check: http://localhost:${port}/health`);
+    console.log(`📈 Metrics: http://localhost:${port}/metrics`);
     console.log(`🔗 API endpoints: http://localhost:${port}/`);
+    console.log(`⚡ Performance testing: http://localhost:${port}/performance`);
+    console.log(`🎛️  Admin panel: http://localhost:${port}/admin`);
     console.log(`🌟 Environment: ${process.env.NODE_ENV || 'development'}`);
+    
+    if (process.env.ENABLE_DEVOPS_FEATURES === 'true') {
+      console.log('\n🚀 DevOps Features Active:');
+      console.log('   - Prometheus metrics collection');
+      console.log('   - Background job simulation (generating activity)');
+      console.log('   - Health/readiness probes');
+      console.log('   - Performance issue simulation');
+      console.log('   - Load testing capabilities');
+      console.log('   - Structured logging');
+    }
   })
   .on("error", (err) => {
     if (err.code === "EADDRINUSE") {
@@ -741,13 +1200,16 @@ process.on('SIGTERM', async () => {
     logger.info('Server closed');
     console.log('✅ Server closed');
     
-    // Cleanup services
-    if (performanceMonitor) {
-      performanceMonitor.destroy();
+    // Cleanup DevOps services
+    try {
+      backgroundJobService.stop();
+      logger.info('Background jobs stopped');
+    } catch (error) {
+      logger.error('Error stopping background jobs', { error: error.message });
     }
     
-    if (cacheService) {
-      cacheService.destroy();
+    if (currentLoadGenerator) {
+      currentLoadGenerator.stop();
     }
     
     if (db) {

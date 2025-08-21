@@ -157,7 +157,7 @@ const PCRBatches = () => {
         // Refresh the batches list to include the new batch
         fetchBatches();
       } catch (error) {
-        console.warn('Failed to process newly created batch:', error);
+        // Failed to process newly created batch
       }
     }
   };
@@ -188,7 +188,7 @@ const PCRBatches = () => {
       setDetailsLoading(true);
       
       // Fetch well assignments for the batch
-      const response = await fetch(`${API_URL}/api/well-assignments/${batchId}`);
+      const response = await fetch(`${API_URL}/well-assignments/${batchId}`);
       const data = await response.json();
       
       if (data.success) {
@@ -483,7 +483,7 @@ const PCRBatches = () => {
         break;
       case 'rerun':
         // Handle rerun logic
-        console.log('Rerun batch:', batch.batch_number);
+        // Rerun batch detected
         break;
       default:
         break;

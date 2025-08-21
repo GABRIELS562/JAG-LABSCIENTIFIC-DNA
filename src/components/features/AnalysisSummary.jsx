@@ -1188,7 +1188,9 @@ const AnalysisSummary = () => {
                     Conclusion: {summaryData.strComparison.overallConclusion.interpretation}
                   </Typography>
                   <Typography variant="body2">
-                    {summaryData.strComparison.overallConclusion.conclusion?.interpretation || 'Analysis complete'}
+                    {typeof summaryData.strComparison.overallConclusion.conclusion === 'string' 
+                      ? summaryData.strComparison.overallConclusion.conclusion 
+                      : (summaryData.strComparison.overallConclusion.conclusion?.interpretation || 'Analysis complete')}
                   </Typography>
                   {summaryData.strComparison.probabilityOfPaternity && 
                    typeof summaryData.strComparison.probabilityOfPaternity === 'number' && (
@@ -1564,13 +1566,15 @@ const AnalysisSummary = () => {
             <Box sx={{ mt: 3 }}>
               <Alert 
                 severity={
-                  summaryData.strComparison.overallConclusion.conclusion === 'INCLUSION' ? 'success' :
-                  summaryData.strComparison.overallConclusion.conclusion === 'EXCLUSION' ? 'error' : 'warning'
+                  (summaryData.strComparison.overallConclusion.conclusion?.interpretation || summaryData.strComparison.overallConclusion.conclusion || summaryData.strComparison.overallConclusion.interpretation) === 'INCLUSION' ? 'success' :
+                  (summaryData.strComparison.overallConclusion.conclusion?.interpretation || summaryData.strComparison.overallConclusion.conclusion || summaryData.strComparison.overallConclusion.interpretation) === 'EXCLUSION' ? 'error' : 'warning'
                 }
                 sx={{ mb: 2 }}
               >
                 <Typography variant="h6">
-                  <strong>Conclusion: {summaryData.strComparison.overallConclusion.conclusion}</strong>
+                  <strong>Conclusion: {typeof summaryData.strComparison.overallConclusion.conclusion === 'string' 
+                    ? summaryData.strComparison.overallConclusion.conclusion 
+                    : (summaryData.strComparison.overallConclusion.conclusion?.interpretation || summaryData.strComparison.overallConclusion.interpretation || 'Analysis complete')}</strong>
                 </Typography>
                 <Typography variant="body2">
                   {summaryData.strComparison.overallConclusion.interpretation}

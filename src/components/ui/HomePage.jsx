@@ -72,6 +72,7 @@ const HomePage = ({ isDarkMode }) => {
   const [sampleCounts, setSampleCounts] = useState(null);
   const [workflowStats, setWorkflowStats] = useState({
     registered: 0,
+    inExtraction: 0,
     inPCR: 0,
     inElectrophoresis: 0,
     inAnalysis: 0,
@@ -109,6 +110,7 @@ const HomePage = ({ isDarkMode }) => {
       // Use mock data if API fails
       setWorkflowStats({
         registered: 45,
+        inExtraction: 8,
         inPCR: 12,
         inElectrophoresis: 8,
         inAnalysis: 5,
@@ -152,8 +154,15 @@ const HomePage = ({ isDarkMode }) => {
       color: '#0D488F'
     },
     { 
-      label: 'PCR Processing', 
+      label: 'DNA Extraction', 
       icon: <Biotech />, 
+      path: '/dna-extraction',
+      count: workflowStats.inExtraction,
+      color: '#4caf50'
+    },
+    { 
+      label: 'PCR Processing', 
+      icon: <Science />, 
       path: '/pcr-batches',
       count: workflowStats.inPCR,
       color: '#1976d2'

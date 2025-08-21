@@ -11,7 +11,6 @@ import Sidebar from './components/layout/Sidebar';
 import Reports from './components/features/Reports';
 import LabResults from './components/features/LabResults';
 import ElectrophoresisBatches from './components/features/ElectrophoresisBatches';
-import SampleSearch from './components/features/SampleSearch';
 import SampleQueues from './components/features/SampleQueues';
 import Statistics from './components/features/Statistics';
 import QualityControlISO17025 from './components/features/QualityControlISO17025';
@@ -22,12 +21,11 @@ import GeneticAnalysis from './components/features/genetic-analysis/GeneticAnaly
 import AnalysisSummary from './components/features/AnalysisSummary';
 import ElectrophoresisLayout from './components/features/ElectrophoresisLayout';
 import Reruns from './components/features/Reruns';
-import ApiTest from './components/debug/ApiTest';
 import OsirisAnalysis from './components/features/OsirisAnalysis';
-import DebugPanel from './components/debug/DebugPanel';
 import QualityManagementSystem from './components/features/QualityManagementSystem';
 import InventoryManagement from './components/features/InventoryManagement';
 import AIMachineLearning from './components/features/AIMachineLearning';
+import DNAExtraction from './components/features/DNAExtraction';
 
 // Import authentication components
 import LoginPage from './components/auth/LoginPage';
@@ -92,7 +90,6 @@ function AppContent() {
         
         <main className={`flex-1 overflow-y-auto w-full ${isMobile ? 'pt-16' : ''}`}>
           <ThemeToggle onToggle={toggleTheme} isDarkMode={isDarkMode} />
-          <DebugPanel />
           <Routes>
             {/* Authentication pages - accessible separately */}
             <Route 
@@ -155,17 +152,7 @@ function AppContent() {
               } 
             />
             <Route 
-              path="/electrophoresis-batches" 
-              element={
-                <ErrorBoundary fallback="minimal">
-                  <div className={`${containerBackground} min-h-screen`}>
-                    <ElectrophoresisLayout />
-                  </div>
-                </ErrorBoundary>
-              } 
-            />
-            <Route 
-              path="/electrophoresis-layout" 
+              path="/electrophoresis" 
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
@@ -235,21 +222,21 @@ function AppContent() {
               } 
             />
             <Route 
-              path="/reruns" 
+              path="/dna-extraction" 
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <Reruns />
+                    <DNAExtraction />
                   </div>
                 </ErrorBoundary>
               } 
             />
             <Route 
-              path="/api-test" 
+              path="/reruns" 
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <ApiTest />
+                    <Reruns />
                   </div>
                 </ErrorBoundary>
               } 
@@ -270,16 +257,6 @@ function AppContent() {
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
                     <LabResults />
-                  </div>
-                </ErrorBoundary>
-              } 
-            />
-            <Route 
-              path="/sample-search" 
-              element={
-                <ErrorBoundary fallback="minimal">
-                  <div className={`${containerBackground} min-h-screen`}>
-                    <SampleSearch />
                   </div>
                 </ErrorBoundary>
               } 

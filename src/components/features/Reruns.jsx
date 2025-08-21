@@ -188,7 +188,7 @@ const Reruns = () => {
           initializePlate();
         }
       } catch (error) {
-        console.error('Error initializing Reruns component:', error);
+        // Error initializing Reruns component
         if (isMounted) {
           setSnackbar({
             open: true,
@@ -242,7 +242,7 @@ const Reruns = () => {
         setBatchNumber(`LDS_${timestamp}_RR`);
       }
     } catch (error) {
-      console.error('Error generating batch number:', error);
+      // Error generating batch number
       const timestamp = Date.now().toString().slice(-4);
       setBatchNumber(`LDS_${timestamp}_RR`);
     }
@@ -380,7 +380,7 @@ const Reruns = () => {
       );
       
       if (!allFromElectroBatch) {
-        console.log('Validation failed for family group:', draggedItem.samples);
+        // Validation failed for family group
         setSnackbar({
           open: true,
           message: 'Only samples from electrophoresis batches can be placed on rerun plates',
@@ -396,7 +396,7 @@ const Reruns = () => {
         selectedSamples.some(s => s.id === draggedItem.id); // Allow if it's in our selected samples list
       
       if (!isFromElectroBatch) {
-        console.log('Validation failed for sample:', draggedItem);
+        // Validation failed for sample
         setSnackbar({
           open: true,
           message: 'Only samples from electrophoresis batches can be placed on rerun plates',

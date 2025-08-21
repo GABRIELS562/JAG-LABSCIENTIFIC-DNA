@@ -64,7 +64,7 @@ import {
   MonitorHeart
 } from '@mui/icons-material';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 const ElectrophoresisLayout = () => {
   const navigate = useNavigate();
@@ -144,7 +144,7 @@ const ElectrophoresisLayout = () => {
 
   const generateBatchNumber = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/batches`);
+      const response = await fetch(`${API_URL}/batches`);
       if (response.ok) {
         const data = await response.json();
         const existingBatches = data.data || [];
@@ -574,7 +574,7 @@ const ElectrophoresisLayout = () => {
         headers['Authorization'] = `Bearer ${authToken}`;
       }
       
-      const response = await fetch(`${API_URL}/api/generate-batch`, {
+      const response = await fetch(`${API_URL}/generate-batch`, {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(batchData)
@@ -616,28 +616,24 @@ const ElectrophoresisLayout = () => {
 
   const loadPCRBatches = async () => {
     try {
-      console.log('🔍 Loading PCR batches...');
-      console.log('🌐 API URL:', API_URL);
-      const response = await fetch(`${API_URL}/api/batches`);
-      console.log('📡 Response status:', response.status);
-      console.log('📡 Response headers:', response.headers);
+      // Loading PCR batches
+      const response = await fetch(`${API_URL}/batches`);
+      // Response received
       
       if (response.ok) {
         const data = await response.json();
-        console.log('📊 All batches received:', data.data?.length || 0);
-        console.log('📊 Raw data:', data);
+        // Batches loaded successfully
         
         // Filter for completed PCR batches (those with LDS_ prefix)
         const pcrBatches = (data.data || []).filter(batch => 
           batch.batch_number?.startsWith('LDS_') && batch.status !== 'cancelled'
         );
-        console.log('🧪 Filtered PCR batches:', pcrBatches.length);
-        console.log('🧪 PCR batches:', pcrBatches);
+        // PCR batches filtered
         
         setAvailablePCRBatches(pcrBatches);
         setLoadPCRDialog(true);
       } else {
-        console.error('❌ Failed to load batches:', response.status);
+        // Failed to load batches
         setSnackbar({
           open: true,
           message: `Failed to load PCR batches: ${response.status}`,
@@ -645,8 +641,7 @@ const ElectrophoresisLayout = () => {
         });
       }
     } catch (error) {
-      console.error('❌ Error loading PCR batches:', error);
-      console.error('❌ Error details:', error.message);
+      // Error loading PCR batches
       setSnackbar({
         open: true,
         message: 'Error loading PCR batches - check connection',
@@ -657,23 +652,22 @@ const ElectrophoresisLayout = () => {
 
   const loadSamplesFromPCRBatch = useCallback(async (batch) => {
     try {
-      console.log('🔄 Loading samples from PCR batch:', batch.batch_number);
-      console.log('📋 Batch plate layout:', batch.plate_layout);
+      // Loading samples from PCR batch
       
       // Get samples from the batch's plate layout
       const samplesFromBatch = [];
       if (batch.plate_layout && typeof batch.plate_layout === 'object') {
         Object.entries(batch.plate_layout).forEach(([wellId, well]) => {
-          console.log(`🔍 Processing well ${wellId}:`, well);
+          // Processing well
           
           if (well.samples && well.samples.length > 0) {
-            console.log(`📋 Well ${wellId} has ${well.samples.length} samples:`, well.samples);
+            // Well has samples
             
             // Filter out control samples (keep only actual samples)
             const actualSamples = well.samples.filter(sample => {
               // First check if sample has basic required properties
               if (!sample || typeof sample !== 'object') {
-                console.log(`❌ Invalid sample object:`, sample);
+                // Invalid sample object
                 return false;
               }
               
@@ -696,40 +690,36 @@ const ElectrophoresisLayout = () => {
               
               const isControl = hasControlInLabNumber || hasControlInId;
               
-              console.log(`🧪 Sample ${sample.lab_number || 'NO_LAB_NUMBER'} (id: ${sample.id || 'NO_ID'}) - isControl: ${isControl}`);
-              console.log(`   - hasControlInLabNumber: ${hasControlInLabNumber}`);
-              console.log(`   - hasControlInId: ${hasControlInId}`);
-              console.log(`   - sample object:`, sample);
+              // Processing sample
               
               return !isControl;
             });
             
-            console.log(`✅ Adding ${actualSamples.length} actual samples from well ${wellId}`);
+            // Adding actual samples from well
             samplesFromBatch.push(...actualSamples);
           } else {
-            console.log(`❌ Well ${wellId} has no samples or empty samples array`);
+            // Well has no samples
           }
         });
       } else {
-        console.log('❌ No plate layout or invalid plate layout structure');
+        // No plate layout available
       }
       
-      console.log('🧪 Total extracted samples:', samplesFromBatch.length);
-      console.log('📝 Sample details:', samplesFromBatch.map(s => ({ id: s.id, lab_number: s.lab_number, name: s.name, surname: s.surname })));
+      // Total extracted samples loaded
       
       // If no samples were extracted, try a less restrictive approach
       if (samplesFromBatch.length === 0) {
-        console.log('⚠️ No samples extracted with filtering, trying without filtering...');
+        // No samples found with filtering, trying without filtering
         const allSamplesFromBatch = [];
         
         Object.entries(batch.plate_layout).forEach(([wellId, well]) => {
           if (well.samples && well.samples.length > 0) {
-            console.log(`🔄 Adding ALL samples from well ${wellId}:`, well.samples);
+            // Adding all samples from well
             allSamplesFromBatch.push(...well.samples);
           }
         });
         
-        console.log('🚨 Total samples without filtering:', allSamplesFromBatch.length);
+        // Total samples without filtering loaded
         
         if (allSamplesFromBatch.length > 0) {
           // Store samples for electrophoresis
@@ -757,7 +747,7 @@ const ElectrophoresisLayout = () => {
         severity: samplesFromBatch.length > 0 ? 'success' : 'warning'
       });
     } catch (error) {
-      console.error('❌ Error loading samples from PCR batch:', error);
+      // Error loading samples from PCR batch
       setSnackbar({
         open: true,
         message: 'Error loading samples from PCR batch',
@@ -872,15 +862,15 @@ const ElectrophoresisLayout = () => {
   const { groups, individual } = groupSamplesByCase(selectedSamples);
 
   // Calculate run time estimation based on parameters - memoized for performance
-  const estimatedRunTime = useMemo(() => {
+  const calculatedRunTime = useMemo(() => {
     const sampleCount = Object.values(plateData).filter(well => well.samples?.length > 0).length;
     const baseRunTime = runParameters.runTime;
     return sampleCount > 0 ? Math.round(baseRunTime + (sampleCount * 2)) : baseRunTime;
   }, [plateData, runParameters]);
   
   useEffect(() => {
-    setEstimatedRunTime(estimatedRunTime);
-  }, [estimatedRunTime]);
+    setEstimatedRunTime(calculatedRunTime);
+  }, [calculatedRunTime]);
 
   // Initialize capillary status - memoized to prevent unnecessary re-computation
   const initialCapillaryStatus = useMemo(() => {

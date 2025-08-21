@@ -46,6 +46,8 @@ const SampleQueues = () => {
 
   const queueTypes = [
     { id: 'all', label: 'All Samples', icon: BarChart, color: '#2196f3' },
+    { id: 'extraction_ready', label: 'DNA Extraction Ready', icon: Science, color: '#4caf50' },
+    { id: 'extraction_batched', label: 'DNA Extraction Batched', icon: Schedule, color: '#8bc34a' },
     { id: 'pcr_ready', label: 'PCR Ready', icon: Science, color: '#ff9800' },
     { id: 'pcr_batched', label: 'PCR Batched', icon: Schedule, color: '#ffeb3b' },
     { id: 'electro_ready', label: 'Electrophoresis Ready', icon: FlashOn, color: '#9c27b0' },
@@ -115,6 +117,10 @@ const SampleQueues = () => {
   const getWorkflowStatusChip = (workflowStatus) => {
     const statusConfig = {
       sample_collected: { label: 'Sample Collected', color: 'default' },
+      extraction_ready: { label: 'Extraction Ready', color: 'success' },
+      extraction_batched: { label: 'Extraction Batched', color: 'info' },
+      extraction_in_progress: { label: 'Extraction In Progress', color: 'warning' },
+      extraction_completed: { label: 'Extraction Completed', color: 'primary' },
       pcr_ready: { label: 'PCR Ready', color: 'warning' },
       pcr_batched: { label: 'PCR Batched', color: 'info' },
       pcr_completed: { label: 'PCR Completed', color: 'primary' },
@@ -143,7 +149,9 @@ const SampleQueues = () => {
     }
     
     const countMapping = {
-      pcr_ready: (queueCounts.sample_collected || 0) + (queueCounts.pcr_ready || 0),
+      extraction_ready: queueCounts.extraction_ready || 0,
+      extraction_batched: queueCounts.extraction_batched || 0,
+      pcr_ready: queueCounts.pcr_ready || 0,
       pcr_batched: queueCounts.pcr_batched || 0,
       electro_ready: (queueCounts.pcr_completed || 0) + (queueCounts.electro_ready || 0),
       electro_batched: queueCounts.electro_batched || 0,

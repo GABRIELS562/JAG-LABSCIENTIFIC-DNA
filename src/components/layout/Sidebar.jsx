@@ -42,7 +42,8 @@ import {
   Logout,
   Assignment,
   Inventory,
-  PsychologyOutlined as AI
+  PsychologyOutlined as AI,
+  Biotech
 } from '@mui/icons-material';
 import Logo from '../ui/Logo';
 
@@ -68,7 +69,7 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       setLogoutDialogOpen(false);
       navigate('/login');
     } catch (error) {
-      console.error('Logout error:', error);
+      // Error handling for logout
       setLogoutDialogOpen(false);
     }
   };
@@ -77,7 +78,7 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
     setLogoutDialogOpen(false);
   };
 
-  // Define all menu items with role restrictions
+  // Define simplified menu items
   const allMenuItems = [
     {
       icon: <Home />,
@@ -88,14 +89,6 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       roles: ['staff', 'client']
     },
     { 
-      icon: <PersonAdd />, 
-      label: 'Register Client',
-      hasSubMenu: false,
-      path: '/register-client',
-      onClick: () => navigate('/register-client'),
-      roles: ['staff']
-    },
-    { 
       icon: <Group />, 
       label: 'Samples',
       hasSubMenu: false,
@@ -104,16 +97,16 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       roles: ['staff']
     },
     { 
-      icon: <EditNote />, 
-      label: 'PCR Plate',
+      icon: <Biotech />, 
+      label: 'DNA Extraction',
       hasSubMenu: false,
-      path: '/pcr-plate',
-      onClick: () => navigate('/pcr-plate'),
+      path: '/dna-extraction',
+      onClick: () => navigate('/dna-extraction'),
       roles: ['staff']
     },
     { 
       icon: <Visibility />, 
-      label: 'LDS PCR Batch',
+      label: 'PCR Batches',
       hasSubMenu: false,
       path: '/pcr-batches',
       onClick: () => navigate('/pcr-batches'),
@@ -121,59 +114,19 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
     },
     { 
       icon: <ElectricBolt />, 
-      label: 'Electrophoresis Plate Layout',
+      label: 'Electrophoresis',
       hasSubMenu: false,
-      path: '/electrophoresis-layout',
-      onClick: () => navigate('/electrophoresis-layout'),
-      roles: ['staff']
-    },
-    { 
-      icon: <ElectricBolt />, 
-      label: 'LDS Electrophoresis Batch',
-      hasSubMenu: false,
-      path: '/electrophoresis-batches',
-      onClick: () => navigate('/electrophoresis-batches'),
-      roles: ['staff']
-    },
-    { 
-      icon: <Replay />, 
-      label: 'Reruns',
-      hasSubMenu: false,
-      path: '/reruns',
-      onClick: () => navigate('/reruns'),
+      path: '/electrophoresis',
+      onClick: () => navigate('/electrophoresis'),
       roles: ['staff']
     },
     { 
       icon: <Science />, 
-      label: 'Genetic Analysis Setup',
-      hasSubMenu: false,
-      path: '/genetic-analysis',
-      onClick: () => navigate('/genetic-analysis'),
-      roles: ['staff']
-    },
-    { 
-      icon: <Science />, 
-      label: 'OSIRIS Analysis',
+      label: 'Analysis',
       hasSubMenu: false,
       path: '/osiris-analysis',
       onClick: () => navigate('/osiris-analysis'),
       roles: ['staff']
-    },
-    { 
-      icon: <Assessment />, 
-      label: 'Analysis Summary',
-      hasSubMenu: false,
-      path: '/analysis-summary',
-      onClick: () => navigate('/analysis-summary'),
-      roles: ['staff', 'client']
-    },
-    { 
-      icon: <Science />, 
-      label: 'Lab Results',
-      hasSubMenu: false,
-      path: '/lab-results',
-      onClick: () => navigate('/lab-results'),
-      roles: ['staff', 'client']
     },
     { 
       icon: <Description />,
@@ -186,50 +139,10 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
     { 
       icon: <Assessment />, 
       label: 'Quality Control',
-      hasSubMenu: true,
+      hasSubMenu: false,
       path: '/quality-control',
       onClick: () => navigate('/quality-control'),
       roles: ['staff']
-    },
-    { 
-      icon: <Assignment />, 
-      label: 'Quality Management System',
-      hasSubMenu: false,
-      path: '/qms',
-      onClick: () => navigate('/qms'),
-      roles: ['staff']
-    },
-    { 
-      icon: <Inventory />, 
-      label: 'Inventory Management',
-      hasSubMenu: false,
-      path: '/inventory',
-      onClick: () => navigate('/inventory'),
-      roles: ['staff']
-    },
-    { 
-      icon: <AI />, 
-      label: 'AI & Machine Learning',
-      hasSubMenu: false,
-      path: '/ai-ml',
-      onClick: () => navigate('/ai-ml'),
-      roles: ['staff']
-    },
-    { 
-      icon: <Search />, 
-      label: 'Sample Search',
-      hasSubMenu: false,
-      path: '/sample-search',
-      onClick: () => navigate('/sample-search'),
-      roles: ['staff', 'client']
-    },
-    { 
-      icon: <Queue />, 
-      label: 'Sample Queues',
-      hasSubMenu: false,
-      path: '/sample-queues',
-      onClick: () => navigate('/sample-queues'),
-      roles: ['staff', 'client']
     },
     { 
       icon: <TableChart />, 
