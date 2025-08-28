@@ -43,7 +43,8 @@ import {
   Assignment,
   Inventory,
   PsychologyOutlined as AI,
-  Biotech
+  Biotech,
+  BusinessCenter
 } from '@mui/icons-material';
 import Logo from '../ui/Logo';
 
@@ -87,6 +88,14 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       path: '/',
       onClick: () => navigate('/'),
       roles: ['staff', 'client']
+    },
+    {
+      icon: <Science />,
+      label: 'Forensic Dashboard',
+      hasSubMenu: false,
+      path: '/forensic-dashboard',
+      onClick: () => navigate('/forensic-dashboard'),
+      roles: ['staff']
     },
     { 
       icon: <Group />, 
@@ -135,6 +144,22 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       path: '/reports',
       onClick: () => navigate('/reports'),
       roles: ['staff', 'client']
+    },
+    { 
+      icon: <Assignment />,
+      label: 'Forensic Reports',
+      hasSubMenu: false,
+      path: '/forensic-reports',
+      onClick: () => navigate('/forensic-reports'),
+      roles: ['staff']
+    },
+    { 
+      icon: <BusinessCenter />,
+      label: 'Case Management',
+      hasSubMenu: false,
+      path: '/case-management',
+      onClick: () => navigate('/case-management'),
+      roles: ['staff']
     },
     { 
       icon: <Assessment />, 
@@ -317,12 +342,16 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
                 primary={item.label}
                 sx={{
                   '& .MuiListItemText-primary': {
-                    fontSize: '0.9rem',
-                    fontWeight: isActiveItem(item) ? 900 : 500,
+                    fontSize: '0.95rem',
+                    fontWeight: isActiveItem(item) ? 600 : 500,
                     color: isActiveItem(item) 
                       ? (isDarkMode ? '#fff' : '#fff')
                       : 'rgba(255, 255, 255, 0.9)',
                     transition: 'color 0.2s ease, font-weight 0.2s ease',
+                    whiteSpace: 'nowrap',
+                    overflow: 'visible',
+                    textOverflow: 'clip',
+                    lineHeight: '1.4',
                   }
                 }}
               />
@@ -430,7 +459,7 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       <Box
         component="nav"
         sx={{ 
-          width: { md: 220 }, 
+          width: { md: 280 }, 
           flexShrink: { md: 0 } 
         }}
       >
@@ -446,7 +475,7 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
             display: { xs: 'block', md: 'none' },
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
-              width: 280,
+              width: 320,
               backgroundColor: isDarkMode ? '#022539' : '#0D488F',
               color: 'white',
               borderRight: 'none',
@@ -466,7 +495,7 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
             display: { xs: 'none', md: 'block' },
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
-              width: 220,
+              width: 280,
               backgroundColor: isDarkMode ? '#022539' : '#0D488F',
               color: 'white',
               borderRight: 'none',

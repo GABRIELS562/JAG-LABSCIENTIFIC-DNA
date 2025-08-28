@@ -5,7 +5,6 @@ import { Menu as MenuIcon } from '@mui/icons-material';
 
 // Import components
 import PaternityTestForm from './components/forms/PaternityTestForm';
-import HomePage from './components/ui/HomePage';
 import ThemeToggle from './components/ui/ThemeToggle';
 import Sidebar from './components/layout/Sidebar';
 import Reports from './components/features/Reports';
@@ -26,6 +25,10 @@ import QualityManagementSystem from './components/features/QualityManagementSyst
 import InventoryManagement from './components/features/InventoryManagement';
 import AIMachineLearning from './components/features/AIMachineLearning';
 import DNAExtraction from './components/features/DNAExtraction';
+import ForensicWorkflowDashboard from './components/features/ForensicWorkflowDashboard';
+import ForensicReports from './components/ForensicReports';
+import CaseManagement from './components/CaseManagement';
+import PaternityLabDashboard from './components/PaternityLabDashboard';
 
 // Import authentication components
 import LoginPage from './components/auth/LoginPage';
@@ -61,7 +64,7 @@ function AppContent() {
         v7_relativeSplatPath: true
       }}
     >
-      <div className={`flex h-screen w-screen ${mainBackground}`}>
+      <div className={`flex h-screen w-screen ${mainBackground} transition-colors duration-300`}>
         {/* Mobile AppBar */}
         {isMobile && (
           <AppBar 
@@ -106,8 +109,19 @@ function AppContent() {
               path="/" 
               element={
                 <div className={`min-h-screen w-full ${containerBackground} backdrop-blur-md`}>
-                  <HomePage isDarkMode={isDarkMode} />
+                  <PaternityLabDashboard />
                 </div>
+              } 
+            />
+            
+            <Route 
+              path="/forensic-dashboard" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <ForensicWorkflowDashboard />
+                  </div>
+                </ErrorBoundary>
               } 
             />
             
@@ -217,6 +231,26 @@ function AppContent() {
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
                     <AIMachineLearning />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/forensic-reports" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <ForensicReports />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/case-management" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <CaseManagement />
                   </div>
                 </ErrorBoundary>
               } 

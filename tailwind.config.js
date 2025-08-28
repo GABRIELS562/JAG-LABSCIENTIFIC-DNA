@@ -3,87 +3,60 @@ module.exports = {
   content: [
     "./index.html",
     "./src/**/*.{js,jsx,ts,tsx}",
-    "./labdna-public/src/**/*.{js,jsx,ts,tsx}",
   ],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        // LabDNA Design System Colors
-        primary: 'rgb(var(--color-primary))',
-        secondary: 'rgb(var(--color-secondary))',
-        accent: 'rgb(var(--color-accent))',
-        
-        // Background colors
-        'bg-primary': 'rgb(var(--color-background-primary))',
-        'bg-secondary': 'rgb(var(--color-background-secondary))',
-        
-        // Text colors
-        'text-primary': 'rgb(var(--color-text-primary))',
-        'text-secondary': 'rgb(var(--color-text-secondary))',
-        
-        // Pink palette
-        pink: {
-          50: 'rgb(var(--color-pink-light))',
-          500: 'rgb(var(--color-pink-primary))',
-          600: 'rgb(var(--color-pink-medium))',
-          700: 'rgb(var(--color-pink-dark))',
-          900: 'rgb(var(--color-pink-darker))',
+        primary: {
+          DEFAULT: '#0D488F',
+          50: '#EBF4FF',
+          100: '#DBF1FC',
+          500: '#0D488F',
+          600: '#0A3D7A',
+          700: '#083366',
+          800: '#062852',
+          900: '#041D3E'
         },
-        
-        // Cyan palette
-        cyan: {
-          50: 'rgb(var(--color-cyan-light))',
-          500: 'rgb(var(--color-cyan))',
-          600: 'rgb(var(--color-cyan-medium))',
-          700: 'rgb(var(--color-cyan-dark))',
-          900: 'rgb(var(--color-cyan-darker))',
+        secondary: {
+          DEFAULT: '#8EC74F',
+          50: '#F7FCF0',
+          100: '#ECF7E1',
+          500: '#8EC74F',
+          600: '#7BB33E',
+          700: '#689F2D',
+          800: '#558B1C',
+          900: '#42770B'
         },
-        
-        // Gray palette
         gray: {
-          50: 'rgb(var(--color-gray-lightest))',
-          100: 'rgb(var(--color-light-blue))',
-          200: 'rgb(var(--color-light-gray))',
-          400: 'rgb(var(--color-medium-gray))',
-          600: 'rgb(var(--color-dark-medium-gray))',
-          800: 'rgb(var(--color-dark-gray))',
-          900: 'rgb(var(--color-black))',
-        }
+          50: '#F9FAFB',
+          100: '#F3F4F6',
+          200: '#E5E7EB',
+          300: '#D1D5DB',
+          400: '#9CA3AF',
+          500: '#6B7280',
+          600: '#4B5563',
+          700: '#374151',
+          800: '#1F2937',
+          900: '#111827',
+          950: '#0B0F19'
+        },
+        background: '#F5F5F5',
+        foreground: '#1A1A1A',
+        muted: '#6B7280',
+        border: '#E5E7EB',
+        input: '#E5E7EB',
+        ring: '#0D488F',
       },
       fontFamily: {
-        sans: ['Inter', 'HelveticaNeue', 'Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
       },
-      fontSize: {
-        'xs': 'var(--font-size-xs)',
-        'sm': 'var(--font-size-sm)',
-        'base': 'var(--font-size-base)',
-        'lg': 'var(--font-size-lg)',
-        'xl': 'var(--font-size-xl)',
-        '2xl': 'var(--font-size-2xl)',
-        '3xl': 'var(--font-size-3xl)',
-        '4xl': 'var(--font-size-4xl)',
-      },
-      borderRadius: {
-        'sm': 'var(--border-radius-sm)',
-        'md': 'var(--border-radius-md)',
-        'lg': 'var(--border-radius-lg)',
-      },
-      boxShadow: {
-        'sm': 'var(--shadow-sm)',
-        'md': 'var(--shadow-md)',
-        'lg': 'var(--shadow-lg)',
+      transitionProperty: {
+        'colors': 'color, background-color, border-color, text-decoration-color, fill, stroke',
       },
       transitionDuration: {
-        'fast': 'var(--transition-fast)',
-        'normal': 'var(--transition-normal)',
-        'slow': 'var(--transition-slow)',
+        '300': '300ms',
       },
-      maxWidth: {
-        'container': 'var(--section-max-width)',
-      },
-      spacing: {
-        'container': 'var(--container-padding)',
-      }
     },
   },
   plugins: [],

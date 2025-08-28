@@ -4,14 +4,14 @@ const cn = (...classes) => classes.filter(Boolean).join(' ');
 
 export const Button = React.forwardRef(
   ({ className = "", variant = "primary", size = "default", ...props }, ref) => {
-    const baseClasses = "inline-flex items-center justify-center font-medium transition-all duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
+    const baseClasses = "inline-flex items-center justify-center font-medium transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
     
     const variants = {
       primary: "btn-primary",
       secondary: "btn-secondary", 
-      outline: "border border-primary text-primary bg-transparent hover:bg-primary hover:text-white",
-      ghost: "hover:bg-gray-100 hover:text-primary",
-      destructive: "bg-red-500 text-white hover:bg-red-600",
+      outline: "border border-primary text-primary bg-transparent hover:bg-primary hover:text-white dark:border-blue-400 dark:text-blue-400 dark:hover:bg-blue-400 dark:hover:text-gray-900",
+      ghost: "hover:bg-gray-100 hover:text-primary dark:hover:bg-gray-700 dark:hover:text-blue-400",
+      destructive: "bg-red-500 text-white hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700",
     };
     
     const sizes = {

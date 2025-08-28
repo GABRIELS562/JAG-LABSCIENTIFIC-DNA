@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { createTheme } from "@mui/material";
 
 // LabScientific LIMS color scheme - moved outside component to prevent re-creation
@@ -23,7 +23,16 @@ const colors = {
 };
 
 export const useTheme = () => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  // Initialize dark mode from localStorage or system preference
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    // Check localStorage first
+    const stored = localStorage.getItem('theme');
+    if (stored) {
+      return stored === 'dark';
+    }
+    // Fall back to system preference
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+  });
 
   const theme = useMemo(
     () =>
@@ -53,19 +62,80 @@ export const useTheme = () => {
             main: colors.info,
           },
           background: {
-            default: isDarkMode ? colors.dark : colors.white,
-            paper: isDarkMode ? "#032539" : colors.white,
+            default: isDarkMode ? "#111827" : colors.white,
+            paper: isDarkMode ? "#1F2937" : colors.white,
           },
           text: {
-            primary: isDarkMode ? colors.white : colors.text,
-            secondary: isDarkMode ? "rgba(255,255,255,0.7)" : "rgba(68,68,68,0.7)",
+            primary: isDarkMode ? "#F9FAFB" : colors.text,
+            secondary: isDarkMode ? "rgba(249,250,251,0.7)" : "rgba(68,68,68,0.7)",
+          },
+          divider: isDarkMode ? "rgba(249,250,251,0.12)" : "rgba(0,0,0,0.12)",
+          action: {
+            hover: isDarkMode ? "rgba(249,250,251,0.04)" : "rgba(0,0,0,0.04)",
+            selected: isDarkMode ? "rgba(249,250,251,0.08)" : "rgba(0,0,0,0.08)",
+          },
+        },
+        components: {
+          MuiPaper: {
+            styleOverrides: {
+              root: {
+                transition: 'background-color 0.3s ease, color 0.3s ease',
+              },
+            },
+          },
+          MuiButton: {
+            styleOverrides: {
+              root: {
+                transition: 'all 0.3s ease',
+              },
+            },
+          },
+          MuiDrawer: {
+            styleOverrides: {
+              paper: {
+                transition: 'background-color 0.3s ease, color 0.3s ease',
+              },
+            },
+          },
+          MuiListItemButton: {
+            styleOverrides: {
+              root: {
+                transition: 'background-color 0.3s ease, color 0.3s ease',
+              },
+            },
           },
         },
       }),
     [isDarkMode],
   );
 
-  const toggleTheme = () => setIsDarkMode((prev) => !prev);
+  const toggleTheme = () => {
+    setIsDarkMode((prev) => {
+      const newMode = !prev;
+      // Save to localStorage
+      localStorage.setItem('theme', newMode ? 'dark' : 'light');
+      // Apply to document root for better CSS targeting
+      if (newMode) {
+        document.documentElement.classList.add('dark');
+        document.body.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.body.classList.remove('dark');
+      }
+      return newMode;
+    });
+  };
+
+  // Effect to apply theme on initial load and changes
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      document.body.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.body.classList.remove('dark');
+    }
+  }, [isDarkMode]);
 
   return { theme, isDarkMode, toggleTheme, colors };
 };
