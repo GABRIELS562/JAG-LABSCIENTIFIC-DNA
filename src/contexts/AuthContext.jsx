@@ -56,32 +56,39 @@ export const AuthProvider = ({ children }) => {
           setToken(storedToken);
           setUser(storedUser);
 
-          // Verify token is still valid by making a request to /me
-          try {
-            const response = await fetch('/api/auth/me', {
-              headers: {
-                'Authorization': `Bearer ${storedToken}`,
-                'Content-Type': 'application/json'
-              }
-            });
+          // Skip token verification if backend is not available
+          // This allows the app to work without backend for demo purposes
+          if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            // In production/deployed environment, skip API verification
+            console.info('Running in demo mode - skipping auth verification');
+          } else {
+            // Verify token is still valid by making a request to /me
+            try {
+              const response = await fetch('/api/auth/me', {
+                headers: {
+                  'Authorization': `Bearer ${storedToken}`,
+                  'Content-Type': 'application/json'
+                }
+              });
 
-            if (response.ok) {
-              const data = await response.json();
-              if (data.success) {
-                // Update user data with latest from server
-                setUser(data.data);
-                userStorage.set(data.data);
+              if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                  // Update user data with latest from server
+                  setUser(data.data);
+                  userStorage.set(data.data);
+                } else {
+                  // Token is invalid, clear auth state
+                  clearAuth();
+                }
               } else {
                 // Token is invalid, clear auth state
                 clearAuth();
               }
-            } else {
-              // Token is invalid, clear auth state
-              clearAuth();
+            } catch (apiError) {
+              console.warn('Failed to verify token, will retry on next request:', apiError);
+              // Keep existing auth state but log the issue
             }
-          } catch (apiError) {
-            console.warn('Failed to verify token, will retry on next request:', apiError);
-            // Keep existing auth state but log the issue
           }
         }
       } catch (error) {

@@ -3,6 +3,7 @@ const { logger } = require('../utils/logger');
 const { trackSampleProcessed, trackBatchCreated, updateQueueSize, trackProcessingTime } = require('../middleware/metrics');
 const Database = require('better-sqlite3');
 const path = require('path');
+const ForensicWorkflowSimulator = require('./forensicWorkflowSimulator');
 
 class BackgroundJobService {
   constructor() {
@@ -10,6 +11,7 @@ class BackgroundJobService {
     this.isRunning = false;
     this.dbPath = path.join(__dirname, '../database/ashley_lims.db');
     this.db = null;
+    this.forensicSimulator = new ForensicWorkflowSimulator();
     this.simulatedData = {
       userSessions: new Set(),
       processingQueues: {
@@ -30,7 +32,7 @@ class BackgroundJobService {
     }
   }
 
-  start() {
+  async start() {
     if (this.isRunning) {
       logger.warn('Background jobs already running');
       return;
@@ -39,7 +41,14 @@ class BackgroundJobService {
     this.initializeDatabase();
     this.isRunning = true;
     
-    logger.info('Starting background jobs service');
+    logger.info('Starting background jobs service with forensic workflow');
+    
+    // Initialize and start forensic workflow simulator
+    await this.forensicSimulator.initialize();
+    await this.forensicSimulator.start();
+    
+    // Set simulation speed (10x for demo purposes)
+    this.forensicSimulator.setSpeed(10);
     
     // Sample Processing Simulation - every 30 seconds
     this.scheduleJob('sample-processing', '*/30 * * * * *', this.simulateSampleProcessing.bind(this));
@@ -59,12 +68,16 @@ class BackgroundJobService {
     // System Metrics Update - every 1 minute
     this.scheduleJob('system-metrics', '*/60 * * * * *', this.updateSystemMetrics.bind(this));
     
+    // Forensic Metrics Report - every 2 minutes
+    this.scheduleJob('forensic-metrics', '*/2 * * * *', this.reportForensicMetrics.bind(this));
+    
     // Periodic Cleanup - every 10 minutes
     this.scheduleJob('cleanup', '0 */10 * * * *', this.performCleanup.bind(this));
     
     logger.info('All background jobs scheduled successfully', {
       jobCount: this.jobs.size,
-      jobs: Array.from(this.jobs.keys())
+      jobs: Array.from(this.jobs.keys()),
+      forensicSimulator: 'active'
     });
   }
 
@@ -384,6 +397,33 @@ class BackgroundJobService {
     }
   }
 
+  async reportForensicMetrics() {
+    try {
+      const status = this.forensicSimulator.getStatus();
+      
+      logger.info('🧬 FORENSIC DNA LAB METRICS', {
+        simulationSpeed: `${status.simulationSpeed}x`,
+        queueDepth: status.queueDepth,
+        activeProcesses: status.activeProcesses,
+        TAT: status.metrics.averageTAT ? `${status.metrics.averageTAT.toFixed(1)} hours` : 'N/A',
+        successRate: status.metrics.successfulCompletions > 0 
+          ? `${(status.metrics.successfulCompletions / (status.metrics.totalSamplesProcessed || 1) * 100).toFixed(1)}%`
+          : 'N/A',
+        reruns: status.metrics.reruns,
+        bottlenecks: status.metrics.bottlenecks,
+        queueByStage: status.queueByStage
+      });
+
+      // Update Prometheus metrics
+      Object.entries(status.queueByStage || {}).forEach(([stage, count]) => {
+        updateQueueSize(`forensic_${stage}`, count);
+      });
+
+    } catch (error) {
+      logger.error('Failed to report forensic metrics', { error: error.message });
+    }
+  }
+
   weightedRandomSelect(items) {
     const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
     let random = Math.random() * totalWeight;
@@ -404,6 +444,11 @@ class BackgroundJobService {
 
   stop() {
     logger.info('Stopping background jobs service');
+    
+    // Stop forensic simulator
+    if (this.forensicSimulator) {
+      this.forensicSimulator.stop();
+    }
     
     this.jobs.forEach((job, name) => {
       try {
@@ -445,7 +490,8 @@ class BackgroundJobService {
       simulatedData: {
         activeSessions: this.simulatedData.userSessions.size,
         queues: this.simulatedData.processingQueues
-      }
+      },
+      forensicSimulator: this.forensicSimulator ? this.forensicSimulator.getStatus() : null
     };
   }
 

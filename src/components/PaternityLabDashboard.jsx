@@ -65,6 +65,14 @@ const PaternityLabDashboard = () => {
       route: '/dna-extraction'
     },
     {
+      id: 'quantification',
+      name: 'qPCR Quantification',
+      icon: <BarChart3 className="h-5 w-5" />,
+      color: 'teal',
+      description: 'Real-time PCR quantification',
+      route: '/qpcr-quantification'
+    },
+    {
       id: 'pcr',
       name: 'PCR Amplification',
       icon: <FlaskConical className="h-5 w-5" />,
@@ -82,7 +90,7 @@ const PaternityLabDashboard = () => {
     },
     {
       id: 'analysis',
-      name: 'GeneMapper Analysis',
+      name: 'OSIRIS Analysis',
       icon: <Microscope className="h-5 w-5" />,
       color: 'green',
       description: 'LIZ 500 size standard',
@@ -296,8 +304,28 @@ const PaternityLabDashboard = () => {
                 >
                   <CardContent className="p-4">
                     <div className="flex flex-col items-center text-center">
-                      <div className={`p-3 rounded-full bg-${stage.color}-100 mb-3`}>
-                        {stage.icon}
+                      <div className={`p-3 rounded-full mb-3 ${
+                        stage.color === 'blue' ? 'bg-blue-100 dark:bg-blue-900/30' :
+                        stage.color === 'purple' ? 'bg-purple-100 dark:bg-purple-900/30' :
+                        stage.color === 'teal' ? 'bg-teal-100 dark:bg-teal-900/30' :
+                        stage.color === 'orange' ? 'bg-orange-100 dark:bg-orange-900/30' :
+                        stage.color === 'yellow' ? 'bg-yellow-100 dark:bg-yellow-900/30' :
+                        stage.color === 'green' ? 'bg-green-100 dark:bg-green-900/30' :
+                        stage.color === 'indigo' ? 'bg-indigo-100 dark:bg-indigo-900/30' :
+                        'bg-gray-100 dark:bg-gray-700'
+                      }`}>
+                        <div className={`${
+                          stage.color === 'blue' ? 'text-blue-600 dark:text-blue-400' :
+                          stage.color === 'purple' ? 'text-purple-600 dark:text-purple-400' :
+                          stage.color === 'teal' ? 'text-teal-600 dark:text-teal-400' :
+                          stage.color === 'orange' ? 'text-orange-600 dark:text-orange-400' :
+                          stage.color === 'yellow' ? 'text-yellow-600 dark:text-yellow-400' :
+                          stage.color === 'green' ? 'text-green-600 dark:text-green-400' :
+                          stage.color === 'indigo' ? 'text-indigo-600 dark:text-indigo-400' :
+                          'text-gray-600 dark:text-gray-400'
+                        }`}>
+                          {stage.icon}
+                        </div>
                       </div>
                       <h4 className="font-semibold text-sm mb-1 dark:text-gray-100 transition-colors duration-300">{stage.name}</h4>
                       <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 transition-colors duration-300">{stage.description}</p>

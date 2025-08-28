@@ -4,6 +4,9 @@ import path from "path";
 
 export default defineConfig({
   plugins: [react()],
+  css: {
+    postcss: './postcss.config.js',
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
@@ -62,7 +65,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:30021',
+        target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false
       }

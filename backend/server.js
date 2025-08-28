@@ -27,6 +27,10 @@ const qmsRoutes = require("./routes/qms");
 const inventoryRoutes = require("./routes/inventory");
 const aiMlRoutes = require("./routes/ai-ml");
 const adminRoutes = require('./routes/admin');
+const paternityRoutes = require('./routes/paternity');
+const strMatchingRoutes = require('./routes/str-matching');
+const forensicReportsRoutes = require('./routes/forensic-reports');
+const caseManagementRoutes = require('./routes/case-management');
 // Removed monitoring routes import
 
 // Load environment variables from root
@@ -275,6 +279,10 @@ try {
   app.use("/api/qms", qmsRoutes);
   app.use("/api/inventory", inventoryRoutes);
   app.use("/api/ai-ml", aiMlRoutes);
+  app.use("/api/paternity", paternityRoutes);
+  app.use("/api/str-matching", strMatchingRoutes);
+  app.use("/api/forensic-reports", forensicReportsRoutes);
+  app.use("/api/case-management", caseManagementRoutes);
   // app.use("/monitoring", monitoringRoutes);
 } catch (error) {
   logger.warn('Some routes not available, using fallback endpoints', { error: error.message });

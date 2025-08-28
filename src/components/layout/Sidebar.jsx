@@ -114,6 +114,14 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       roles: ['staff']
     },
     { 
+      icon: <Assessment />, 
+      label: 'qPCR Quantification',
+      hasSubMenu: false,
+      path: '/qpcr-quantification',
+      onClick: () => navigate('/qpcr-quantification'),
+      roles: ['staff']
+    },
+    { 
       icon: <Visibility />, 
       label: 'PCR Batches',
       hasSubMenu: false,

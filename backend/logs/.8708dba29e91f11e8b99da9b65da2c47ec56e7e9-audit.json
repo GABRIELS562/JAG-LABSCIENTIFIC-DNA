@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "/Users/user/JAG-LABSCIENTIFIC-DNA/backend/logs/.8708dba29e91f11e8b99da9b65da2c47ec56e7e9-audit.json",
+    "files": [
+        {
+            "date": 1756360604217,
+            "name": "/Users/user/JAG-LABSCIENTIFIC-DNA/backend/logs/application-2025-08-28.log",
+            "hash": "ea9f0aa5b51c6b23d07828db723a52786cf8740736e3a0b3e6914a80255d3f64"
+        }
+    ],
+    "hashType": "sha256"
+}

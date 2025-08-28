@@ -412,4 +412,43 @@ router.post('/gc', (req, res) => {
   }
 });
 
+// Background job status endpoint
+router.get('/jobs/status', (req, res) => {
+  try {
+    const status = backgroundJobService.getStatus();
+    ResponseHandler.success(res, status, 'Job status retrieved');
+  } catch (error) {
+    logger.error('Failed to get job status', { error: error.message });
+    ResponseHandler.error(res, 'Failed to get job status', error);
+  }
+});
+
+// Trigger specific job endpoint
+router.post('/jobs/trigger/:jobName', async (req, res) => {
+  try {
+    const { jobName } = req.params;
+    await backgroundJobService.triggerJob(jobName);
+    ResponseHandler.success(res, { triggered: jobName }, 'Job triggered successfully');
+  } catch (error) {
+    logger.error('Failed to trigger job', { error: error.message });
+    ResponseHandler.error(res, `Failed to trigger job: ${error.message}`, error);
+  }
+});
+
+// Forensic simulator control
+router.post('/forensic/speed/:speed', (req, res) => {
+  try {
+    const speed = parseInt(req.params.speed);
+    if (backgroundJobService.forensicSimulator) {
+      backgroundJobService.forensicSimulator.setSpeed(speed);
+      ResponseHandler.success(res, { speed }, `Simulation speed set to ${speed}x`);
+    } else {
+      ResponseHandler.error(res, 'Forensic simulator not initialized');
+    }
+  } catch (error) {
+    logger.error('Failed to set simulation speed', { error: error.message });
+    ResponseHandler.error(res, 'Failed to set simulation speed', error);
+  }
+});
+
 module.exports = router;

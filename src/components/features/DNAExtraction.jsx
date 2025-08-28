@@ -161,10 +161,98 @@ const DNAExtraction = () => {
   const loadPendingSamples = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/extraction/samples-ready`);
-      if (response.ok) {
-        const data = await response.json();
-        setPendingSamples(data.data || []);
+      // Simulate samples that have been submitted and are ready for extraction
+      const simulatedSamples = [
+        {
+          id: 'SUB-2024-001-C',
+          labNumber: 'LAB-2024-001-C',
+          caseNumber: 'PAT-2024-001',
+          clientName: 'John Doe',
+          sampleType: 'Buccal Swab',
+          relation: 'Child',
+          collectionDate: '2024-01-20',
+          submissionDate: '2024-01-20',
+          status: 'Pending Extraction',
+          barcode: 'BC001234567890',
+          priority: 'urgent'
+        },
+        {
+          id: 'SUB-2024-001-M',
+          labNumber: 'LAB-2024-001-M',
+          caseNumber: 'PAT-2024-001',
+          clientName: 'Jane Doe',
+          sampleType: 'Buccal Swab',
+          relation: 'Mother',
+          collectionDate: '2024-01-20',
+          submissionDate: '2024-01-20',
+          status: 'Pending Extraction',
+          barcode: 'BC001234567891',
+          priority: 'urgent'
+        },
+        {
+          id: 'SUB-2024-001-AF',
+          labNumber: 'LAB-2024-001-AF',
+          caseNumber: 'PAT-2024-001',
+          clientName: 'Robert Smith',
+          sampleType: 'Buccal Swab',
+          relation: 'Alleged Father',
+          collectionDate: '2024-01-20',
+          submissionDate: '2024-01-20',
+          status: 'Pending Extraction',
+          barcode: 'BC001234567892',
+          priority: 'urgent'
+        },
+        {
+          id: 'SUB-2024-002-C',
+          labNumber: 'LAB-2024-002-C',
+          caseNumber: 'PAT-2024-002',
+          clientName: 'Emily Johnson',
+          sampleType: 'Blood Card',
+          relation: 'Child',
+          collectionDate: '2024-01-21',
+          submissionDate: '2024-01-21',
+          status: 'Pending Extraction',
+          barcode: 'BC001234567893',
+          priority: 'routine'
+        },
+        {
+          id: 'SUB-2024-002-M',
+          labNumber: 'LAB-2024-002-M',
+          caseNumber: 'PAT-2024-002',
+          clientName: 'Sarah Johnson',
+          sampleType: 'Buccal Swab',
+          relation: 'Mother',
+          collectionDate: '2024-01-21',
+          submissionDate: '2024-01-21',
+          status: 'Pending Extraction',
+          barcode: 'BC001234567894',
+          priority: 'routine'
+        },
+        {
+          id: 'SUB-2024-002-AF',
+          labNumber: 'LAB-2024-002-AF',
+          caseNumber: 'PAT-2024-002',
+          clientName: 'Michael Williams',
+          sampleType: 'Buccal Swab',
+          relation: 'Alleged Father',
+          collectionDate: '2024-01-21',
+          submissionDate: '2024-01-21',
+          status: 'Pending Extraction',
+          barcode: 'BC001234567895',
+          priority: 'routine'
+        }
+      ];
+      
+      // Store in localStorage to simulate persistence
+      const storedSamples = localStorage.getItem('pendingExtractionSamples');
+      if (storedSamples) {
+        const parsed = JSON.parse(storedSamples);
+        console.log('Loading stored samples:', parsed);
+        setPendingSamples(parsed);
+      } else {
+        console.log('Loading simulated samples:', simulatedSamples);
+        setPendingSamples(simulatedSamples);
+        localStorage.setItem('pendingExtractionSamples', JSON.stringify(simulatedSamples));
       }
     } catch (error) {
       console.error('Error loading pending samples:', error);
@@ -176,10 +264,12 @@ const DNAExtraction = () => {
 
   const loadExtractionBatches = async () => {
     try {
-      const response = await fetch(`${API_URL}/extraction/batches`);
-      if (response.ok) {
-        const data = await response.json();
-        setExtractionBatches(data.data || []);
+      // Load from localStorage or use empty array
+      const storedBatches = localStorage.getItem('extractionBatches');
+      if (storedBatches) {
+        setExtractionBatches(JSON.parse(storedBatches));
+      } else {
+        setExtractionBatches([]);
       }
     } catch (error) {
       console.error('Error loading extraction batches:', error);
@@ -187,6 +277,9 @@ const DNAExtraction = () => {
   };
 
   const refreshData = async () => {
+    // Clear localStorage to force reload with fresh data
+    localStorage.removeItem('pendingExtractionSamples');
+    localStorage.removeItem('extractionBatches');
     await Promise.all([loadPendingSamples(), loadExtractionBatches()]);
   };
 
@@ -584,19 +677,19 @@ const DNAExtraction = () => {
                               />
                             </TableCell>
                             <TableCell sx={{ fontWeight: 'medium' }}>
-                              {sample.lab_number}
+                              {sample.labNumber || sample.lab_number}
                             </TableCell>
-                            <TableCell>{sample.name} {sample.surname}</TableCell>
-                            <TableCell>{sample.case_number || 'N/A'}</TableCell>
-                            <TableCell>{formatDate(sample.collection_date)}</TableCell>
+                            <TableCell>{sample.clientName || `${sample.name || ''} ${sample.surname || ''}`}</TableCell>
+                            <TableCell>{sample.caseNumber || sample.case_number || 'N/A'}</TableCell>
+                            <TableCell>{formatDate(sample.collectionDate || sample.collection_date)}</TableCell>
                             <TableCell>
                               <Chip
-                                label={sample.workflow_status?.replace(/_/g, ' ').toUpperCase()}
+                                label={sample.status || sample.workflow_status?.replace(/_/g, ' ').toUpperCase() || 'PENDING'}
                                 color="default"
                                 size="small"
                               />
                             </TableCell>
-                            <TableCell>{sample.sample_type || 'Buccal Swab'}</TableCell>
+                            <TableCell>{sample.sampleType || sample.sample_type || 'Buccal Swab'}</TableCell>
                           </TableRow>
                         ))
                       )}

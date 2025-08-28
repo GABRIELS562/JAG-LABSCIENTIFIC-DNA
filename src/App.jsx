@@ -25,6 +25,7 @@ import QualityManagementSystem from './components/features/QualityManagementSyst
 import InventoryManagement from './components/features/InventoryManagement';
 import AIMachineLearning from './components/features/AIMachineLearning';
 import DNAExtraction from './components/features/DNAExtraction';
+import QpcrQuantification from './components/features/QpcrQuantification';
 import ForensicWorkflowDashboard from './components/features/ForensicWorkflowDashboard';
 import ForensicReports from './components/ForensicReports';
 import CaseManagement from './components/CaseManagement';
@@ -261,6 +262,16 @@ function AppContent() {
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
                     <DNAExtraction />
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/qpcr-quantification" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <QpcrQuantification />
                   </div>
                 </ErrorBoundary>
               } 
