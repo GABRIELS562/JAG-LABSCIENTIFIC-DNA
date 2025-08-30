@@ -1,6 +1,6 @@
 {
-  "inputDirectory": "/Users/user/LABSCIENTIFIC-LIMS/backend/osiris_workspace/input",
-  "outputDirectory": "/Users/user/LABSCIENTIFIC-LIMS/backend/osiris_workspace/output",
+  "inputDirectory": "/Users/user/JAG-LABSCIENTIFIC-DNA/backend/osiris_workspace/input",
+  "outputDirectory": "/Users/user/JAG-LABSCIENTIFIC-DNA/backend/osiris_workspace/output",
   "kit": "IdentifilerPlus",
   "ils": "ABI-LIZ500",
   "population": "South_African",
@@ -10,7 +10,7 @@
     "stutterThreshold": 0.15,
     "adenylationThreshold": 0.3
   },
-  "caseId": "CASE_1753438312389",
-  "timestamp": "2025-07-25T10:11:52.389Z",
+  "caseId": "CASE_1756556764754",
+  "timestamp": "2025-08-30T12:26:04.754Z",
   "fileNaming": "ID suffix required (e.g., sample_ID.fsa)"
 }

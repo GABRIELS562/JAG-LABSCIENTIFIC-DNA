@@ -11,7 +11,7 @@ class UnifiedApiClient {
     this.connectionListeners = new Set();
     this.isOnline = true;
     this.cache = new Map();
-    this.cacheTimeout = 30000; // 30 seconds cache
+    this.cacheTimeout = 5000; // 5 seconds cache
     
     console.log('🔧 UnifiedApiClient initialized with baseURL:', this.baseURL);
   }

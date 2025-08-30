@@ -1,310 +1,223 @@
-# 🧬 JAG DNA Scientific LIMS - Complete Testing Guide
+# JAG DNA Scientific LIMS - Testing Guide
 
-## 🚀 Quick Start Testing Commands
+## Overview
+This document provides comprehensive information about the testing infrastructure set up for the JAG DNA Scientific LIMS application.
 
-### Step 1: Start the Application
+## Test Coverage Goals
+- **Target Coverage**: 60% minimum across all metrics
+- **Lines**: 60%
+- **Functions**: 60%  
+- **Branches**: 60%
+- **Statements**: 60%
+
+## Frontend Testing (Vitest + React Testing Library)
+
+### Setup
+- **Framework**: Vitest with React Testing Library
+- **Environment**: jsdom
+- **Mocking**: MSW (Mock Service Worker)
+- **Configuration**: `vitest.config.js`
+
+### Key Test Files Created
+
+#### Component Tests
+1. **PaternityLabDashboard.test.jsx**
+   - Dashboard rendering and data fetching
+   - Interactive features (navigation, refresh)
+   - Live data updates and workflow tracking
+   - Error handling and loading states
+   - Progress calculations and statistics
+
+2. **WorkflowSettings.test.jsx**
+   - Settings component rendering
+   - Duration controls and validation
+   - Quick presets functionality
+   - Workflow pause/resume
+   - API integration and error handling
+
+#### Context Tests
+3. **AuthContext.test.jsx**
+   - Authentication state management
+   - Login/logout functionality
+   - Token management and refresh
+   - User profile updates
+   - Role-based access control
+
+#### Service Tests
+4. **api.test.js**
+   - API client functionality
+   - Caching mechanisms
+   - Error handling and retries
+   - Connection management
+   - Bulk operations
+
+#### Utility Tests
+5. **errorHandler.test.js**
+   - Custom error classes
+   - Error logging and reporting
+   - User-friendly error messages
+   - Recovery strategies
+
+6. **validation.test.js**
+   - Input validation functions
+   - Email and phone validation
+   - Lab number and case number formats
+   - Sample and batch data validation
+   - Password strength validation
+
+### Running Frontend Tests
 ```bash
-# Option A: Development Mode (with hot reload)
-npm run dev
-# App will run on http://localhost:5173 (or next available port)
+# Run all tests
+npm test
 
-# Option B: Production Preview (test the built version)
-npm run build && npm run preview
-# App will run on http://localhost:4173 (or next available port)
+# Run tests with UI
+npm run test:ui
+
+# Run tests once
+npm run test:run
+
+# Run with coverage
+npm run test:coverage
+
+# Watch mode
+npm run test:watch
 ```
 
-### Step 2: Start Backend (Optional - for full functionality)
+## Backend Testing (Jest + Supertest)
+
+### Setup
+- **Framework**: Jest with Supertest
+- **Environment**: Node.js
+- **Database**: SQLite with mocked operations
+- **Configuration**: `jest.config.js`
+
+### Key Test Files Created
+
+#### API Tests
+1. **api.test.js**
+   - Sample CRUD operations
+   - Batch management
+   - Queue operations
+   - Statistics endpoints
+   - Bulk operations
+   - Error handling
+
+2. **auth.test.js**
+   - User authentication
+   - JWT token management
+   - Password operations
+   - User profile management
+   - Authorization checks
+
+### Running Backend Tests
 ```bash
-# In a new terminal
-cd backend
-npm start
-# Backend will run on http://localhost:3001
+# Run backend tests
+cd backend && npm test
+
+# Run with coverage
+cd backend && npm run test:coverage
+
+# Watch mode
+cd backend && npm run test:watch
+
+# Verbose output
+cd backend && npm run test:verbose
 ```
 
-## 📋 Complete Forensic Workflow Testing Checklist
+## Test Utilities and Helpers
 
-### 🏠 **1. Homepage / Dashboard**
-**URL:** `http://localhost:5173/`
+### Frontend Utilities (`src/test/utils/index.js`)
+- `renderWithProviders()` - Render components with all contexts
+- `renderWithAuth()` - Render with authenticated user
+- `waitForLoadingToFinish()` - Wait for loading states
+- `generateMockSample()` - Create sample test data
+- `generateMockBatch()` - Create batch test data
+- `mockApiResponse()` - Mock API responses
 
-**Test:**
-- [ ] Page loads without errors
-- [ ] 5 metric cards display (Today's Submissions, Active Batches, In Process, Pending Reports, Completed)
-- [ ] Forensic DNA Workflow Pipeline shows 6 stages with icons
-- [ ] All workflow stage circles are visible in both light/dark mode
-- [ ] Click each workflow stage - should navigate to correct page
-- [ ] Dark mode toggle works (top right)
-- [ ] Sidebar navigation works
-- [ ] Quick Actions buttons are clickable
+### Backend Utilities (`backend/tests/setup.js`)
+- `createMockSample()` - Generate sample data
+- `createMockUser()` - Generate user data
+- `createMockBatch()` - Generate batch data
 
----
+## Current Test Statistics
 
-### 👥 **2. Sample Submission (Client Registration)**
-**URL:** `http://localhost:5173/register-client`
+### Frontend Tests
+- **Component Tests**: 2 major components
+- **Context Tests**: 1 authentication context
+- **Service Tests**: 1 API service
+- **Utility Tests**: 2 utility modules
+- **Total Test Files**: 6
+- **Estimated Test Cases**: ~150
 
-**Test Workflow:**
-1. Click "New Registration" button or navigate via sidebar
-2. Fill in test data:
-   ```
-   Case ID: TEST-2024-001
-   Client Name: John Doe
-   Sample Type: Buccal Swab
-   Number of Samples: 3 (Child, Mother, Alleged Father)
-   ```
-3. Submit form
-4. Verify success message appears
-5. Check that sample is added to queue
+### Backend Tests
+- **API Tests**: Core API endpoints
+- **Auth Tests**: Authentication flows
+- **Total Test Files**: 2
+- **Estimated Test Cases**: ~60
 
----
-
-### 🧪 **3. DNA Extraction**
-**URL:** `http://localhost:5173/dna-extraction`
-
-**Test Workflow:**
-1. Navigate to DNA Extraction from sidebar or workflow
-2. View pending samples for extraction
-3. Click "Start Extraction" on a sample batch
-4. Watch progress simulation
-5. Verify batch moves to "Completed" status
-6. Check extraction metrics display
-
----
-
-### 🔬 **4. PCR Amplification**
-**URL:** `http://localhost:5173/pcr-plate`
-
-**Test Workflow:**
-1. Navigate to PCR Plate Setup
-2. View 96-well plate layout
-3. Click on wells to assign samples
-4. Add controls:
-   - Well A1-A3: Positive controls
-   - Well H10-H12: Negative controls
-5. Click "Start PCR Run"
-6. Verify thermocycler simulation shows:
-   - Initial denaturation: 95°C for 11 min
-   - 30 cycles of amplification
-   - Final extension: 60°C for 60 min
-
-**PCR Batches Page:** `http://localhost:5173/pcr-batches`
-- View all PCR runs
-- Check batch status
-- Export batch data
-
----
-
-### ⚡ **5. Capillary Electrophoresis**
-**URL:** `http://localhost:5173/electrophoresis`
-
-**Test Workflow:**
-1. Navigate to Electrophoresis Layout
-2. Select a PCR batch to load
-3. View 3500 Genetic Analyzer simulation
-4. Verify parameters:
-   - Injection voltage: 1.6 kV for 10 seconds
-   - Run voltage: 15 kV
-   - Run time: 1500 seconds
-   - Temperature: 60°C
-   - Polymer: POP-4
-5. Start run and watch progress
-6. Verify FSA file generation simulation
-
----
-
-### 📊 **6. OSIRIS Analysis** ⭐ (Most Important)
-**URL:** `http://localhost:5173/osiris-analysis`
-
-**Test Workflow:**
-1. Navigate to OSIRIS Analysis
-2. Verify header shows:
-   - "OSIRIS STR Analysis System v2.17"
-   - PowerPlex ESX 17 chip
-   - LIZ 500 Size Standard chip
-   - 3500 Genetic Analyzer chip
-3. Click "Import FSA Files" button
-4. Select an electrophoresis batch or upload test files
-5. Click "Start OSIRIS Analysis"
-6. Watch processing stages:
-   - Loading FSA files
-   - Size calling with LIZ 500
-   - Allele calling
-   - Artifact detection
-   - Quality metrics calculation
-   - Report generation
-7. View results in tabs:
-   - **Analysis Queue:** Check processing status
-   - **Completed Analyses:** View finished batches
-   - **STR Profiles:** See 17 STR loci + Amelogenin
-   - **Quality Metrics:** Verify RFU, stutter, resolution scores
-8. Click view icon on completed analysis
-9. Check paternity results:
-   - CPI (Combined Paternity Index)
-   - Probability percentage
-   - INCLUSION or EXCLUSION conclusion
-10. Export CMF file
-
----
-
-### 📄 **7. Report Generation**
-**URL:** `http://localhost:5173/reports`
-
-**Test Workflow:**
-1. Navigate to Reports
-2. Select completed analyses
-3. Generate paternity test report
-4. Verify report includes:
-   - Case information
-   - STR profiles for all samples
-   - Statistical calculations
-   - Conclusion statement
-5. Export as PDF
-
----
-
-## 🔧 Additional Features to Test
-
-### 📈 **Quality Control (ISO 17025)**
-**URL:** `http://localhost:5173/quality-control`
-- View compliance dashboard
-- Check quality metrics
-- Review control charts
-
-### 📦 **Sample Queues**
-**URL:** `http://localhost:5173/sample-queues`
-- Track samples through workflow
-- View bottlenecks
-- Prioritize urgent cases
-
-### 📊 **Statistics**
-**URL:** `http://localhost:5173/statistics`
-- View lab performance metrics
-- Turnaround time analysis
-- Success rate tracking
-
-### 🏭 **Quality Management System**
-**URL:** `http://localhost:5173/qms`
-- ISO 17025:2017 compliance tracking
-- Document control
-- Audit management
-
----
-
-## 🌙 Dark Mode Testing
-
-For each page above, toggle dark mode and verify:
-- [ ] Text remains readable
-- [ ] Workflow icons are visible
-- [ ] Cards have proper contrast
-- [ ] Tables are readable
-- [ ] Buttons are clearly visible
-- [ ] No white text on white backgrounds
-
----
-
-## 🧪 Test Data Examples
-
-### Sample IDs to Use:
-```
-PAT-2024-001 through PAT-2024-100
-```
-
-### Client Names:
-```
-John Doe (Alleged Father)
-Jane Smith (Mother)
-Baby Doe (Child)
-```
-
-### Expected Results:
-- ~70% of tests show INCLUSION (biological father)
-- ~30% show EXCLUSION (not biological father)
-- CPI values range from 10^6 to 10^12 for inclusions
-- Probability >99.99% for true biological fathers
-
----
-
-## 🚨 Common Issues & Solutions
-
-### White Screen on Load:
+## Running All Tests
 ```bash
-# Clear cache and rebuild
-rm -rf dist node_modules/.vite
-npm install
-npm run build
+# Run both frontend and backend tests
+npm run test:all
+
+# Run frontend tests only
+npm test
+
+# Run backend tests only
+npm run test:backend
 ```
 
-### Backend Connection Errors:
-```bash
-# App works without backend using simulated data
-# If you see API errors, they can be ignored for testing
-```
+## Files Created/Modified
 
-### Port Already in Use:
-```bash
-# Kill processes on common ports
-lsof -ti:5173 | xargs kill -9  # Dev server
-lsof -ti:4173 | xargs kill -9  # Preview server
-lsof -ti:3001 | xargs kill -9  # Backend
-```
+### Configuration Files
+- `vitest.config.js` - Vitest configuration with coverage settings
+- `backend/jest.config.js` - Jest configuration for backend tests
 
----
+### Test Setup Files
+- `src/test/setup.js` - Frontend test environment setup
+- `src/test/mocks/server.js` - MSW server setup
+- `src/test/mocks/handlers.js` - API mock handlers
+- `src/test/utils/index.js` - Testing utilities and helpers
+- `backend/tests/setup.js` - Backend test environment setup
 
-## ✅ Testing Complete Checklist
+### Test Files
+- `src/components/__tests__/PaternityLabDashboard.test.jsx`
+- `src/components/features/__tests__/WorkflowSettings.test.jsx`
+- `src/contexts/__tests__/AuthContext.test.jsx`
+- `src/services/__tests__/api.test.js`
+- `src/utils/__tests__/errorHandler.test.js`
+- `src/utils/__tests__/validation.test.js`
+- `backend/tests/api.test.js`
+- `backend/tests/auth.test.js`
 
-- [ ] All pages load without errors
-- [ ] Complete workflow from submission to report works
-- [ ] OSIRIS analysis produces realistic results
-- [ ] Dark mode works on all pages
-- [ ] Responsive design works (resize browser)
-- [ ] No console errors in browser DevTools
-- [ ] Export functions work (CMF, PDF)
-- [ ] Navigation between pages is smooth
-- [ ] Data persists during session
+### Updated Package.json Scripts
+- Frontend: Added test, test:ui, test:run, test:coverage, test:watch, test:backend, test:all
+- Backend: Added test, test:watch, test:coverage, test:verbose
 
----
+## Dependencies Installed
 
-## 📝 Testing Commands Summary
+### Frontend
+- `vitest@^1.6.0` - Test framework
+- `@vitest/ui@^1.6.0` - Test UI
+- `jsdom@^26.1.0` - DOM environment
+- `happy-dom@^18.0.1` - Alternative DOM environment
+- `c8@^10.1.3` - Coverage reporting
 
-```bash
-# 1. Start fresh build
-npm run build
+### Backend
+- `jest@^29.7.0` - Test framework
+- `supertest@^7.1.4` - HTTP testing
+- `@types/jest@^30.0.0` - Jest TypeScript types
+- `@types/supertest@^6.0.3` - Supertest TypeScript types
+- `jest-environment-node@^29.7.0` - Node test environment
 
-# 2. Preview production build
-npm run preview
+## Test Coverage Results Summary
 
-# 3. Open in browser
-open http://localhost:4173
+The comprehensive test suite provides coverage for:
+- **Critical Business Logic**: Paternity workflow management, sample tracking, batch processing
+- **API Integrations**: Sample management, authentication, workflow status updates
+- **User Workflows**: Registration, login, dashboard interactions, settings management
+- **Error Handling**: Network errors, validation errors, API errors
+- **Authentication**: Login/logout, token management, role-based access
 
-# 4. Check console for errors (in browser)
-# Right-click → Inspect → Console tab
-
-# 5. Test complete workflow
-# Follow the numbered sections above in order
-
-# 6. Generate test report
-# After testing, results are in browser console
-```
-
----
-
-## 🎯 Expected Outcome
-
-After complete testing, you should have:
-1. Successfully navigated through all 6 workflow stages
-2. Generated OSIRIS analysis with realistic STR profiles
-3. Viewed paternity test results with CPI and probability
-4. Confirmed dark mode works throughout
-5. No white screens or major errors
-
-**Time Required:** ~15-20 minutes for complete testing
-
----
-
-## 📞 Support
-
-If any issues occur during testing:
-1. Check browser console for errors (F12)
-2. Verify all dependencies installed: `npm install`
-3. Try clearing browser cache
-4. Restart the development server
-
-The application is designed to work standalone without backend for demonstration purposes!
+## Conclusion
+The comprehensive test suite provides a solid foundation for maintaining code quality and preventing regressions. The setup includes both unit and integration tests, with proper mocking and utilities to support efficient test development. The 60% coverage target ensures critical paths are tested while allowing for pragmatic development velocity.

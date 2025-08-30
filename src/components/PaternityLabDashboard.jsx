@@ -21,8 +21,8 @@ import {
   FlaskConical,
   Microscope
 } from 'lucide-react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../services/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -45,6 +45,8 @@ const PaternityLabDashboard = () => {
   const [workflowMetrics, setWorkflowMetrics] = useState({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [paternityWorkflow, setPaternityWorkflow] = useState(null);
+  const [sampleTracking, setSampleTracking] = useState(null);
 
   // Workflow stages for 3500 Genetic Analyzer with PowerPlex ESX 17
   const workflowStages = [
@@ -108,9 +110,42 @@ const PaternityLabDashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 30000); // Refresh every 30 seconds
+    fetchPaternityWorkflow(); // Initial fetch
+    
+    // Fetch immediately after component mounts
+    setTimeout(() => {
+      fetchPaternityWorkflow();
+    }, 1000);
+    
+    const interval = setInterval(() => {
+      fetchDashboardData();
+      fetchPaternityWorkflow();
+    }, 10000); // Refresh every 10 seconds for live updates
     return () => clearInterval(interval);
   }, []);
+
+  const fetchPaternityWorkflow = async () => {
+    try {
+      console.log('Fetching paternity workflow...');
+      const [workflowRes, trackingRes] = await Promise.all([
+        api.fetchJson('/workflow/paternity/status', { method: 'GET' }),
+        api.fetchJson('/workflow/sample-tracking', { method: 'GET' })
+      ]);
+      
+      console.log('Paternity workflow response:', workflowRes);
+      
+      if (workflowRes && workflowRes.data) {
+        setPaternityWorkflow(workflowRes.data);
+        console.log('Paternity workflow state set:', workflowRes.data);
+        console.log('Stage distribution:', workflowRes.data.stageDistribution);
+      }
+      if (trackingRes && trackingRes.data) {
+        setSampleTracking(trackingRes.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch paternity workflow:', error);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -118,13 +153,13 @@ const PaternityLabDashboard = () => {
 
       // Fetch multiple endpoints in parallel
       const [samplesRes, batchesRes, workflowRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/api/samples`),
-        axios.get(`${API_BASE_URL}/api/batches`),
-        axios.get(`${API_BASE_URL}/api/workflow-status`)
+        api.fetchJson('/samples', { method: 'GET' }),
+        api.fetchJson('/batches', { method: 'GET' }),
+        api.fetchJson('/workflow-status', { method: 'GET' })
       ]);
 
       // Process samples data
-      const samples = samplesRes.data.samples || [];
+      const samples = samplesRes?.samples || [];
       const now = new Date();
       const todayStart = new Date(now.setHours(0, 0, 0, 0));
 
@@ -137,15 +172,15 @@ const PaternityLabDashboard = () => {
         inAnalysis: samples.filter(s => s.workflow_status === 'analysis_ready' || s.workflow_status === 'analysis_in_progress').length,
         completed: samples.filter(s => s.workflow_status === 'analysis_completed').length,
         todaySubmissions: samples.filter(s => new Date(s.collection_date) >= todayStart).length,
-        activeBatches: batchesRes.data.batches?.filter(b => b.status === 'processing').length || 0,
+        activeBatches: batchesRes?.batches?.filter(b => b.status === 'processing').length || 0,
         pendingReports: samples.filter(s => s.workflow_status === 'analysis_completed' && !s.report_generated).length
       };
 
       setStats(stats);
 
       // Process workflow metrics
-      if (workflowRes.data.success) {
-        setWorkflowMetrics(workflowRes.data.data);
+      if (workflowRes?.success) {
+        setWorkflowMetrics(workflowRes.data);
       }
 
       // Generate recent activity
@@ -194,6 +229,44 @@ const PaternityLabDashboard = () => {
       analysis: ((stats.inAnalysis / total) * 100).toFixed(1),
       completed: ((stats.completed / total) * 100).toFixed(1)
     };
+  };
+
+  // Get sample count for a specific workflow stage from live data
+  const getStageCount = (stageId) => {
+    if (!paternityWorkflow || !paternityWorkflow.stageDistribution) {
+      console.log(`No workflow data for stage ${stageId}`);
+      return 0;
+    }
+    
+    // Map frontend stage IDs to possible API workflow_status values
+    // The API returns various statuses, we need to sum related ones
+    const stageMapping = {
+      'submission': ['sample_collected'],
+      'extraction': ['dna_extraction', 'extraction_ready', 'extraction_in_progress'],
+      'quantification': ['pcr_ready', 'qpcr_ready'],
+      'pcr': ['pcr_batched', 'pcr_in_progress', 'pcr_completed'],
+      'electrophoresis': ['electro_ready', 'electro_batched', 'electro_in_progress', 'electro_completed'],
+      'analysis': ['analysis_ready', 'analysis_in_progress', 'analysis_completed', 'osiris_analysis'],
+      'reporting': ['report_ready', 'report_generation', 'report_sent']
+    };
+    
+    const apiStageIds = stageMapping[stageId] || [stageId];
+    let totalCount = 0;
+    
+    console.log(`Checking stage ${stageId}, looking for:`, apiStageIds);
+    console.log('Available stages:', paternityWorkflow.stageDistribution.map(s => s.workflow_status));
+    
+    // Sum counts for all related statuses
+    apiStageIds.forEach(apiId => {
+      const stage = paternityWorkflow.stageDistribution.find(s => s.workflow_status === apiId);
+      if (stage) {
+        console.log(`Found ${stage.count} samples in ${apiId}`);
+        totalCount += stage.count;
+      }
+    });
+    
+    console.log(`Stage ${stageId} total: ${totalCount}`);
+    return totalCount;
   };
 
   const progress = getWorkflowProgress();
@@ -286,12 +359,98 @@ const PaternityLabDashboard = () => {
         </Card>
       </div>
 
+      {/* Live Paternity Workflow Tracker - ALWAYS VISIBLE */}
+      <Card className="border-2 border-green-500 dark:border-green-400 shadow-lg">
+        <CardHeader className="bg-green-50 dark:bg-green-900/20">
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Activity className="h-6 w-6 text-green-600 animate-pulse" />
+              <span className="text-xl font-bold">🔬 Live Paternity Testing Workflow</span>
+              <Badge variant="default" className="bg-green-500 text-white px-3 py-1">
+                RUNNING
+              </Badge>
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {paternityWorkflow ? (
+                <>Cycles: <span className="font-bold text-lg">{paternityWorkflow.cyclesCompleted || 0}</span></>
+              ) : (
+                <>Connecting...</>
+              )}
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="mb-4">
+            <div className="flex justify-between text-sm mb-2">
+              <span className="text-gray-600 dark:text-gray-400 font-semibold">
+                {paternityWorkflow?.totalSamples || 50} Paternity Test Samples Auto-Processing
+              </span>
+              <span className="text-gray-600 dark:text-gray-400">
+                Updates every 10 seconds ⏱️
+              </span>
+            </div>
+          </div>
+          
+          {/* Stage Distribution Grid */}
+          <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-11 gap-2 mb-4">
+            {paternityWorkflow && paternityWorkflow.stageDistribution ? (
+              paternityWorkflow.stageDistribution.map(stage => (
+                <div key={stage.workflow_status} className="text-center">
+                  <div className={`p-2 rounded-lg border-2 ${
+                    stage.count > 0 ? 'border-blue-300 dark:border-blue-600' : 'border-gray-200 dark:border-gray-700'
+                  } ${
+                    stage.workflow_status === 'sample_collected' ? 'bg-blue-100 dark:bg-blue-900/30' :
+                    stage.workflow_status === 'pcr_ready' ? 'bg-purple-100 dark:bg-purple-900/30' :
+                    stage.workflow_status === 'pcr_batched' ? 'bg-orange-100 dark:bg-orange-900/30' :
+                    stage.workflow_status === 'pcr_completed' ? 'bg-orange-200 dark:bg-orange-800/30' :
+                    stage.workflow_status === 'electro_ready' ? 'bg-yellow-100 dark:bg-yellow-900/30' :
+                    stage.workflow_status === 'electro_batched' ? 'bg-yellow-200 dark:bg-yellow-800/30' :
+                    stage.workflow_status === 'electro_completed' ? 'bg-green-100 dark:bg-green-900/30' :
+                    stage.workflow_status === 'analysis_ready' ? 'bg-teal-100 dark:bg-teal-900/30' :
+                    stage.workflow_status === 'analysis_completed' ? 'bg-green-200 dark:bg-green-800/30' :
+                    stage.workflow_status === 'report_ready' ? 'bg-indigo-100 dark:bg-indigo-900/30' :
+                    stage.workflow_status === 'report_sent' ? 'bg-green-500 text-white' :
+                    'bg-gray-100 dark:bg-gray-800'
+                  }`}>
+                    <div className="text-2xl font-bold">{stage.count}</div>
+                    <div className="text-xs mt-1 font-medium">
+                      {stage.workflow_status.replace(/_/g, ' ').toUpperCase()}
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              // Show placeholder stages while loading
+              ['Collection', 'PCR Ready', 'PCR Batch', 'PCR Done', 'Electro', 'Analysis', 'Report'].map(stage => (
+                <div key={stage} className="text-center">
+                  <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 animate-pulse">
+                    <div className="text-2xl font-bold text-gray-400">--</div>
+                    <div className="text-xs mt-1">{stage}</div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Visual Progress Bar */}
+          <div className="relative h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-400 via-purple-500 to-green-500 animate-pulse" />
+          </div>
+
+          <div className="mt-4 text-center">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              🔄 Live demonstration - Samples cycle through all stages automatically
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Workflow Pipeline */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Dna className="h-5 w-5" />
-            Forensic DNA Workflow Pipeline
+            DNA Workflow Monitor
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -330,9 +489,7 @@ const PaternityLabDashboard = () => {
                       <h4 className="font-semibold text-sm mb-1 dark:text-gray-100 transition-colors duration-300">{stage.name}</h4>
                       <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 transition-colors duration-300">{stage.description}</p>
                       <Badge variant="outline">
-                        {stats[`in${stage.id.charAt(0).toUpperCase() + stage.id.slice(1)}`] || 
-                         (stage.id === 'submission' ? stats.pendingSubmission :
-                          stage.id === 'reporting' ? stats.pendingReports : 0)} samples
+                        {getStageCount(stage.id)} samples
                       </Badge>
                     </div>
                   </CardContent>
@@ -363,6 +520,7 @@ const PaternityLabDashboard = () => {
           </div>
         </CardContent>
       </Card>
+
 
       {/* Recent Activity & Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

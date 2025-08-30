@@ -28,7 +28,7 @@ import {
   Scanner,
   AutoFixHigh
 } from '@mui/icons-material';
-import { createWorker } from 'tesseract.js';
+import { performOCR } from '../../utils/tesseractLoader';
 
 const PhotoCapture = ({ open, onClose, onDataExtracted, formType = 'paternity' }) => {
   const [capturedImage, setCapturedImage] = useState(null);
@@ -116,15 +116,12 @@ const PhotoCapture = ({ open, onClose, onDataExtracted, formType = 'paternity' }
     setProcessingStage('Initializing OCR...');
 
     try {
-      const worker = await createWorker('eng', 1, {
-        logger: m => {
-          setProgress(m.progress * 100);
-          setProcessingStage(m.status || 'Processing...');
-        }
-      });
-
       setProcessingStage('Reading text from image...');
-      const { data: { text } } = await worker.recognize(capturedImage.url);
+      setProgress(50);
+      
+      // Use the dynamic loader for OCR
+      const text = await performOCR(capturedImage.url);
+      setProgress(80);
       
       setProcessingStage('Extracting form data...');
       const extractedFormData = extractFormData(text, formType);
@@ -132,7 +129,7 @@ const PhotoCapture = ({ open, onClose, onDataExtracted, formType = 'paternity' }
       setExtractedData(extractedFormData);
       setProcessingStage('Complete!');
       
-      await worker.terminate();
+      // Worker termination is now handled internally by the dynamic loader
     } catch (err) {
       setError('Failed to process image: ' + err.message);
     } finally {

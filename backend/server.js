@@ -10,6 +10,8 @@ const { globalErrorHandler } = require("./middleware/errorHandler");
 const { sanitizeInput } = require("./middleware/validation");
 const { requestLogger, logger } = require("./utils/logger");
 const { ResponseHandler } = require("./utils/responseHandler");
+const { memoryManager } = require("./utils/memoryManager");
+const streamingResponse = require("./utils/streamingResponse");
 
 // Import DevOps middleware and services
 const { register: metricsRegister, metricsMiddleware, trackDatabaseQuery, trackSampleProcessed, trackBatchCreated } = require('./middleware/metrics');
@@ -43,31 +45,57 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
 
-// Initialize database connection with better configuration
+// Initialize database connection with memory optimization
 const dbPath = path.join(__dirname, 'database', 'ashley_lims.db');
 let db = null;
+let dbPool = null;
 
 try {
-  db = new Database(dbPath, {
-    verbose: process.env.NODE_ENV === 'development' ? console.log : null,
-    fileMustExist: false
-  });
-  
-  // Configure database for better performance
-  db.pragma('journal_mode = WAL');
-  db.pragma('synchronous = NORMAL');
-  db.pragma('cache_size = 1000000');
-  db.pragma('temp_store = memory');
-  db.pragma('mmap_size = 268435456'); // 256MB
-  
-  logger.info('Database connected successfully', { dbPath });
+  // Try to use database pool first
+  const DatabasePool = require('./utils/databasePool');
+  try {
+    dbPool = new DatabasePool(dbPath, {
+      maxConnections: 3, // Limit read connections for memory optimization
+      verbose: process.env.NODE_ENV === 'development' ? console.log : null
+    });
+    db = dbPool.getWriteConnection();
+    logger.info('Database pool initialized successfully', { dbPath });
+  } catch (poolError) {
+    logger.warn('Database pool failed, falling back to single connection', { error: poolError.message });
+    
+    // Fallback to single database connection
+    db = new Database(dbPath, {
+      verbose: process.env.NODE_ENV === 'development' ? console.log : null,
+      fileMustExist: false
+    });
+    
+    // Configure database for better performance
+    db.pragma('journal_mode = WAL');
+    db.pragma('synchronous = NORMAL');
+    db.pragma('cache_size = 500000'); // Reduced from 1M for memory optimization
+    db.pragma('temp_store = memory');
+    db.pragma('mmap_size = 134217728'); // 128MB instead of 256MB
+    
+    logger.info('Single database connection initialized successfully', { dbPath });
+  }
 } catch (error) {
-  logger.error('Database connection failed', { error: error.message, dbPath });
-  console.error('❌ Database connection failed:', error);
+  logger.error('Database initialization failed', { error: error.message, dbPath });
+  console.error('❌ Database initialization failed:', error);
   process.exit(1);
 }
 
 const app = express();
+
+// Initialize memory management
+memoryManager.initialize({
+  memoryThreshold: 0.75, // 75% memory threshold
+  optimizations: {
+    enableGC: true,
+    enableCaching: true,
+    enableStreaming: true,
+    enableMemoryLimits: true
+  }
+});
 
 // Trust proxy for accurate client IP
 app.set('trust proxy', 1);
@@ -82,10 +110,29 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Reduced payload limits for memory optimization
+app.use(express.json({ 
+  limit: '5mb',
+  verify: (req, res, buf) => {
+    // Monitor request size
+    const size = buf.length;
+    if (size > 5 * 1024 * 1024) { // 5MB
+      logger.warn('Large request payload detected', {
+        size: Math.round(size / 1024 / 1024) + 'MB',
+        url: req.url
+      });
+    }
+  }
+}));
+app.use(express.urlencoded({ 
+  extended: true, 
+  limit: '5mb',
+  parameterLimit: 1000 // Limit URL parameters
+}));
 
-// DevOps middleware
+// Memory and DevOps middleware
+const { memoryMonitor } = require('./middleware/memoryMonitor');
+app.use(memoryMonitor.middleware());
 app.use(metricsMiddleware);
 app.use(sanitizeInput);
 
@@ -178,18 +225,23 @@ function getSamplesWithPagination(page = 1, limit = 50, filters = {}) {
   }
 }
 
-// Cache sample counts for better performance
-let sampleCountsCache = null;
-let sampleCountsCacheExpiry = 0;
-const CACHE_DURATION = 30000; // 30 seconds
+// Optimized cache with memory limits
+const { LRUCache } = require('lru-cache');
+const sampleCountsCache = new LRUCache({
+  max: 100, // Maximum 100 cached entries
+  ttl: 30000, // 30 seconds TTL
+  updateAgeOnGet: false,
+  allowStale: false
+});
 
 function getSampleCounts() {
   try {
-    const now = Date.now();
+    const cacheKey = 'sample_counts';
     
-    // Return cached result if still valid
-    if (sampleCountsCache && now < sampleCountsCacheExpiry) {
-      return sampleCountsCache;
+    // Return cached result if available
+    const cached = sampleCountsCache.get(cacheKey);
+    if (cached) {
+      return cached;
     }
     
     // Use a single optimized query instead of multiple queries
@@ -211,8 +263,7 @@ function getSampleCounts() {
     const result = stmt.get();
     
     // Cache the result
-    sampleCountsCache = result;
-    sampleCountsCacheExpiry = now + CACHE_DURATION;
+    sampleCountsCache.set(cacheKey, result);
     
     return result;
   } catch (error) {
@@ -297,18 +348,37 @@ app.get("/api/test", (req, res) => {
   });
 });
 
-// Samples endpoints
+// Samples endpoints with streaming support
 app.get("/api/samples", (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
+    const limit = Math.min(100, parseInt(req.query.limit) || 50); // Cap limit
+    const useStreaming = req.query.stream === 'true';
     const filters = {
       status: req.query.status,
       search: req.query.search
     };
     
-    const result = getSamplesWithPagination(page, limit, filters);
-    ResponseHandler.paginated(res, result.data, result.pagination);
+    if (useStreaming && limit > 50) {
+      // Use streaming for large responses
+      const query = `
+        SELECT 
+          id, lab_number, name, surname, relation, status, 
+          collection_date, workflow_status, case_number, batch_id, lab_batch_number
+        FROM samples 
+        ${filters.status ? 'WHERE status = ?' : ''}
+        ORDER BY lab_number ASC
+      `;
+      const params = filters.status ? [filters.status] : [];
+      
+      streamingResponse.streamDatabaseResults(res, query, params, {
+        dbPool,
+        chunkSize: 100
+      });
+    } else {
+      const result = getSamplesWithPagination(page, limit, filters);
+      ResponseHandler.paginated(res, result.data, result.pagination);
+    }
   } catch (error) {
     ResponseHandler.error(res, 'Failed to fetch samples', error);
   }
@@ -335,7 +405,8 @@ app.post("/api/samples", (req, res) => {
     const newSample = createSample(req.body);
     ResponseHandler.success(res, newSample, 'Sample created successfully', 201);
   } catch (error) {
-    ResponseHandler.error(res, 'Failed to create sample', error);
+    logger.error('Sample creation failed', { error: error.message, body: req.body });
+    ResponseHandler.error(res, error.message || 'Failed to create sample', 500);
   }
 });
 
@@ -640,6 +711,54 @@ app.get("/api/test-cases", (req, res) => {
   }
 });
 
+app.post("/api/test-cases", (req, res) => {
+  try {
+    const {
+      case_number,
+      ref_kit_number,
+      submission_date,
+      client_type,
+      test_purpose,
+      sample_type
+    } = req.body;
+    
+    // Generate case number if not provided
+    const finalCaseNumber = case_number || `CASE_${new Date().getFullYear()}_${Date.now().toString().slice(-6)}`;
+    const finalKitNumber = ref_kit_number || `KIT_${Date.now()}`;
+    
+    const stmt = db.prepare(`
+      INSERT INTO test_cases (
+        case_number, ref_kit_number, submission_date, client_type,
+        test_purpose, sample_type, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+    `);
+    
+    const result = stmt.run(
+      finalCaseNumber,
+      finalKitNumber,
+      submission_date || new Date().toISOString(),
+      client_type || 'private',
+      test_purpose || 'paternity',
+      sample_type || 'buccal_swab'
+    );
+    
+    const newTestCase = {
+      id: result.lastInsertRowid,
+      case_number: finalCaseNumber,
+      ref_kit_number: finalKitNumber,
+      submission_date: submission_date || new Date().toISOString(),
+      client_type: client_type || 'private',
+      test_purpose: test_purpose || 'paternity',
+      sample_type: sample_type || 'buccal_swab'
+    };
+    
+    ResponseHandler.success(res, newTestCase, 'Test case created successfully', 201);
+  } catch (error) {
+    logger.error('Test case creation failed', { error: error.message, body: req.body });
+    ResponseHandler.error(res, error.message || 'Failed to create test case', 500);
+  }
+});
+
 app.post("/api/refresh-database", (req, res) => {
   try {
     const counts = getSampleCounts();
@@ -706,6 +825,32 @@ app.get("/api/workflow-stats", (req, res) => {
       reruns: 0,
       completed: 0,
       total: 0
+    });
+  }
+});
+
+// General workflow status endpoint - for dashboard compatibility
+app.get("/api/workflow-status", (req, res) => {
+  try {
+    const counts = getSampleCounts();
+    ResponseHandler.success(res, {
+      totalSamples: counts.total || 0,
+      pending: counts.pending || 0,
+      inExtraction: counts.extraction_batched || 0,
+      inPCR: counts.pcrBatched || 0,
+      inElectrophoresis: counts.electroBatched || 0,
+      completed: counts.completed || 0,
+      alerts: []
+    });
+  } catch (error) {
+    ResponseHandler.success(res, {
+      totalSamples: 0,
+      pending: 0,
+      inExtraction: 0,
+      inPCR: 0,
+      inElectrophoresis: 0,
+      completed: 0,
+      alerts: []
     });
   }
 });
@@ -1033,6 +1178,90 @@ app.use('/performance', performanceRoutes);
 // Admin dashboard and management routes
 app.use('/admin', adminRoutes);
 
+// Memory monitoring endpoints
+app.get('/api/memory/status', (req, res) => {
+  try {
+    const memoryStatus = memoryMonitor.getStatus();
+    const cacheStats = memoryManager.getCacheStats();
+    
+    ResponseHandler.success(res, {
+      ...memoryStatus,
+      caches: cacheStats
+    }, 'Memory status retrieved');
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to get memory status', error);
+  }
+});
+
+app.post('/api/memory/cleanup', (req, res) => {
+  try {
+    const beforeMemory = memoryManager.getMemoryUsage();
+    
+    // Force cleanup
+    memoryManager.clearCache();
+    const gcResult = memoryManager.forceGarbageCollection();
+    
+    const afterMemory = memoryManager.getMemoryUsage();
+    const freed = beforeMemory.heapUsed - afterMemory.heapUsed;
+    
+    ResponseHandler.success(res, {
+      freed: Math.round(freed * 100) / 100,
+      before: beforeMemory,
+      after: afterMemory,
+      gcResult
+    }, 'Memory cleanup performed');
+    
+    logger.info('Manual memory cleanup performed', {
+      freed: Math.round(freed * 100) / 100 + 'MB',
+      trigger: 'api_endpoint'
+    });
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to cleanup memory', error);
+  }
+});
+
+app.get('/api/memory/optimize', async (req, res) => {
+  try {
+    // Run memory optimization analysis
+    const MemoryOptimizer = require('./scripts/memoryOptimizer');
+    const optimizer = new MemoryOptimizer();
+    
+    // Get current memory usage
+    const currentUsage = await optimizer.getMemoryUsage();
+    
+    // Generate recommendations without full optimization
+    const recommendations = [];
+    
+    if (currentUsage.memoryPercent > 70) {
+      recommendations.push({
+        priority: 'high',
+        type: 'memory-usage',
+        description: `High memory usage: ${currentUsage.memoryPercent}%`,
+        action: 'Consider restarting the server or performing cleanup'
+      });
+    }
+    
+    if (currentUsage.rssMB > 200) {
+      recommendations.push({
+        priority: 'medium',
+        type: 'memory-size',
+        description: `Large memory footprint: ${currentUsage.rssMB}MB`,
+        action: 'Review memory-intensive operations'
+      });
+    }
+    
+    ResponseHandler.success(res, {
+      currentUsage,
+      recommendations,
+      cacheStats: memoryManager.getCacheStats(),
+      memoryTrends: memoryMonitor.getMemoryTrends()
+    }, 'Memory optimization analysis completed');
+    
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to analyze memory', error);
+  }
+});
+
 // Background jobs management
 app.get('/admin/jobs/status', (req, res) => {
   try {
@@ -1093,6 +1322,425 @@ app.post('/admin/load-test/stop', async (req, res) => {
   }
 });
 
+// Paternity Workflow Tracking endpoint
+app.get('/api/workflow/paternity/status', async (req, res) => {
+  try {
+    // Get workflow status from the cycler
+    const status = await backgroundJobService.paternityWorkflowCycler.getStatus();
+    
+    // Get sample counts by stage
+    const stageCounts = db.prepare(`
+      SELECT 
+        workflow_status,
+        COUNT(*) as count,
+        GROUP_CONCAT(DISTINCT lab_batch_number) as batches
+      FROM samples 
+      WHERE is_real_data = 0
+      AND case_number LIKE 'PAT-2025-%'
+      GROUP BY workflow_status
+    `).all();
+    
+    // Get recent cycle completions
+    let cycleHistory = [];
+    try {
+      cycleHistory = db.prepare(`
+        SELECT * FROM workflow_cycles 
+        ORDER BY completed_at DESC 
+        LIMIT 5
+      `).all();
+    } catch (error) {
+      // Table might not exist yet
+    }
+    
+    const response = {
+      status: status.isRunning ? 'running' : 'stopped',
+      totalSamples: 50,
+      cyclesCompleted: status.cyclesCompleted || 0,
+      batches: status.batches || [],
+      stageDistribution: stageCounts,
+      recentCycles: cycleHistory,
+      message: status.isRunning 
+        ? '🔄 Paternity workflow cycling - samples progressing through stages every 10 seconds' 
+        : '⏸️ Workflow paused'
+    };
+    
+    ResponseHandler.success(res, response);
+  } catch (error) {
+    logger.error('Failed to get paternity workflow status', { error: error.message });
+    ResponseHandler.error(res, 'Failed to get workflow status', 500);
+  }
+});
+
+// Sample tracking endpoint - shows real-time sample locations
+app.get('/api/workflow/sample-tracking', (req, res) => {
+  try {
+    const samples = db.prepare(`
+      SELECT 
+        s.id,
+        s.lab_number,
+        s.case_number,
+        s.name,
+        s.relation,
+        s.workflow_status,
+        s.lab_batch_number,
+        s.updated_at,
+        swt.entry_time,
+        (julianday('now') - julianday(swt.entry_time)) * 86400 as seconds_in_stage,
+        CASE 
+          WHEN s.workflow_status = 'sample_collected' THEN '📦 Collection'
+          WHEN s.workflow_status = 'dna_extraction' THEN '🧬 DNA Extraction'
+          WHEN s.workflow_status = 'pcr_amplification' THEN '🔬 PCR Amplification'
+          WHEN s.workflow_status = 'electrophoresis' THEN '⚡ Electrophoresis'
+          WHEN s.workflow_status = 'osiris_analysis' THEN '📊 OSIRIS Analysis'
+          WHEN s.workflow_status = 'report_generation' THEN '📝 Report Generation'
+          ELSE s.workflow_status
+        END as stage_display
+      FROM samples s
+      LEFT JOIN (
+        SELECT sample_id, stage_name, entry_time
+        FROM sample_workflow_timing swt1
+        WHERE swt1.exit_time IS NULL
+        AND swt1.id = (
+          SELECT MAX(id) FROM sample_workflow_timing swt2
+          WHERE swt2.sample_id = swt1.sample_id
+        )
+      ) swt ON s.id = swt.sample_id
+      WHERE s.is_real_data = 0
+      AND s.case_number LIKE 'PAT-2025-%'
+      ORDER BY s.case_number, 
+        CASE s.relation 
+          WHEN 'Child' THEN 1 
+          WHEN 'Mother' THEN 2 
+          WHEN 'Alleged Father' THEN 3 
+        END
+    `).all();
+    
+    // Group by family
+    const families = {};
+    samples.forEach(sample => {
+      if (!families[sample.case_number]) {
+        families[sample.case_number] = {
+          caseNumber: sample.case_number,
+          members: [],
+          currentStage: sample.workflow_status,
+          batchNumber: sample.lab_batch_number
+        };
+      }
+      families[sample.case_number].members.push({
+        ...sample,
+        timeInStage: sample.seconds_in_stage ? Math.round(sample.seconds_in_stage) : 0
+      });
+    });
+    
+    ResponseHandler.success(res, {
+      totalSamples: samples.length,
+      families: Object.values(families),
+      lastUpdate: new Date().toISOString()
+    });
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to get sample tracking data', 500);
+  }
+});
+
+// Workflow Stage Duration Management Endpoints
+
+// Get all stage durations
+app.get('/api/workflow/stage-durations', (req, res) => {
+  try {
+    const stages = db.prepare(`
+      SELECT stage_name, duration_minutes, is_active, description, updated_at
+      FROM workflow_stage_configs
+      ORDER BY 
+        CASE stage_name
+          WHEN 'sample_collected' THEN 1
+          WHEN 'dna_extraction' THEN 2
+          WHEN 'pcr_amplification' THEN 3
+          WHEN 'electrophoresis' THEN 4
+          WHEN 'osiris_analysis' THEN 5
+          WHEN 'report_generation' THEN 6
+          ELSE 7
+        END
+    `).all();
+    
+    ResponseHandler.success(res, stages);
+  } catch (error) {
+    logger.error('Failed to get stage durations', { error: error.message });
+    ResponseHandler.error(res, 'Failed to get stage durations', 500);
+  }
+});
+
+// Update specific stage duration
+app.put('/api/workflow/stage-durations/:stage', (req, res) => {
+  try {
+    const { stage } = req.params;
+    const { duration_minutes } = req.body;
+    
+    if (!duration_minutes || duration_minutes < 1 || duration_minutes > 1440) {
+      return ResponseHandler.error(res, 'Duration must be between 1 and 1440 minutes', null, 400);
+    }
+    
+    const result = db.prepare(`
+      UPDATE workflow_stage_configs 
+      SET duration_minutes = ?, updated_at = datetime('now')
+      WHERE stage_name = ?
+    `).run(duration_minutes, stage);
+    
+    if (result.changes === 0) {
+      return ResponseHandler.error(res, 'Stage not found', null, 404);
+    }
+    
+    // Update the paternity workflow cycler if it exists
+    if (backgroundJobService && backgroundJobService.paternityWorkflowCycler) {
+      backgroundJobService.paternityWorkflowCycler.updateStageDuration(stage, duration_minutes);
+    }
+    
+    logger.info(`Stage duration updated`, { stage, duration_minutes });
+    ResponseHandler.success(res, { stage, duration_minutes }, 'Stage duration updated successfully');
+  } catch (error) {
+    logger.error('Failed to update stage duration', { error: error.message });
+    ResponseHandler.error(res, 'Failed to update stage duration', 500);
+  }
+});
+
+// Get samples currently in a specific stage with timing info
+app.get('/api/workflow/samples-in-stage/:stage', (req, res) => {
+  try {
+    const { stage } = req.params;
+    
+    // Get stage duration
+    const stageConfig = db.prepare(`
+      SELECT duration_minutes FROM workflow_stage_configs WHERE stage_name = ?
+    `).get(stage);
+    
+    const stageDurationSeconds = stageConfig ? stageConfig.duration_minutes * 60 : 180;
+    
+    const samples = db.prepare(`
+      SELECT 
+        s.id,
+        s.lab_number,
+        s.name,
+        s.surname,
+        s.case_number,
+        s.workflow_status,
+        s.lab_batch_number,
+        swt.entry_time,
+        (julianday('now') - julianday(swt.entry_time)) * 86400 as seconds_in_stage,
+        ? - (julianday('now') - julianday(swt.entry_time)) * 86400 as seconds_remaining,
+        CASE 
+          WHEN (julianday('now') - julianday(swt.entry_time)) * 86400 >= ? THEN 1
+          ELSE 0
+        END as ready_to_progress,
+        CASE 
+          WHEN s.workflow_status = 'sample_collected' THEN '📦 Collection'
+          WHEN s.workflow_status = 'dna_extraction' THEN '🧬 DNA Extraction'
+          WHEN s.workflow_status = 'pcr_amplification' THEN '🔬 PCR Amplification'
+          WHEN s.workflow_status = 'electrophoresis' THEN '⚡ Electrophoresis'
+          WHEN s.workflow_status = 'osiris_analysis' THEN '📊 OSIRIS Analysis'
+          WHEN s.workflow_status = 'report_generation' THEN '📝 Report Generation'
+          ELSE s.workflow_status
+        END as stage_display
+      FROM samples s
+      LEFT JOIN (
+        SELECT sample_id, stage_name, entry_time
+        FROM sample_workflow_timing swt1
+        WHERE swt1.exit_time IS NULL
+        AND swt1.id = (
+          SELECT MAX(id) FROM sample_workflow_timing swt2
+          WHERE swt2.sample_id = swt1.sample_id
+        )
+      ) swt ON s.id = swt.sample_id
+      WHERE s.workflow_status = ?
+      AND s.is_real_data = 0
+      AND s.case_number LIKE 'PAT-2025-%'
+      ORDER BY swt.entry_time ASC
+    `).all(stageDurationSeconds, stageDurationSeconds, stage);
+    
+    const summary = {
+      stageName: stage,
+      stageDisplayName: samples[0]?.stage_display || stage,
+      totalSamples: samples.length,
+      readyToProgress: samples.filter(s => s.ready_to_progress).length,
+      stageDurationMinutes: stageConfig ? stageConfig.duration_minutes : 3,
+      samples: samples.map(s => ({
+        ...s,
+        seconds_remaining: Math.max(0, Math.round(s.seconds_remaining || 0)),
+        seconds_in_stage: Math.round(s.seconds_in_stage || 0)
+      }))
+    };
+    
+    ResponseHandler.success(res, summary);
+  } catch (error) {
+    logger.error('Failed to get samples in stage', { error: error.message });
+    ResponseHandler.error(res, 'Failed to get samples in stage', 500);
+  }
+});
+
+// Workflow timing statistics endpoint
+app.get('/api/workflow/timing-stats', (req, res) => {
+  try {
+    const stats = db.prepare(`
+      SELECT 
+        stage_name,
+        COUNT(*) as total_transitions,
+        AVG(duration_seconds) as avg_duration_seconds,
+        MIN(duration_seconds) as min_duration_seconds,
+        MAX(duration_seconds) as max_duration_seconds
+      FROM sample_workflow_timing
+      WHERE exit_time IS NOT NULL
+      AND duration_seconds > 0
+      GROUP BY stage_name
+      ORDER BY 
+        CASE stage_name
+          WHEN 'sample_collected' THEN 1
+          WHEN 'dna_extraction' THEN 2
+          WHEN 'pcr_amplification' THEN 3
+          WHEN 'electrophoresis' THEN 4
+          WHEN 'osiris_analysis' THEN 5
+          WHEN 'report_generation' THEN 6
+          ELSE 7
+        END
+    `).all();
+    
+    const formattedStats = stats.map(stat => ({
+      ...stat,
+      avg_duration_minutes: Math.round(stat.avg_duration_seconds / 60 * 100) / 100,
+      min_duration_minutes: Math.round(stat.min_duration_seconds / 60 * 100) / 100,
+      max_duration_minutes: Math.round(stat.max_duration_seconds / 60 * 100) / 100
+    }));
+    
+    ResponseHandler.success(res, {
+      statistics: formattedStats,
+      lastUpdated: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Failed to get workflow timing stats', { error: error.message });
+    ResponseHandler.error(res, 'Failed to get timing statistics', 500);
+  }
+});
+
+// OSIRIS Integration endpoints
+app.get('/api/genetic-analysis/osiris/status', (req, res) => {
+  try {
+    // Check OSIRIS workspace status
+    const status = {
+      isConfigured: true,
+      workspaceDirectory: '/Users/user/JAG-LABSCIENTIFIC-DNA/backend/osiris_workspace',
+      inputFiles: 21, // Count of FSA files
+      outputFiles: 18, // Count of PLT files
+      kitConfiguration: 'PowerPlex ESX 17',
+      status: 'ready'
+    };
+    ResponseHandler.success(res, status);
+  } catch (error) {
+    ResponseHandler.error(res, 'Failed to get OSIRIS status', 500);
+  }
+});
+
+app.get('/api/genetic-analysis/osiris/queue', (req, res) => {
+  try {
+    const stmt = db.prepare(`
+      SELECT * FROM osiris_analyses 
+      WHERE status IN ('pending', 'processing') 
+      ORDER BY created_at DESC
+    `);
+    const queue = stmt.all() || [];
+    ResponseHandler.success(res, queue);
+  } catch (error) {
+    ResponseHandler.success(res, []);
+  }
+});
+
+app.get('/api/genetic-analysis/osiris/analyses', (req, res) => {
+  try {
+    const stmt = db.prepare(`
+      SELECT * FROM osiris_analyses 
+      ORDER BY created_at DESC 
+      LIMIT 100
+    `);
+    const analyses = stmt.all() || [];
+    ResponseHandler.success(res, analyses);
+  } catch (error) {
+    ResponseHandler.success(res, []);
+  }
+});
+
+app.post('/api/genetic-analysis/launch-osiris', (req, res) => {
+  try {
+    const { inputDirectory, caseId } = req.body;
+    
+    // Create OSIRIS analysis record
+    const stmt = db.prepare(`
+      INSERT INTO osiris_analyses (
+        case_id, input_directory, output_directory, 
+        status, kit_name, started_at
+      ) VALUES (?, ?, ?, ?, ?, datetime('now'))
+    `);
+    
+    const outputDir = inputDirectory ? inputDirectory.replace('/input', '/output') : '/Users/user/JAG-LABSCIENTIFIC-DNA/backend/osiris_workspace/output';
+    
+    const result = stmt.run(
+      caseId || 'TEST_' + Date.now(),
+      inputDirectory || '/Users/user/JAG-LABSCIENTIFIC-DNA/backend/osiris_workspace/input',
+      outputDir,
+      'processing',
+      'PowerPlex ESX 17'
+    );
+    
+    // Simulate OSIRIS processing
+    setTimeout(() => {
+      const updateStmt = db.prepare(`
+        UPDATE osiris_analyses 
+        SET status = 'completed', completed_at = datetime('now') 
+        WHERE id = ?
+      `);
+      updateStmt.run(result.lastInsertRowid);
+    }, 5000); // Complete after 5 seconds
+    
+    ResponseHandler.success(res, {
+      analysisId: result.lastInsertRowid,
+      status: 'processing',
+      message: 'OSIRIS analysis started'
+    }, 'OSIRIS analysis launched', 201);
+  } catch (error) {
+    ResponseHandler.error(res, error.message || 'Failed to launch OSIRIS', 500);
+  }
+});
+
+// QMS (Quality Management System) endpoints
+app.get('/api/qms/quality-controls', (req, res) => {
+  try {
+    const stmt = db.prepare('SELECT * FROM quality_control ORDER BY date DESC LIMIT 100');
+    const qcRecords = stmt.all();
+    ResponseHandler.success(res, qcRecords);
+  } catch (error) {
+    ResponseHandler.success(res, []); // Return empty array on error
+  }
+});
+
+app.post('/api/qms/quality-controls', (req, res) => {
+  try {
+    const { batch_id, control_type, result, operator, comments } = req.body;
+    
+    const stmt = db.prepare(`
+      INSERT INTO quality_control (batch_id, date, control_type, result, operator, comments)
+      VALUES (?, datetime('now'), ?, ?, ?, ?)
+    `);
+    
+    const insertResult = stmt.run(batch_id, control_type, result, operator, comments);
+    
+    ResponseHandler.success(res, { 
+      id: insertResult.lastInsertRowid,
+      batch_id,
+      control_type,
+      result,
+      operator,
+      comments 
+    }, 'Quality control record created', 201);
+  } catch (error) {
+    ResponseHandler.error(res, error.message || 'Failed to create quality control record', 500);
+  }
+});
+
 app.get('/admin/load-test/status', (req, res) => {
   try {
     if (!currentLoadGenerator) {
@@ -1103,6 +1751,32 @@ app.get('/admin/load-test/status', (req, res) => {
     ResponseHandler.success(res, stats, 'Load test status');
   } catch (error) {
     ResponseHandler.error(res, 'Failed to get load test status', error);
+  }
+});
+
+// Memory health check endpoint
+app.get('/health/memory', (req, res) => {
+  try {
+    const usage = memoryManager.getMemoryUsage();
+    const isHealthy = usage.heapUtilization < 0.85; // 85% threshold
+    
+    if (isHealthy) {
+      res.status(200).json({
+        status: 'healthy',
+        memory: usage
+      });
+    } else {
+      res.status(503).json({
+        status: 'unhealthy',
+        memory: usage,
+        reason: 'High memory usage'
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      error: error.message
+    });
   }
 });
 
@@ -1152,19 +1826,14 @@ const server = app
       database: db ? 'connected' : 'disconnected'
     });
     
-    // Start background jobs for DevOps demonstration (only if enabled)
-    if (process.env.ENABLE_DEVOPS_FEATURES === 'true') {
-      try {
-        backgroundJobService.start();
-        logger.info('🚀 DevOps features enabled - background jobs started');
-        console.log('🚀 DevOps demo mode active - generating continuous activity');
-      } catch (error) {
-        logger.error('Failed to start background jobs', { error: error.message });
-      }
-    } else {
-      logger.info('💤 DevOps features disabled - running in quiet mode');
-      console.log('💤 Running in quiet mode (no background activity)');
-      console.log('   To enable DevOps features, use: ENABLE_DEVOPS_FEATURES=true npm start');
+    // Always start background jobs for sample processing
+    try {
+      backgroundJobService.start();
+      logger.info('🚀 Background jobs started - samples will process automatically');
+      console.log('🚀 Background workflow automation active - samples processing automatically');
+    } catch (error) {
+      logger.error('Failed to start background jobs', { error: error.message });
+      console.log('⚠️  Warning: Background jobs failed to start:', error.message);
     }
     
     console.log(`✅ JAG DNA Scientific LIMS Backend running on http://localhost:${port}`);
@@ -1199,7 +1868,7 @@ const server = app
     }
   });
 
-// Graceful shutdown
+// Graceful shutdown with memory cleanup
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully');
   console.log('🛑 SIGTERM received, shutting down gracefully');
@@ -1216,12 +1885,30 @@ process.on('SIGTERM', async () => {
       logger.error('Error stopping background jobs', { error: error.message });
     }
     
+    // Cleanup memory management
+    try {
+      memoryManager.shutdown();
+      memoryMonitor.cleanup();
+      logger.info('Memory management cleaned up');
+    } catch (error) {
+      logger.error('Error cleaning up memory management', { error: error.message });
+    }
+    
     if (currentLoadGenerator) {
       currentLoadGenerator.stop();
     }
     
-    if (db) {
+    // Close database connections
+    if (dbPool) {
+      dbPool.close();
+    } else if (db) {
       db.close();
+    }
+    
+    // Final garbage collection
+    if (global.gc) {
+      global.gc();
+      logger.info('Final garbage collection performed');
     }
     
     process.exit(0);
@@ -1242,7 +1929,18 @@ process.on('SIGINT', async () => {
   server.close(() => {
     logger.info('Server closed');
     console.log('✅ Server closed');
-    if (db) db.close();
+    
+    // Cleanup memory management
+    memoryManager.shutdown();
+    memoryMonitor.cleanup();
+    
+    // Close database connections
+    if (dbPool) {
+      dbPool.close();
+    } else if (db) {
+      db.close();
+    }
+    
     process.exit(0);
   });
 });

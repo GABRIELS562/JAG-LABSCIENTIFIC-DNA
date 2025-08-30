@@ -241,6 +241,44 @@ CREATE TRIGGER IF NOT EXISTS update_equipment_timestamp
 INSERT OR IGNORE INTO users (username, email, password_hash, role) 
 VALUES ('admin', 'admin@labdna.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'staff');
 
+-- Workflow Stage Configurations Table
+CREATE TABLE IF NOT EXISTS workflow_stage_configs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    stage_name VARCHAR(50) NOT NULL UNIQUE,
+    duration_minutes INTEGER NOT NULL DEFAULT 3,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Sample Workflow Timing Table
+CREATE TABLE IF NOT EXISTS sample_workflow_timing (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sample_id INTEGER NOT NULL,
+    stage_name VARCHAR(50) NOT NULL,
+    entry_time DATETIME NOT NULL,
+    exit_time DATETIME,
+    duration_seconds INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sample_id) REFERENCES samples(id) ON DELETE CASCADE
+);
+
+-- Indexes for workflow timing
+CREATE INDEX IF NOT EXISTS idx_workflow_timing_sample_id ON sample_workflow_timing(sample_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_timing_stage ON sample_workflow_timing(stage_name);
+CREATE INDEX IF NOT EXISTS idx_workflow_timing_entry ON sample_workflow_timing(entry_time);
+CREATE INDEX IF NOT EXISTS idx_workflow_stage_configs_stage ON workflow_stage_configs(stage_name);
+
+-- Insert default workflow stage configurations (3 minutes default for demo)
+INSERT OR IGNORE INTO workflow_stage_configs (stage_name, duration_minutes, is_active, description) VALUES
+('sample_collected', 3, true, 'Sample collection and labeling'),
+('dna_extraction', 5, true, 'DNA extraction from biological samples'),
+('pcr_amplification', 4, true, 'PCR amplification of DNA regions'),
+('electrophoresis', 3, true, 'Capillary electrophoresis separation'),
+('osiris_analysis', 6, true, 'OSIRIS software analysis and interpretation'),
+('report_generation', 2, true, 'Final report generation and review');
+
 -- Insert sample equipment data
 INSERT OR IGNORE INTO equipment (equipment_id, type, last_calibration, next_calibration, status) VALUES
 ('PCR001', 'Thermocycler', '2024-06-01', '2024-12-01', 'active'),

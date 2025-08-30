@@ -146,7 +146,7 @@ Color = (conclusion) => {
           Paternity Probability Calculator
         </Typography>
         <Typography variant="subtitle1" sx={{ color: 'rgba(255,255,255,0.9)' }}>
-          Forensic DNA paternity testing using STR analysis and statistical calculations
+          DNA paternity testing using STR analysis and statistical calculations
         </Typography>
       </Paper>
 

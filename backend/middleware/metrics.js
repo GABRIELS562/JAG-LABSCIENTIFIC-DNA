@@ -1,5 +1,6 @@
 const promClient = require('prom-client');
 const { logger } = require('../utils/logger');
+const { memoryManager } = require('../utils/memoryManager');
 
 // Initialize Prometheus client
 const register = promClient.register;
@@ -110,13 +111,16 @@ register.registerMetric(errorSimulations);
 register.registerMetric(queueSize);
 register.registerMetric(processingTime);
 
-// Metrics middleware
+// Metrics middleware with memory optimization
 const metricsMiddleware = (req, res, next) => {
   const start = Date.now();
   const route = req.route?.path || req.path;
   
-  // Track request
-  httpRequestTotal.inc({ method: req.method, route, status_code: 'pending' });
+  // Sanitize route for metrics (prevent memory leaks from dynamic routes)
+  const sanitizedRoute = sanitizeRouteForMetrics(route);
+  
+  // Track request with memory limits
+  httpRequestTotal.inc({ method: req.method, route: sanitizedRoute, status_code: 'pending' });
   
   // Override res.end to capture response time and status
   const originalEnd = res.end;
@@ -124,25 +128,25 @@ const metricsMiddleware = (req, res, next) => {
     const duration = (Date.now() - start) / 1000;
     const statusCode = res.statusCode.toString();
     
-    // Update metrics
+    // Update metrics with sanitized labels
     httpRequestDuration.observe(
-      { method: req.method, route, status_code: statusCode },
+      { method: req.method, route: sanitizedRoute, status_code: statusCode },
       duration
     );
     
-    httpRequestTotal.inc({ method: req.method, route, status_code: statusCode });
+    httpRequestTotal.inc({ method: req.method, route: sanitizedRoute, status_code: statusCode });
     
     // Track errors
     if (res.statusCode >= 400) {
       const errorType = res.statusCode >= 500 ? 'server_error' : 'client_error';
-      httpRequestErrors.inc({ method: req.method, route, error_type: errorType });
+      httpRequestErrors.inc({ method: req.method, route: sanitizedRoute, error_type: errorType });
     }
     
-    // Log performance for monitoring
-    if (duration > 1) {
+    // Log performance for monitoring (with sampling to reduce logs)
+    if (duration > 1 && Math.random() < 0.1) { // Sample 10% of slow requests
       logger.warn('Slow request detected', {
         method: req.method,
-        route,
+        route: sanitizedRoute,
         duration,
         statusCode
       });
@@ -153,6 +157,18 @@ const metricsMiddleware = (req, res, next) => {
   
   next();
 };
+
+// Sanitize route names to prevent metric label explosion
+function sanitizeRouteForMetrics(route) {
+  if (!route) return 'unknown';
+  
+  // Replace dynamic segments with placeholders
+  return route
+    .replace(/\/\d+/g, '/:id')
+    .replace(/\/[a-f0-9]{24}/g, '/:objectId')
+    .replace(/\/[a-zA-Z0-9-]+\.[a-zA-Z0-9]+$/g, '/:file')
+    .substring(0, 100); // Limit length
+}
 
 // Database metrics helpers
 const trackDatabaseQuery = (operation, table, duration) => {
@@ -194,13 +210,47 @@ const simulateError = (errorType) => {
   errorSimulations.inc({ error_type: errorType });
 };
 
-// Update active users periodically
+// Update active users periodically with memory management
 let currentActiveUsers = 0;
-setInterval(() => {
-  // Simulate active user count (would normally come from session store)
-  currentActiveUsers = Math.floor(Math.random() * 20) + 5;
-  activeUsers.set(currentActiveUsers);
-}, 30000);
+let userUpdateInterval = null;
+
+// Function to start user monitoring
+function startUserMonitoring() {
+  if (userUpdateInterval) return;
+  
+  userUpdateInterval = setInterval(() => {
+    // Simulate active user count (would normally come from session store)
+    currentActiveUsers = Math.floor(Math.random() * 20) + 5;
+    activeUsers.set(currentActiveUsers);
+    
+    // Periodically clean up old metrics data
+    if (Math.random() < 0.1) { // 10% chance
+      memoryManager.clearCache('metrics');
+    }
+  }, 30000);
+}
+
+// Function to stop user monitoring
+function stopUserMonitoring() {
+  if (userUpdateInterval) {
+    clearInterval(userUpdateInterval);
+    userUpdateInterval = null;
+  }
+}
+
+// Start monitoring
+startUserMonitoring();
+
+// Cleanup function
+function cleanup() {
+  stopUserMonitoring();
+  register.clear();
+  logger.info('Metrics middleware cleaned up');
+}
+
+// Graceful shutdown handler
+process.on('SIGTERM', cleanup);
+process.on('SIGINT', cleanup);
 
 module.exports = {
   register,
@@ -214,6 +264,9 @@ module.exports = {
   simulateCpuIntensive,
   simulateSlowOperation,
   simulateError,
+  startUserMonitoring,
+  stopUserMonitoring,
+  cleanup,
   // Export individual metrics for direct access
   metrics: {
     httpRequestDuration,

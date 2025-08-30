@@ -22,7 +22,7 @@ import {
   IconButton
 } from '@mui/material';
 import { PhotoCamera, CloudUpload, Close, CameraAlt, AutoFixHigh } from '@mui/icons-material';
-import { createWorker } from 'tesseract.js';
+import { performOCR, terminateTesseractWorker } from '../../utils/tesseractLoader';
 import SignaturePad from '../ui/SignaturePad';
 import WitnessSection from '../ui/WitnessSection';
 import PhotoCapture from '../features/PhotoCapture';
@@ -454,14 +454,10 @@ export default function PaternityTestForm() {
     }));
   };
 
-  // OCR Functions
+  // OCR Functions - now using dynamic loader
   const initializeOCRWorker = async () => {
-    if (!ocrWorker) {
-      const worker = await createWorker('eng');
-      setOcrWorker(worker);
-      return worker;
-    }
-    return ocrWorker;
+    // OCR worker is now handled internally by the dynamic loader
+    return true;
   };
 
   const parseFormData = (ocrText) => {
@@ -664,13 +660,13 @@ export default function PaternityTestForm() {
     setIsProcessingOCR(true);
     
     try {
-      const worker = await initializeOCRWorker();
+      await initializeOCRWorker();
       
       // Create image preview
       const imageUrl = URL.createObjectURL(file);
       setUploadedImage(imageUrl);
       
-      const { data: { text } } = await worker.recognize(file);
+      const text = await performOCR(file);
       
       const extractedData = parseFormData(text);
       

@@ -44,7 +44,8 @@ import {
   Inventory,
   PsychologyOutlined as AI,
   Biotech,
-  BusinessCenter
+  BusinessCenter,
+  Settings
 } from '@mui/icons-material';
 import Logo from '../ui/Logo';
 
@@ -91,7 +92,7 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
     },
     {
       icon: <Science />,
-      label: 'Forensic Dashboard',
+      label: 'Dashboard',
       hasSubMenu: false,
       path: '/forensic-dashboard',
       onClick: () => navigate('/forensic-dashboard'),
@@ -149,17 +150,9 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       icon: <Description />,
       label: 'Reports',
       hasSubMenu: false,
-      path: '/reports',
-      onClick: () => navigate('/reports'),
-      roles: ['staff', 'client']
-    },
-    { 
-      icon: <Assignment />,
-      label: 'Forensic Reports',
-      hasSubMenu: false,
       path: '/forensic-reports',
       onClick: () => navigate('/forensic-reports'),
-      roles: ['staff']
+      roles: ['staff', 'client']
     },
     { 
       icon: <BusinessCenter />,
@@ -175,6 +168,14 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       hasSubMenu: false,
       path: '/quality-control',
       onClick: () => navigate('/quality-control'),
+      roles: ['staff']
+    },
+    { 
+      icon: <Settings />, 
+      label: 'Workflow Settings',
+      hasSubMenu: false,
+      path: '/workflow-settings',
+      onClick: () => navigate('/workflow-settings'),
       roles: ['staff']
     },
     { 

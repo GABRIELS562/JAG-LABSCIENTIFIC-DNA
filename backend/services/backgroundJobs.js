@@ -1,25 +1,49 @@
 const cron = require('node-cron');
 const { logger } = require('../utils/logger');
+const { memoryManager } = require('../utils/memoryManager');
 const { trackSampleProcessed, trackBatchCreated, updateQueueSize, trackProcessingTime } = require('../middleware/metrics');
 const Database = require('better-sqlite3');
 const path = require('path');
 const ForensicWorkflowSimulator = require('./forensicWorkflowSimulator');
+const PaternityWorkflowCycler = require('./paternityWorkflowCycler');
+const SampleWorkflowProgressor = require('./sampleWorkflowProgressor');
 
 class BackgroundJobService {
   constructor() {
     this.jobs = new Map();
+    this.intervals = new Set(); // Track all intervals for cleanup
+    this.timeouts = new Set(); // Track all timeouts for cleanup
     this.isRunning = false;
     this.dbPath = path.join(__dirname, '../database/ashley_lims.db');
     this.db = null;
     this.forensicSimulator = new ForensicWorkflowSimulator();
-    this.simulatedData = {
-      userSessions: new Set(),
-      processingQueues: {
-        pcr_ready: Math.floor(Math.random() * 20) + 5,
-        electro_ready: Math.floor(Math.random() * 15) + 3,
-        analysis_ready: Math.floor(Math.random() * 10) + 2
-      }
-    };
+    this.paternityWorkflowCycler = new PaternityWorkflowCycler();
+    this.sampleProgressor = new SampleWorkflowProgressor();
+    
+    // Use memory-managed cache instead of plain objects
+    this.simulatedDataCache = memoryManager.createCache('background_jobs', {
+      max: 50,
+      ttl: 1000 * 60 * 10 // 10 minutes
+    });
+    
+    // Initialize with cached or default data
+    this.getSimulatedData();
+  }
+  
+  getSimulatedData() {
+    let data = this.simulatedDataCache.get('simulated_data');
+    if (!data) {
+      data = {
+        userSessions: new Set(),
+        processingQueues: {
+          pcr_ready: Math.floor(Math.random() * 20) + 5,
+          electro_ready: Math.floor(Math.random() * 15) + 3,
+          analysis_ready: Math.floor(Math.random() * 10) + 2
+        }
+      };
+      this.simulatedDataCache.set('simulated_data', data);
+    }
+    return data;
   }
 
   initializeDatabase() {
@@ -41,14 +65,32 @@ class BackgroundJobService {
     this.initializeDatabase();
     this.isRunning = true;
     
-    logger.info('Starting background jobs service with forensic workflow');
+    logger.info('Starting background jobs service with paternity workflow');
     
-    // Initialize and start forensic workflow simulator
-    await this.forensicSimulator.initialize();
-    await this.forensicSimulator.start();
+    // Initialize and start paternity workflow cycler
+    try {
+      await this.paternityWorkflowCycler.initialize();
+      await this.paternityWorkflowCycler.start();
+      logger.info('✅ Paternity workflow cycler started - managing 50 samples in 5 batches');
+    } catch (error) {
+      logger.error('Failed to start paternity workflow cycler', { error: error.message });
+    }
+    
+    // Initialize and start sample workflow progressor
+    try {
+      this.sampleProgressor.initialize();
+      this.sampleProgressor.start();
+      logger.info('✅ Sample workflow progressor started - 50 samples cycling through stages');
+    } catch (error) {
+      logger.error('Failed to start sample workflow progressor', { error: error.message });
+    }
+    
+    // Initialize forensic workflow simulator as secondary (DISABLED to prevent extra samples)
+    // await this.forensicSimulator.initialize();
+    // await this.forensicSimulator.start();
     
     // Set simulation speed (10x for demo purposes)
-    this.forensicSimulator.setSpeed(10);
+    // this.forensicSimulator.setSpeed(10);
     
     // Sample Processing Simulation - every 30 seconds
     this.scheduleJob('sample-processing', '*/30 * * * * *', this.simulateSampleProcessing.bind(this));
@@ -84,8 +126,23 @@ class BackgroundJobService {
   scheduleJob(name, cronPattern, jobFunction) {
     try {
       const task = cron.schedule(cronPattern, async () => {
+        const startTime = Date.now();
+        const startMemory = process.memoryUsage().heapUsed;
+        
         try {
           await jobFunction();
+          
+          // Monitor job performance
+          const duration = Date.now() - startTime;
+          const memoryDelta = process.memoryUsage().heapUsed - startMemory;
+          
+          if (duration > 5000) { // Log slow jobs
+            logger.warn(`Slow background job detected: ${name}`, {
+              duration: `${duration}ms`,
+              memoryDelta: `${Math.round(memoryDelta / 1024)}KB`
+            });
+          }
+          
         } catch (error) {
           logger.error(`Background job '${name}' failed`, {
             error: error.message,
@@ -285,12 +342,19 @@ class BackgroundJobService {
         const activity = activities[Math.floor(Math.random() * activities.length)];
         const userId = Math.floor(Math.random() * 20) + 1;
         
-        // Simulate user session management
+        // Simulate user session management with memory limits
+        const simulatedData = this.getSimulatedData();
         if (activity === 'user_login') {
-          this.simulatedData.userSessions.add(userId);
+          simulatedData.userSessions.add(userId);
+          // Limit session set size
+          if (simulatedData.userSessions.size > 50) {
+            const oldestSessions = Array.from(simulatedData.userSessions).slice(0, 10);
+            oldestSessions.forEach(session => simulatedData.userSessions.delete(session));
+          }
         } else if (activity === 'user_logout') {
-          this.simulatedData.userSessions.delete(userId);
+          simulatedData.userSessions.delete(userId);
         }
+        this.simulatedDataCache.set('simulated_data', simulatedData);
         
         logger.debug('User activity simulated', {
           activity,
@@ -312,18 +376,21 @@ class BackgroundJobService {
       const job = this.jobs.get('queue-updates');
       if (job) job.runCount++;
       
-      // Simulate queue size changes
-      Object.keys(this.simulatedData.processingQueues).forEach(queueType => {
-        const currentSize = this.simulatedData.processingQueues[queueType];
+      // Simulate queue size changes with caching
+      const simulatedData = this.getSimulatedData();
+      Object.keys(simulatedData.processingQueues).forEach(queueType => {
+        const currentSize = simulatedData.processingQueues[queueType];
         const change = Math.floor((Math.random() - 0.5) * 6); // -3 to +3
         const newSize = Math.max(0, currentSize + change);
         
-        this.simulatedData.processingQueues[queueType] = newSize;
+        simulatedData.processingQueues[queueType] = newSize;
         updateQueueSize(queueType, newSize);
       });
       
+      this.simulatedDataCache.set('simulated_data', simulatedData);
+      
       logger.debug('Processing queues updated', {
-        queues: this.simulatedData.processingQueues
+        queues: simulatedData.processingQueues
       });
       
     } catch (error) {
@@ -450,6 +517,17 @@ class BackgroundJobService {
       this.forensicSimulator.stop();
     }
     
+    // Stop paternity workflow cycler
+    if (this.paternityWorkflowCycler) {
+      this.paternityWorkflowCycler.stop();
+    }
+    
+    // Stop sample progressor
+    if (this.sampleProgressor) {
+      this.sampleProgressor.stop();
+    }
+    
+    // Clean up cron jobs
     this.jobs.forEach((job, name) => {
       try {
         job.task.stop();
@@ -459,15 +537,37 @@ class BackgroundJobService {
       }
     });
     
+    // Clean up intervals and timeouts
+    this.intervals.forEach(intervalId => {
+      try {
+        clearInterval(intervalId);
+      } catch (error) {
+        logger.warn('Failed to clear interval', { error: error.message });
+      }
+    });
+    
+    this.timeouts.forEach(timeoutId => {
+      try {
+        clearTimeout(timeoutId);
+      } catch (error) {
+        logger.warn('Failed to clear timeout', { error: error.message });
+      }
+    });
+    
     this.jobs.clear();
+    this.intervals.clear();
+    this.timeouts.clear();
     this.isRunning = false;
+    
+    // Clear caches
+    this.simulatedDataCache.clear();
     
     if (this.db) {
       this.db.close();
       this.db = null;
     }
     
-    logger.info('Background jobs service stopped');
+    logger.info('Background jobs service stopped with full cleanup');
   }
 
   getStatus() {

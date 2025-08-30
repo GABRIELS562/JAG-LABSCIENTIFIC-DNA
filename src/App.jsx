@@ -1,44 +1,53 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AppBar, Toolbar, IconButton, useTheme, useMediaQuery, ThemeProvider as MuiThemeProvider, createTheme } from '@mui/material';
+import { AppBar, Toolbar, IconButton, useTheme, useMediaQuery, ThemeProvider as MuiThemeProvider } from '@mui/material';
 import { Menu as MenuIcon } from '@mui/icons-material';
 
-// Import components
-import PaternityTestForm from './components/forms/PaternityTestForm';
+// Import critical components (above the fold)
 import ThemeToggle from './components/ui/ThemeToggle';
 import Sidebar from './components/layout/Sidebar';
-import Reports from './components/features/Reports';
-import LabResults from './components/features/LabResults';
-import ElectrophoresisBatches from './components/features/ElectrophoresisBatches';
-import SampleQueues from './components/features/SampleQueues';
-import Statistics from './components/features/Statistics';
-import QualityControlISO17025 from './components/features/QualityControlISO17025';
-import ClientRegister from './components/features/ClientRegister';
-import PCRPlate from './components/features/PCRPlate';
-import PCRBatches from './components/features/PCRBatches';
-import GeneticAnalysis from './components/features/genetic-analysis/GeneticAnalysisRefactored';
-import AnalysisSummary from './components/features/AnalysisSummary';
-import ElectrophoresisLayout from './components/features/ElectrophoresisLayout';
-import Reruns from './components/features/Reruns';
-import OsirisAnalysis from './components/features/OsirisAnalysis';
-import QualityManagementSystem from './components/features/QualityManagementSystem';
-import InventoryManagement from './components/features/InventoryManagement';
-import AIMachineLearning from './components/features/AIMachineLearning';
-import DNAExtraction from './components/features/DNAExtraction';
-import QpcrQuantification from './components/features/QpcrQuantification';
-import ForensicWorkflowDashboard from './components/features/ForensicWorkflowDashboard';
-import ForensicReports from './components/ForensicReports';
-import CaseManagement from './components/CaseManagement';
-import PaternityLabDashboard from './components/PaternityLabDashboard';
-
-// Import authentication components
 import LoginPage from './components/auth/LoginPage';
-import ProtectedRoute, { StaffOnlyRoute } from './components/auth/ProtectedRoute';
+
+// Lazy load large feature components
+const PaternityLabDashboard = lazy(() => import('./components/PaternityLabDashboard'));
+const ForensicWorkflowDashboard = lazy(() => import('./components/features/ForensicWorkflowDashboard'));
+const PaternityTestForm = lazy(() => import('./components/forms/PaternityTestForm'));
+const ClientRegister = lazy(() => import('./components/features/ClientRegister'));
+const PCRPlate = lazy(() => import('./components/features/PCRPlate'));
+const PCRBatches = lazy(() => import('./components/features/PCRBatches'));
+const ElectrophoresisLayout = lazy(() => import('./components/features/ElectrophoresisLayout'));
+const GeneticAnalysis = lazy(() => import('./components/features/genetic-analysis/GeneticAnalysisRefactored'));
+const OsirisAnalysis = lazy(() => import('./components/features/OsirisAnalysis'));
+const QualityControlISO17025 = lazy(() => import('./components/features/QualityControlISO17025'));
+const QualityManagementSystem = lazy(() => import('./components/features/QualityManagementSystem'));
+const InventoryManagement = lazy(() => import('./components/features/InventoryManagement'));
+const AIMachineLearning = lazy(() => import('./components/features/AIMachineLearning'));
+const DNAExtraction = lazy(() => import('./components/features/DNAExtraction'));
+const QpcrQuantification = lazy(() => import('./components/features/QpcrQuantification'));
+const Reruns = lazy(() => import('./components/features/Reruns'));
+const Reports = lazy(() => import('./components/features/Reports'));
+const LabResults = lazy(() => import('./components/features/LabResults'));
+const SampleQueues = lazy(() => import('./components/features/SampleQueues'));
+const Statistics = lazy(() => import('./components/features/Statistics'));
+const AnalysisSummary = lazy(() => import('./components/features/AnalysisSummary'));
+const ForensicReports = lazy(() => import('./components/ForensicReports'));
+const WorkflowSettings = lazy(() => import('./components/features/WorkflowSettings'));
+const CaseManagement = lazy(() => import('./components/CaseManagement'));
+
+// Loading component for Suspense fallback
+const LoadingSpinner = ({ minHeight = 'min-h-screen' }) => (
+  <div className={`${minHeight} flex items-center justify-center`}>
+    <div className="flex flex-col items-center space-y-4">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <p className="text-sm text-gray-600 dark:text-gray-400">Loading...</p>
+    </div>
+  </div>
+);
 
 // Import contexts and utilities
 import { ThemeProvider, useThemeContext } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
-import ErrorBoundary, { withErrorBoundary } from './components/common/ErrorBoundary';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 function AppContent() {
   const { isDarkMode, toggleTheme } = useThemeContext();
@@ -110,7 +119,9 @@ function AppContent() {
               path="/" 
               element={
                 <div className={`min-h-screen w-full ${containerBackground} backdrop-blur-md`}>
-                  <PaternityLabDashboard />
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <PaternityLabDashboard />
+                  </Suspense>
                 </div>
               } 
             />
@@ -120,7 +131,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <ForensicWorkflowDashboard />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <ForensicWorkflowDashboard />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -131,7 +144,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <PaternityTestForm />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <PaternityTestForm />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -141,7 +156,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <ClientRegister />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <ClientRegister />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -151,7 +168,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <PCRPlate />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <PCRPlate />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -161,7 +180,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <PCRBatches />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <PCRBatches />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -171,7 +192,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <ElectrophoresisLayout />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <ElectrophoresisLayout />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -181,7 +204,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <GeneticAnalysis />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <GeneticAnalysis />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -191,7 +216,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <OsirisAnalysis />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <OsirisAnalysis />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -201,7 +228,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <QualityControlISO17025 />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <QualityControlISO17025 />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -211,7 +240,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <QualityManagementSystem />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <QualityManagementSystem />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -221,7 +252,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <InventoryManagement />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <InventoryManagement />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -231,7 +264,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <AIMachineLearning />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <AIMachineLearning />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -241,7 +276,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <ForensicReports />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <ForensicReports />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -251,7 +288,21 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <CaseManagement />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <CaseManagement />
+                    </Suspense>
+                  </div>
+                </ErrorBoundary>
+              } 
+            />
+            <Route 
+              path="/workflow-settings" 
+              element={
+                <ErrorBoundary fallback="minimal">
+                  <div className={`${containerBackground} min-h-screen`}>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <WorkflowSettings />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -261,7 +312,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <DNAExtraction />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <DNAExtraction />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -271,7 +324,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <QpcrQuantification />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <QpcrQuantification />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -281,7 +336,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <Reruns />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <Reruns />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -291,7 +348,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <Reports />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <Reports />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -301,7 +360,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <LabResults />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <LabResults />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -311,7 +372,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <SampleQueues />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <SampleQueues />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -321,7 +384,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <Statistics />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <Statistics />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 
@@ -331,7 +396,9 @@ function AppContent() {
               element={
                 <ErrorBoundary fallback="minimal">
                   <div className={`${containerBackground} min-h-screen`}>
-                    <AnalysisSummary />
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <AnalysisSummary />
+                    </Suspense>
                   </div>
                 </ErrorBoundary>
               } 

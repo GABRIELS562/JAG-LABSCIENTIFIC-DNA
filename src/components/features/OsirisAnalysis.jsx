@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Card,
@@ -77,18 +77,24 @@ const OsirisAnalysis = () => {
   const [selectedAnalysis, setSelectedAnalysis] = useState(null);
   const [resultsDialogOpen, setResultsDialogOpen] = useState(false);
   const [currentProcessing, setCurrentProcessing] = useState(null);
+  const dialogRef = useRef(false);
+  const hasInitialized = useRef(false);
 
   useEffect(() => {
-    // Initialize with simulated data
-    initializeData();
-    // Simulate real-time processing updates
-    const interval = setInterval(() => {
-      updateProcessingStatus();
-    }, 5000);
-    return () => clearInterval(interval);
+    // Only initialize once to prevent double mounting issues
+    if (!hasInitialized.current) {
+      hasInitialized.current = true;
+      initializeData();
+    }
+    // Temporarily disable auto-update to debug dialog issue
+    // const interval = setInterval(() => {
+    //   updateProcessingStatus();
+    // }, 5000);
+    // return () => clearInterval(interval);
   }, []);
 
   const initializeData = () => {
+    console.log('initializeData called!');
     // Generate initial queue
     const initialQueue = simulateOsirisQueue();
     setQueue(initialQueue);
@@ -103,6 +109,7 @@ const OsirisAnalysis = () => {
         status: 'completed'
       });
     }
+    console.log('Initial analyses loaded:', completedAnalyses);
     setAnalyses(completedAnalyses);
     
     // Generate available batches from electrophoresis
@@ -186,8 +193,10 @@ const OsirisAnalysis = () => {
   };
 
   const handleViewResults = (analysis) => {
+    console.log('View Results clicked for:', analysis);
     setSelectedAnalysis(analysis);
     setResultsDialogOpen(true);
+    dialogRef.current = true;
   };
 
   const handleExportResults = (analysis) => {
@@ -448,7 +457,9 @@ const OsirisAnalysis = () => {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {analyses.map((analysis) => (
+                        {analyses.map((analysis) => {
+                          console.log('Rendering analysis row:', analysis);
+                          return (
                           <TableRow key={analysis.id}>
                             <TableCell>{analysis.batchId}</TableCell>
                             <TableCell>{analysis.totalSamples}</TableCell>
@@ -468,7 +479,11 @@ const OsirisAnalysis = () => {
                                 <IconButton 
                                   size="small" 
                                   color="primary"
-                                  onClick={() => handleViewResults(analysis)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    console.log('Eye icon clicked!');
+                                    handleViewResults(analysis);
+                                  }}
                                 >
                                   <ViewIcon />
                                 </IconButton>
@@ -484,7 +499,7 @@ const OsirisAnalysis = () => {
                               </Tooltip>
                             </TableCell>
                           </TableRow>
-                        ))}
+                        )})}
                       </TableBody>
                     </Table>
                   </TableContainer>
@@ -690,12 +705,38 @@ const OsirisAnalysis = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Results Dialog */}
-      <Dialog open={resultsDialogOpen} onClose={() => setResultsDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          OSIRIS Analysis Results - {selectedAnalysis?.batchId}
-        </DialogTitle>
-        <DialogContent>
+      {/* Results Dialog - Simple Test */}
+      {console.log('Dialog state - open:', resultsDialogOpen, 'analysis:', selectedAnalysis)}
+      {resultsDialogOpen && (
+        <Box sx={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: '80%',
+          maxWidth: '800px',
+          bgcolor: 'background.paper',
+          boxShadow: 24,
+          p: 4,
+          zIndex: 9999,
+          border: '2px solid #000',
+          maxHeight: '80vh',
+          overflow: 'auto'
+        }}>
+          <Typography variant="h5" component="h2">
+            OSIRIS Analysis Results - {selectedAnalysis?.batchId}
+          </Typography>
+          <Button 
+            onClick={() => {
+              console.log('Close button clicked');
+              setResultsDialogOpen(false);
+              dialogRef.current = false;
+            }}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            X Close
+          </Button>
+          <Box sx={{ mt: 2 }}>
           {selectedAnalysis && (
             <Box>
               <Grid container spacing={2}>
@@ -764,18 +805,18 @@ const OsirisAnalysis = () => {
               </TableContainer>
             </Box>
           )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setResultsDialogOpen(false)}>Close</Button>
-          <Button 
-            variant="contained" 
-            startIcon={<DownloadIcon />}
-            onClick={() => handleExportResults(selectedAnalysis)}
-          >
-            Export CMF
-          </Button>
-        </DialogActions>
-      </Dialog>
+          </Box>
+          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+            <Button 
+              variant="contained" 
+              startIcon={<DownloadIcon />}
+              onClick={() => handleExportResults(selectedAnalysis)}
+            >
+              Export CMF
+            </Button>
+          </Box>
+        </Box>
+      )}
 
       {/* Status Messages */}
       {error && (
