@@ -77,7 +77,7 @@ const AdminPanel = () => {
   
   // System Settings States
   const [labSettings, setLabSettings] = useState({
-    labName: 'LabDNA Scientific',
+    labName: 'JAGDNA Scientific',
     licenseNumber: 'SA-DNA-001',
     accreditation: 'ISO/IEC 17025:2017',
     osirisCompliance: true,
