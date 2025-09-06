@@ -1,13 +1,27 @@
 # 🧬 JAG DNA Scientific LIMS - Complete DevOps Implementation Plan (DETAILED VERSION)
-## With In-Depth Explanations for Every Command
+## With In-Depth Explanations for Every Command - UPDATED WITH PROGRESS
+
+### 📅 **LAST UPDATED:** September 4, 2025
+### ✅ **CURRENT PROGRESS:** Day 1 - Kubernetes COMPLETED, Docker IN PROGRESS
 
 ### 🎯 **Your Complete Certification Stack:**
 - ✅ **AWS Solutions Architect Associate** (Cloud architecture expertise)
 - ✅ **Terraform Associate** (Infrastructure as Code mastery)
 - ✅ **PCAP - Python Certified Associate** (Automation & scripting)
-- 📚 **CKA in Progress** (Kubernetes administration - exam end of month)
+- 📚 **CKA in Progress** (Kubernetes administration - v1.30 current exam version)
 - 🔬 **16 Years Forensics Experience** (Systematic thinking & attention to detail)
 - 🎓 **Masters Business Leadership** (Strategic planning & project management)
+
+### 🚀 **IMPLEMENTATION STATUS:**
+- ✅ Kubernetes v1.31.12 installed (compatible with CKA v1.30)
+- ✅ Control plane initialized on 192.168.50.100
+- ✅ Flannel CNI deployed
+- ✅ Single-node cluster configured
+- ✅ Dev/Staging/Production namespaces created
+- ✅ Resource quotas configured
+- ✅ Network policies applied
+- ⏳ Docker registry setup pending
+- ⏳ Application deployments pending
 
 ---
 
@@ -48,7 +62,7 @@ Think of this like setting up a complete forensics laboratory:
 #     └── Container Runtime (Analysis equipment - runs actual tests)
 ```
 
-#### **PART 2: System Preparation**
+#### **PART 2: System Preparation** ✅ **[COMPLETED]**
 
 ```bash
 # Step 1: Disable swap memory
@@ -56,39 +70,46 @@ Think of this like setting up a complete forensics laboratory:
 # In forensics terms: Like ensuring no contamination between samples
 sudo swapoff -a  
 
-# Make the change permanent by commenting out swap line in /etc/fstab
-# This file controls what filesystems are mounted at boot
-# The sed command finds lines with 'swap' and adds # to comment them out
-sudo sed -i '/ swap / s/^/#/' /etc/fstab
+# Make the change permanent by editing /etc/fstab
+# Using vi editor (preferred method):
+sudo vi /etc/fstab
+# Find any line with 'swap' and comment it out by adding # at the beginning
+# Save and exit (:wq)
 
 # Verify swap is disabled
 free -h
 # You should see Swap: 0B 0B 0B (all zeros)
 ```
 
-#### **PART 3: Install Container Runtime (containerd)**
+#### **PART 3: Install Container Runtime (containerd)** ✅ **[COMPLETED]**
 
 ```bash
 # Step 2: Install containerd (Container Runtime)
-# Think of this as installing the actual analysis equipment in your lab
+# Container runtime is what actually runs Docker containers in Kubernetes
+# Think of it as the execution engine for your containers
 
 # Update package list to get latest versions
 sudo apt-get update
 
 # Install containerd - this is what actually runs containers
-# Like installing PCR machines or genetic analyzers in the lab
+# containerd handles: pulling images, starting/stopping containers, managing storage
 sudo apt-get install -y containerd
 
 # Create configuration directory
 sudo mkdir -p /etc/containerd
 
-# Generate default configuration
-# This is like setting up standard operating procedures for equipment
+# Generate default configuration to file
 containerd config default | sudo tee /etc/containerd/config.toml
 
 # IMPORTANT: Enable SystemdCgroup (required for Kubernetes)
-# Edit the config file and set SystemdCgroup = true
-sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
+# Method 1: Using vi editor (preferred)
+sudo vi /etc/containerd/config.toml
+# Search for SystemdCgroup (/SystemdCgroup)
+# Change false to true
+# Save and exit (:wq)
+
+# Method 2: Using sed (automated)
+# sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
 
 # Restart containerd with new configuration
 sudo systemctl restart containerd
@@ -101,36 +122,35 @@ sudo systemctl status containerd
 # Should show "active (running)"
 ```
 
-#### **PART 4: Configure Kernel Modules and System Settings**
+#### **PART 4: Configure Kernel Modules and System Settings** ✅ **[COMPLETED]**
 
 ```bash
 # Step 3: Load required kernel modules
-# These are like enabling specific lab capabilities
+# modprobe loads kernel modules (drivers) into the running kernel
 
 # Enable overlay filesystem (for container storage)
-# Like setting up proper sample storage system
+# Overlay allows containers to have layered filesystems
 sudo modprobe overlay
 
-# Enable bridge networking (for container networking)
-# Like setting up communication between different lab instruments
+# Enable bridge networking (for container networking) 
+# br_netfilter enables network traffic filtering between containers
 sudo modprobe br_netfilter
 
-# Make these modules load on boot
-cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
-# Overlay filesystem for container storage layers
+# Make these modules load on boot - create config file with vi
+sudo vi /etc/modules-load.d/k8s.conf
+# Add the following content:
 overlay
-# Bridge networking for pod communication
 br_netfilter
-EOF
+# Save and exit (:wq)
 
 # Set system parameters for Kubernetes networking
-# These enable proper packet forwarding between containers
-cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
-# Enable IPv4 forwarding (like sample routing in lab)
+# Create sysctl config file using vi
+sudo vi /etc/sysctl.d/k8s.conf
+# Add the following content:
 net.bridge.bridge-nf-call-ip6tables = 1
 net.bridge.bridge-nf-call-iptables = 1
 net.ipv4.ip_forward = 1
-EOF
+# Save and exit (:wq)
 
 # Apply the system parameters without reboot
 sudo sysctl --system
@@ -140,32 +160,30 @@ sysctl net.bridge.bridge-nf-call-iptables
 # Should output: net.bridge.bridge-nf-call-iptables = 1
 ```
 
-#### **PART 5: Install Kubernetes Components**
+#### **PART 5: Install Kubernetes Components** ✅ **[COMPLETED - v1.31.12]**
 
 ```bash
 # Step 4: Install Kubernetes (kubeadm, kubelet, kubectl)
-# This is like installing the lab management system
+# NOTE: We installed v1.31.12 (newer than CKA v1.30 but fully compatible)
 
-# Install prerequisites for adding Kubernetes repository
+# Install prerequisites
 sudo apt-get update
-sudo apt-get install -y apt-transport-https ca-certificates curl
+sudo apt-get install -y apt-transport-https ca-certificates curl gpg
 
-# Download and add Google Cloud's public signing key
-# This verifies packages are genuine (like verifying reagent authenticity)
-curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/kubernetes-archive-keyring.gpg
+# Add NEW Kubernetes repository format (changed in 2024)
+# The new URL structure includes version in the path
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 
-# Add Kubernetes repository
-# This tells your system where to download Kubernetes from
-echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+# Add repository to sources list
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
 
-# Update package list with new repository
+# Update and install
 sudo apt-get update
-
-# Install specific versions (1.28 for CKA exam compatibility)
-# - kubelet: Node agent that runs on each node (lab technician)
-# - kubeadm: Tool to bootstrap the cluster (lab setup tool)
-# - kubectl: Command-line tool to control cluster (lab control panel)
-sudo apt-get install -y kubelet=1.28.0-00 kubeadm=1.28.0-00 kubectl=1.28.0-00
+sudo apt-get install -y kubelet kubeadm kubectl
+# This installs:
+# - kubelet: Core K8s node agent (not K3s!)
+# - kubeadm: Official K8s cluster bootstrapping tool
+# - kubectl: Official K8s CLI
 
 # Prevent automatic updates (we want version consistency for CKA)
 # Like using validated methods in forensics - no unexpected changes
@@ -177,22 +195,20 @@ kubectl version --client
 kubelet --version
 ```
 
-#### **PART 6: Initialize the Kubernetes Cluster**
+#### **PART 6: Initialize the Kubernetes Cluster** ✅ **[COMPLETED]**
 
 ```bash
 # Step 5: Initialize the cluster with kubeadm
-# This is THE MOST IMPORTANT STEP - creating your Kubernetes cluster
+# COMPLETED with IP: 192.168.50.100
 
 # Get your machine's IP address first
 ip addr show
-# Look for your main network interface (usually eth0 or ens33)
-# Note the IP address (e.g., 192.168.1.100)
+# Our interface: enp0s31f6 with IP 192.168.50.100
 
-# Initialize the cluster
-# Breaking down each parameter:
+# Initialize the cluster (COMPLETED)
 sudo kubeadm init \
-  --pod-network-cidr=10.244.0.0/16 \     # IP range for pods (like lab section addresses)
-  --apiserver-advertise-address=<YOUR-IP> # API server IP (lab's main entrance)
+  --pod-network-cidr=10.244.0.0/16 \
+  --apiserver-advertise-address=192.168.50.100
 
 # What happens during init:
 # 1. Preflight checks (verify system requirements)
@@ -201,17 +217,16 @@ sudo kubeadm init \
 # 4. Bootstrap control plane (start management components)
 # 5. Generate token for joining nodes (if adding more machines)
 
-# SAVE THE OUTPUT! You'll see something like:
-# kubeadm join 192.168.1.100:6443 --token abcdef.0123456789abcdef \
-#     --discovery-token-ca-cert-hash sha256:123...
-# This is used to add more nodes later
+# ✅ SAVED JOIN COMMAND for adding worker nodes later:
+kubeadm join 192.168.50.100:6443 --token uwelo4.vqolvk4986sus3w4 \
+    --discovery-token-ca-cert-hash sha256:c910439845d6e4933fb812c2a76029696c6cd095fe0885ab2908d8aa56d512b1
 
 # If initialization fails, you can reset with:
 # sudo kubeadm reset
 # Then try again after fixing issues
 ```
 
-#### **PART 7: Configure kubectl Access**
+#### **PART 7: Configure kubectl Access** ✅ **[COMPLETED]**
 
 ```bash
 # Step 6: Set up kubectl to communicate with cluster
@@ -236,7 +251,7 @@ kubectl get pods -n kube-system
 # You'll see control plane components starting up
 ```
 
-#### **PART 8: Install Network Plugin (CNI)**
+#### **PART 8: Install Network Plugin (CNI)** ✅ **[COMPLETED]**
 
 ```bash
 # Step 7: Install Flannel network plugin
@@ -259,21 +274,124 @@ kubectl get nodes
 # Should show "Ready" status
 ```
 
-#### **PART 9: Enable Single-Node Cluster**
+#### **PART 9: Enable Single-Node Cluster** ✅ **[COMPLETED]**
 
 ```bash
 # Step 8: Remove taint for single-node cluster
-# By default, control plane nodes don't run user workloads (security)
-# Since we have one node, we need to allow workloads on it
+# COMPLETED - Enabled workloads on control plane for DevOps showcase
 
 # Remove the taint that prevents scheduling on control plane
 kubectl taint nodes --all node-role.kubernetes.io/control-plane-
 
-# This is like allowing analysis equipment in the management office
-# Not ideal for production, but necessary for single-node setup
+# This allows us to run multiple environments on single node:
+# - Development namespace
+# - Staging namespace  
+# - Production namespace
 ```
 
-#### **PART 10: Verify Complete Installation**
+#### **PART 10: Verify Complete Installation** ✅ **[COMPLETED]**
+
+#### **PART 11: Multi-Environment Setup for DevOps Showcase** ✅ **[COMPLETED]**
+
+```bash
+# Created multiple environments on single node for DevOps demonstration
+# Node vs Pods clarification:
+# - Node = Physical/virtual machine (Server2)
+# - Pods = Containers running on the node (many pods per node)
+
+# 1. Create namespaces for each environment
+kubectl create namespace development
+kubectl create namespace staging
+kubectl create namespace production
+
+# 2. Label namespaces
+kubectl label namespace development environment=dev
+kubectl label namespace staging environment=staging
+kubectl label namespace production environment=prod
+
+# 3. Create resource quotas
+# Development - minimal resources
+sudo vi dev-quota.yaml
+# Add content:
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: dev-quota
+  namespace: development
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 2Gi
+    limits.cpu: "4"
+    limits.memory: 4Gi
+    persistentvolumeclaims: "5"
+# Apply: kubectl apply -f dev-quota.yaml
+
+# Production - more resources  
+sudo vi prod-quota.yaml
+# Add content:
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: prod-quota
+  namespace: production
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 4Gi
+    limits.cpu: "8"
+    limits.memory: 8Gi
+    persistentvolumeclaims: "10"
+# Apply: kubectl apply -f prod-quota.yaml
+
+# 4. Deploy applications (pending Docker registry setup)
+kubectl create deployment lims-app --image=localhost:5000/jagdna-lims:latest --replicas=1 -n development
+kubectl create deployment lims-app --image=localhost:5000/jagdna-lims:v1.0.0 --replicas=2 -n staging
+kubectl create deployment lims-app --image=localhost:5000/jagdna-lims:v1.0.0 --replicas=3 -n production
+
+# 5. Create network policy for production isolation
+sudo vi prod-netpol.yaml
+# Add content:
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-from-other-namespaces
+  namespace: production
+spec:
+  podSelector: {}
+  ingress:
+  - from:
+    - podSelector: {}
+# Apply: kubectl apply -f prod-netpol.yaml
+
+# 6. Expose services (correct syntax using patch)
+# First create the services
+kubectl expose deployment lims-app --type=NodePort --port=3001 --target-port=3001 -n development
+kubectl expose deployment lims-app --type=NodePort --port=3001 --target-port=3001 -n staging
+kubectl expose deployment lims-app --type=NodePort --port=3001 --target-port=3001 -n production
+
+# Then patch to set specific NodePorts OR use YAML files
+# Method 1: Using vi to create service files (preferred)
+sudo vi dev-service.yaml
+# Add content:
+apiVersion: v1
+kind: Service
+metadata:
+  name: lims-app
+  namespace: development
+spec:
+  type: NodePort
+  selector:
+    app: lims-app
+  ports:
+  - port: 3001
+    targetPort: 3001
+    nodePort: 30001
+# Apply: kubectl apply -f dev-service.yaml
+
+# Method 2: Using patch (if service already exists)
+kubectl patch service lims-app -n development --type='json' -p='[{"op": "replace", "path": "/spec/ports/0/nodePort", "value":30001}]'
+```
 
 ```bash
 # Step 9: Final verification
@@ -327,9 +445,14 @@ sudo journalctl -xeu kubelet
 sudo journalctl -xeu containerd
 ```
 
-### **Afternoon (4 hrs): Docker Containerization with Deep Dive**
+### **Afternoon (4 hrs): Docker Containerization with Deep Dive** ⏳ **[PENDING]**
+
+**⚠️ NOTE: Docker registry setup needed before deployments will work**
+The deployments created above are in ImagePullBackOff state because the local registry (localhost:5000) is not yet set up.
 
 #### **PART 1: Understanding Docker Concepts**
+
+**IMPORTANT: Complete this section next to get your applications running!**
 
 ```dockerfile
 # Dockerfile Explained - Multi-stage Build Pattern
@@ -412,6 +535,54 @@ CMD ["node", "server.js"]
 
 #### **PART 2: Building and Managing Docker Images**
 
+**First create your Dockerfile using vi:**
+
+```bash
+# Create project directory
+mkdir -p ~/jagdna-lims
+cd ~/jagdna-lims
+
+# Create Dockerfile with vi
+vi Dockerfile
+# Add the multi-stage Dockerfile content from PART 1
+# Save and exit (:wq)
+
+# Create a simple test application
+vi server.js
+# Add content:
+const http = require('http');
+const port = 3001;
+
+const server = http.createServer((req, res) => {
+  if (req.url === '/health') {
+    res.writeHead(200, {'Content-Type': 'application/json'});
+    res.end(JSON.stringify({status: 'healthy', timestamp: new Date()}));
+  } else {
+    res.writeHead(200, {'Content-Type': 'text/plain'});
+    res.end('JAGDNA LIMS Server Running\n');
+  }
+});
+
+server.listen(port, () => {
+  console.log(`Server running at http://localhost:${port}/`);
+});
+# Save and exit (:wq)
+
+# Create package.json
+vi package.json
+# Add content:
+{
+  "name": "jagdna-lims",
+  "version": "1.0.0",
+  "description": "JAGDNA LIMS Backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {}
+}
+# Save and exit (:wq)
+
 ```bash
 # Understanding Docker Build Process
 
@@ -452,37 +623,50 @@ trivy image jagdna-lims:v1.0.0
 # HIGH and CRITICAL should be addressed
 ```
 
-#### **PART 3: Setting Up Local Docker Registry**
+#### **PART 3: Setting Up Local Docker Registry** ✅ **[COMPLETED]**
 
 ```bash
-# Local Registry Setup (like sample storage system)
+# Local Registry Setup - COMPLETED
 
-# 1. Run registry container
-docker run -d \                    # -d: Run in background (daemon)
-  -p 5000:5000 \                  # Map port 5000 host to 5000 container
-  --restart=always \              # Restart if it crashes
-  --name registry \               # Container name for easy reference
-  -v /opt/registry:/var/lib/registry \  # Persist data on host
-  registry:2                      # Official registry image v2
+# 1. Docker installed successfully
+sudo apt-get update
+sudo apt-get install -y docker.io
+sudo systemctl enable docker
+sudo systemctl start docker
+sudo usermod -aG docker jaime  # Added user jaime to docker group
+newgrp docker  # Applied group without logout
 
-# 2. Verify registry is running
+# 2. Registry container running
+docker run -d \
+  -p 5000:5000 \
+  --restart=always \
+  --name registry \
+  -v /opt/registry:/var/lib/registry \
+  registry:2
+# Container ID: 6e6750a3bae4
+# Status: Running on port 5000
+
+# 3. Registry verified
 docker ps | grep registry
+# CONTAINER ID   IMAGE        PORTS                    NAMES
+# 6e6750a3bae4   registry:2   0.0.0.0:5000->5000/tcp   registry
+
 curl http://localhost:5000/v2/
-# Should return {} (empty JSON)
+# Returns: {} (registry is working)
 
-# 3. Tag image for local registry
+# 4. Image tagged for local registry
 docker tag jagdna-lims:v1.0.0 localhost:5000/jagdna-lims:v1.0.0
-# Creates new tag pointing to same image
-# localhost:5000 tells Docker to use local registry
+docker tag jagdna-lims:v1.0.0 localhost:5000/jagdna-lims:latest
+# Both tags created successfully
 
-# 4. Push to local registry
+# 5. Push to local registry - NEXT STEP NEEDED
 docker push localhost:5000/jagdna-lims:v1.0.0
-# Uploads image layers to registry
-# Progress bar shows each layer upload
+docker push localhost:5000/jagdna-lims:latest
+# This will upload image layers to registry
 
-# 5. Verify image in registry
+# 6. After push, verify image in registry
 curl http://localhost:5000/v2/_catalog
-# Shows: {"repositories":["jagdna-lims"]}
+# Should show: {"repositories":["jagdna-lims"]}
 
 # 6. Test pulling from registry
 docker rmi localhost:5000/jagdna-lims:v1.0.0  # Remove local copy
@@ -490,10 +674,15 @@ docker pull localhost:5000/jagdna-lims:v1.0.0  # Pull from registry
 # Proves registry is working
 ```
 
-#### **PART 4: Deploy to Kubernetes**
+#### **PART 4: Deploy to Kubernetes** ⏳ **[NEXT STEP]**
+
+**Current Status:** Deployments exist but pods are not running yet (0/1, 0/2, 0/3)
+- development namespace: 0/1 replicas ready
+- staging namespace: 0/2 replicas ready  
+- production namespace: 0/3 replicas ready
 
 ```bash
-# Quick Deployment Test to Kubernetes
+# After pushing images to registry, restart deployments
 
 # 1. Create deployment using kubectl run
 kubectl create deployment lims-backend \
@@ -546,69 +735,186 @@ kubectl exec -it $POD_NAME -- sh
 ---
 
 ## 🗓️ **DAY 2: PYTHON AUTOMATION & HELM CHARTS**
-### Goal: Leverage your PCAP certification for automation and package management
+### Goal: Create practical automation scripts and deploy applications with Helm
 
-### **Morning (4 hrs): Python Automation Scripts with Detailed Explanations**
+### **Morning (4 hrs): Python Automation Scripts - SIMPLIFIED TERMINAL APPROACH**
 
-#### **PART 1: Understanding Python Automation Architecture**
+#### **PART 1: Setting Up Python Environment**
 
+```bash
+# 1. Install Python3 and pip if not already installed
+sudo apt update
+sudo apt install -y python3 python3-pip
+
+# 2. Install required Python packages
+pip3 install pyyaml requests
+
+# 3. Create automation directory
+mkdir -p ~/devops-automation
+cd ~/devops-automation
+```
+
+#### **PART 2: Create Simple Deployment Script**
+
+```bash
+# Create a simple deployment script
+vi deploy.py
+```
+
+Add this simplified Python script:
 ```python
 #!/usr/bin/env python3
-"""
-deployment_automation.py
-Complete Kubernetes Deployment Automation System
+# Simple Kubernetes deployment automation script
 
-This script demonstrates:
-1. Object-Oriented Programming (OOP) - PCAP certification skill
-2. Error handling and logging
-3. Subprocess management for system commands
-4. JSON/YAML processing
-5. REST API interactions
+import subprocess
+import sys
+import json
 
-Think of this as automating your entire forensic workflow:
-- Sample registration → Container deployment
-- Quality control → Health checks
-- Result reporting → Status monitoring
-"""
+def run_kubectl(command):
+    """Run kubectl command and return output"""
+    try:
+        result = subprocess.run(
+            command.split(),
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        print(f"Error: {e.stderr}")
+        return None
 
-import subprocess      # For running shell commands
-import json           # For parsing Kubernetes JSON output
-import yaml           # For reading/writing YAML configs
-import logging        # For structured logging (audit trail)
-import sys            # For system operations
-from datetime import datetime  # For timestamps
-from typing import Dict, List, Optional  # Type hints (Python 3.5+)
-import requests       # For HTTP requests to services
-import time          # For delays and retries
-import argparse      # For command-line interface
+def get_deployments(namespace="default"):
+    """Get all deployments in a namespace"""
+    cmd = f"kubectl get deployments -n {namespace} -o json"
+    output = run_kubectl(cmd)
+    if output:
+        data = json.loads(output)
+        print(f"\nDeployments in {namespace}:")
+        for item in data.get('items', []):
+            name = item['metadata']['name']
+            replicas = item['spec']['replicas']
+            ready = item['status'].get('readyReplicas', 0)
+            print(f"  - {name}: {ready}/{replicas} ready")
 
-# Configure logging (like setting up lab notebook)
-# This creates detailed logs for debugging and audit
-logging.basicConfig(
-    level=logging.INFO,                          # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-    format='%(asctime)s - %(levelname)s - %(message)s',  # Log format
-    handlers=[
-        logging.FileHandler('deployment.log'),   # Write to file
-        logging.StreamHandler(sys.stdout)        # Also print to console
-    ]
-)
-logger = logging.getLogger(__name__)  # Get logger for this module
+def scale_deployment(name, replicas, namespace="default"):
+    """Scale a deployment"""
+    cmd = f"kubectl scale deployment/{name} --replicas={replicas} -n {namespace}"
+    print(f"Scaling {name} to {replicas} replicas...")
+    run_kubectl(cmd)
+    print("Done!")
 
-class KubernetesDeployment:
-    """
-    Manages Kubernetes deployments programmatically
-    Like a lab automation system for forensic workflows
-    """
+def restart_deployment(name, namespace="default"):
+    """Restart a deployment"""
+    cmd = f"kubectl rollout restart deployment/{name} -n {namespace}"
+    print(f"Restarting {name}...")
+    run_kubectl(cmd)
+    print("Done!")
+
+# Main execution
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage:")
+        print("  python3 deploy.py list")
+        print("  python3 deploy.py scale <name> <replicas>")
+        print("  python3 deploy.py restart <name>")
+        sys.exit(1)
     
-    def __init__(self, namespace: str = "production"):
-        """
-        Initialize deployment manager
-        
-        Args:
-            namespace: Kubernetes namespace (like lab section)
-        """
-        self.namespace = namespace
-        self.kubectl = self._verify_kubectl()  # Check kubectl is available
+    action = sys.argv[1]
+    
+    if action == "list":
+        get_deployments("default")
+        get_deployments("development")
+        get_deployments("staging")
+        get_deployments("production")
+    
+    elif action == "scale" and len(sys.argv) == 4:
+        name = sys.argv[2]
+        replicas = int(sys.argv[3])
+        scale_deployment(name, replicas)
+    
+    elif action == "restart" and len(sys.argv) == 3:
+        name = sys.argv[2]
+        restart_deployment(name)
+    
+    else:
+        print("Invalid command")
+
+```
+
+Save and exit (`:wq`)
+
+#### **PART 3: Test the Python Script**
+
+```bash
+# Make script executable
+chmod +x deploy.py
+
+# Test listing deployments
+python3 deploy.py list
+
+# Test scaling
+python3 deploy.py scale lims-backend 3
+
+# Test restart
+python3 deploy.py restart lims-backend
+```
+
+#### **PART 4: Create a Health Check Script**
+
+```bash
+vi healthcheck.py
+```
+
+Add this content:
+```python
+#!/usr/bin/env python3
+# Health check script for services
+
+import requests
+import time
+import sys
+
+def check_service(url):
+    """Check if service is healthy"""
+    try:
+        response = requests.get(f"{url}/health", timeout=5)
+        if response.status_code == 200:
+            print(f"✅ Service at {url} is healthy")
+            return True
+        else:
+            print(f"❌ Service at {url} returned status {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"❌ Service at {url} is down: {e}")
+        return False
+
+def monitor_services(urls, interval=30):
+    """Monitor multiple services"""
+    print(f"Monitoring {len(urls)} services every {interval} seconds...")
+    print("Press Ctrl+C to stop\n")
+    
+    try:
+        while True:
+            for url in urls:
+                check_service(url)
+            print("-" * 40)
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        print("\nMonitoring stopped")
+
+if __name__ == "__main__":
+    # Your services
+    services = [
+        "http://localhost:31397",  # Default namespace service
+        # Add more service URLs as needed
+    ]
+    
+    if len(sys.argv) > 1 and sys.argv[1] == "monitor":
+        monitor_services(services)
+    else:
+        for service in services:
+            check_service(service)
         
     def _verify_kubectl(self) -> bool:
         """
@@ -1238,10 +1544,10 @@ helm version
 
 ```bash
 # Create new Helm chart
-helm create jagdna-lims
+helm create lims-chart
 
 # This creates the following structure:
-# jagdna-lims/
+# lims-chart/
 # ├── Chart.yaml          # Chart metadata
 # ├── values.yaml         # Default configuration values
 # ├── charts/            # Chart dependencies
@@ -1255,7 +1561,7 @@ helm create jagdna-lims
 # │   └── _helpers.tpl   # Template helpers
 # └── .helmignore        # Files to ignore
 
-cd jagdna-lims
+cd lims-chart
 ```
 
 #### **PART 3: Detailed Chart Configuration**
@@ -1592,7 +1898,10 @@ helm uninstall jagdna-lims -n production
 
 # 10. Package chart for distribution
 helm package .
-# Creates jagdna-lims-1.0.0.tgz
+# Creates lims-chart-1.0.0.tgz
+
+# Install from package
+helm install test-package ./lims-chart-1.0.0.tgz
 ```
 
 #### **PART 6: Advanced Helm Features**
