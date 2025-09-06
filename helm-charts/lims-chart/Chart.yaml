@@ -1,0 +1,13 @@
+apiVersion: v2
+name: lims-chart
+description: JAGDNA LIMS Helm Chart
+type: application
+version: 1.0.0
+appVersion: "v1.0.3"
+keywords:
+  - forensics
+  - lims
+  - dna
+maintainers:
+  - name: JAGDNA Team
+    email: support@jagdna.com
