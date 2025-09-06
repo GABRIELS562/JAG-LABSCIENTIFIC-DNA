@@ -29,6 +29,11 @@
             "date": 1756929028623,
             "name": "/Users/user/JAG-LABSCIENTIFIC-DNA/backend/logs/error-2025-09-03.log",
             "hash": "bf6b6755dcef7f0b3409888a2f4ce1b23f865cc1b27458ecdfb8f396245ff491"
+        },
+        {
+            "date": 1756937560042,
+            "name": "/Users/user/JAG-LABSCIENTIFIC-DNA/backend/logs/error-2025-09-04.log",
+            "hash": "580580145c5d18956d833c3d1428f57368ad5783debc898620c1c434d4371e70"
         }
     ],
     "hashType": "sha256"
