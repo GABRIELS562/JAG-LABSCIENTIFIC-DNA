@@ -30,17 +30,32 @@ try {
 
 class UnifiedDatabaseService {
   constructor() {
-    this.dbPath = path.join(__dirname, '..', 'database', 'ashley_lims.db');
+    this.dbPath = process.env.DB_PATH || path.join(__dirname, '..', 'database', 'ashley_lims.db');
     this.schemaPath = path.join(__dirname, '..', 'database', 'schema.sql');
     this.db = null;
     this.isConnected = false;
     this.preparedStatements = new Map();
     this.transactionDepth = 0;
+    this.initAttempted = false;
     
-    this.initialize();
+    // Lazy initialization - don't initialize immediately
+  }
+
+  ensureInitialized() {
+    if (!this.initAttempted) {
+      this.initialize();
+    }
+    if (!this.isConnected) {
+      throw new DatabaseError('Database not connected');
+    }
   }
 
   initialize() {
+    if (this.initAttempted) {
+      return;
+    }
+    this.initAttempted = true;
+    
     try {
       this.ensureDirectoryExists();
       this.connect();
@@ -599,6 +614,7 @@ class UnifiedDatabaseService {
         collection_date, workflow_status, case_number, batch_id, lab_batch_number
       FROM samples 
       ORDER BY lab_number ASC
+      LIMIT 500
     `);
   }
 
@@ -1009,6 +1025,7 @@ class UnifiedDatabaseService {
 
   // User authentication methods
   createUser(userData) {
+    this.ensureInitialized();
     try {
       this.ensureConnection();
       const stmt = this.db.prepare(`
@@ -1035,6 +1052,7 @@ class UnifiedDatabaseService {
   }
 
   getUserByUsername(username) {
+    this.ensureInitialized();
     try {
       this.ensureConnection();
       const stmt = this.db.prepare(`
@@ -1050,6 +1068,7 @@ class UnifiedDatabaseService {
   }
 
   getUserByEmail(email) {
+    this.ensureInitialized();
     try {
       this.ensureConnection();
       const stmt = this.db.prepare(`
@@ -1065,6 +1084,7 @@ class UnifiedDatabaseService {
   }
 
   getUserById(id) {
+    this.ensureInitialized();
     try {
       this.ensureConnection();
       const stmt = this.db.prepare(`
@@ -1080,6 +1100,7 @@ class UnifiedDatabaseService {
   }
 
   getAllUsers() {
+    this.ensureInitialized();
     try {
       this.ensureConnection();
       const stmt = this.db.prepare(`
@@ -1095,6 +1116,7 @@ class UnifiedDatabaseService {
   }
 
   updateUser(id, userData) {
+    this.ensureInitialized();
     try {
       this.ensureConnection();
       const updates = [];
@@ -1142,6 +1164,7 @@ class UnifiedDatabaseService {
   }
 
   deleteUser(id) {
+    this.ensureInitialized();
     try {
       this.ensureConnection();
       const stmt = this.db.prepare('DELETE FROM users WHERE id = ?');
@@ -1158,6 +1181,7 @@ class UnifiedDatabaseService {
   }
 
   updateUserLastLogin(id) {
+    this.ensureInitialized();
     try {
       this.ensureConnection();
       const stmt = this.db.prepare(`
@@ -1173,6 +1197,7 @@ class UnifiedDatabaseService {
   }
 
   checkUsernameExists(username, excludeId = null) {
+    this.ensureInitialized();
     try {
       this.ensureConnection();
       let stmt;
@@ -1193,6 +1218,7 @@ class UnifiedDatabaseService {
   }
 
   checkEmailExists(email, excludeId = null) {
+    this.ensureInitialized();
     try {
       this.ensureConnection();
       let stmt;

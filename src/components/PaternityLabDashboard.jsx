@@ -109,57 +109,59 @@ const PaternityLabDashboard = () => {
   ];
 
   useEffect(() => {
-    fetchDashboardData();
-    fetchPaternityWorkflow(); // Initial fetch
+    // Initial fetch with proper error handling
+    const initializeData = async () => {
+      try {
+        await fetchDashboardData();
+      } catch (error) {
+        console.error('Initial data fetch failed:', error);
+      }
+    };
     
-    // Fetch immediately after component mounts
-    setTimeout(() => {
-      fetchPaternityWorkflow();
-    }, 1000);
+    initializeData();
     
+    // Set up interval for updates - more frequent for demo
     const interval = setInterval(() => {
-      fetchDashboardData();
-      fetchPaternityWorkflow();
-    }, 10000); // Refresh every 10 seconds for live updates
+      if (!refreshing) { // Prevent overlapping requests
+        fetchDashboardData();
+      }
+    }, 10000); // Refresh every 10 seconds to see workflow progression
+    
     return () => clearInterval(interval);
   }, []);
 
-  const fetchPaternityWorkflow = async () => {
-    try {
-      console.log('Fetching paternity workflow...');
-      const [workflowRes, trackingRes] = await Promise.all([
-        api.fetchJson('/workflow/paternity/status', { method: 'GET' }),
-        api.fetchJson('/workflow/sample-tracking', { method: 'GET' })
-      ]);
-      
-      console.log('Paternity workflow response:', workflowRes);
-      
-      if (workflowRes && workflowRes.data) {
-        setPaternityWorkflow(workflowRes.data);
-        console.log('Paternity workflow state set:', workflowRes.data);
-        console.log('Stage distribution:', workflowRes.data.stageDistribution);
-      }
-      if (trackingRes && trackingRes.data) {
-        setSampleTracking(trackingRes.data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch paternity workflow:', error);
-    }
-  };
+  // Removed fetchPaternityWorkflow - not needed since we're not using those endpoints
 
   const fetchDashboardData = async () => {
     try {
       setRefreshing(true);
 
-      // Fetch multiple endpoints in parallel
-      const [samplesRes, batchesRes, workflowRes] = await Promise.all([
-        api.fetchJson('/samples', { method: 'GET' }),
-        api.fetchJson('/batches', { method: 'GET' }),
-        api.fetchJson('/workflow-status', { method: 'GET' })
-      ]);
+      // Fetch samples first - most critical data
+      let samples = [];
+      let batches = [];
+      
+      try {
+        // Fetch ALL samples (up to 300) to see complete workflow
+        const samplesRes = await api.getSamples({ limit: 300 });
+        // Handle both old and new API response formats
+        samples = samplesRes?.samples || samplesRes?.data || [];
+        console.log('Fetched samples:', samples.length);
+      } catch (error) {
+        console.warn('Failed to fetch samples:', error);
+        // Continue with empty samples array
+      }
+      
+      try {
+        const batchesRes = await api.getBatches();
+        // Handle both old and new API response formats
+        batches = batchesRes?.batches || batchesRes?.data || [];
+        console.log('Fetched batches:', batches.length);
+      } catch (error) {
+        console.warn('Failed to fetch batches:', error);
+        // Continue with empty batches array
+      }
 
       // Process samples data
-      const samples = samplesRes?.samples || [];
       const now = new Date();
       const todayStart = new Date(now.setHours(0, 0, 0, 0));
 
@@ -167,21 +169,49 @@ const PaternityLabDashboard = () => {
         totalSamples: samples.length,
         pendingSubmission: samples.filter(s => s.workflow_status === 'sample_collected').length,
         inExtraction: samples.filter(s => s.workflow_status === 'extraction_ready' || s.workflow_status === 'extraction_in_progress').length,
-        inPCR: samples.filter(s => s.workflow_status === 'pcr_ready' || s.workflow_status === 'pcr_in_progress').length,
-        inElectrophoresis: samples.filter(s => s.workflow_status === 'electro_ready' || s.workflow_status === 'electro_in_progress').length,
-        inAnalysis: samples.filter(s => s.workflow_status === 'analysis_ready' || s.workflow_status === 'analysis_in_progress').length,
-        completed: samples.filter(s => s.workflow_status === 'analysis_completed').length,
+        inPCR: samples.filter(s => 
+          s.workflow_status === 'pcr_ready' || 
+          s.workflow_status === 'pcr_batched' || 
+          s.workflow_status === 'pcr_completed'
+        ).length,
+        inElectrophoresis: samples.filter(s => 
+          s.workflow_status === 'electro_ready' || 
+          s.workflow_status === 'electro_batched' || 
+          s.workflow_status === 'electro_completed'
+        ).length,
+        inAnalysis: samples.filter(s => 
+          s.workflow_status === 'analysis_ready' || 
+          s.workflow_status === 'analysis_completed'
+        ).length,
+        completed: samples.filter(s => s.workflow_status === 'report_ready' || s.workflow_status === 'report_sent').length,
         todaySubmissions: samples.filter(s => new Date(s.collection_date) >= todayStart).length,
-        activeBatches: batchesRes?.batches?.filter(b => b.status === 'processing').length || 0,
-        pendingReports: samples.filter(s => s.workflow_status === 'analysis_completed' && !s.report_generated).length
+        activeBatches: batches.filter(b => b.status === 'processing' || b.status === 'active').length || 0,
+        pendingReports: samples.filter(s => 
+          s.workflow_status === 'report_ready' || 
+          (s.workflow_status === 'analysis_completed' && !s.report_generated)
+        ).length
       };
 
       setStats(stats);
 
-      // Process workflow metrics
-      if (workflowRes?.success) {
-        setWorkflowMetrics(workflowRes.data);
-      }
+      // Generate stage distribution for the live workflow tracker
+      const workflowStatuses = [
+        'sample_collected', 'pcr_ready', 'pcr_batched', 'pcr_completed',
+        'electro_ready', 'electro_batched', 'electro_completed',
+        'analysis_ready', 'analysis_completed', 'report_ready', 'report_sent'
+      ];
+      
+      const stageDistribution = workflowStatuses.map(status => ({
+        workflow_status: status,
+        count: samples.filter(s => s.workflow_status === status).length
+      }));
+      
+      setPaternityWorkflow({
+        totalSamples: samples.length,
+        cyclesCompleted: Math.floor(samples.filter(s => s.workflow_status === 'report_sent').length / 3), // Estimate cycles (3 samples per family)
+        stageDistribution: stageDistribution,
+        isRunning: true
+      });
 
       // Generate recent activity
       const recentSamples = samples
@@ -231,42 +261,46 @@ const PaternityLabDashboard = () => {
     };
   };
 
-  // Get sample count for a specific workflow stage from live data
+  // Get sample count for a specific workflow stage from stats
   const getStageCount = (stageId) => {
-    if (!paternityWorkflow || !paternityWorkflow.stageDistribution) {
-      console.log(`No workflow data for stage ${stageId}`);
-      return 0;
-    }
-    
-    // Map frontend stage IDs to possible API workflow_status values
-    // The API returns various statuses, we need to sum related ones
+    // Map UI stage IDs to actual workflow statuses
     const stageMapping = {
       'submission': ['sample_collected'],
       'extraction': ['dna_extraction', 'extraction_ready', 'extraction_in_progress'],
-      'quantification': ['pcr_ready', 'qpcr_ready'],
-      'pcr': ['pcr_batched', 'pcr_in_progress', 'pcr_completed'],
-      'electrophoresis': ['electro_ready', 'electro_batched', 'electro_in_progress', 'electro_completed'],
-      'analysis': ['analysis_ready', 'analysis_in_progress', 'analysis_completed', 'osiris_analysis'],
-      'reporting': ['report_ready', 'report_generation', 'report_sent']
+      'quantification': ['quantification_ready', 'quantification_completed'],
+      'pcr': ['pcr_ready', 'pcr_batched', 'pcr_completed'],
+      'electrophoresis': ['electro_ready', 'electro_batched', 'electro_completed'],
+      'analysis': ['analysis_ready', 'analysis_completed'],
+      'reporting': ['report_ready', 'report_sent']
     };
     
-    const apiStageIds = stageMapping[stageId] || [stageId];
-    let totalCount = 0;
+    // Count samples in the mapped workflow statuses
+    const statuses = stageMapping[stageId] || [];
+    const samples = paternityWorkflow?.stageDistribution || [];
     
-    console.log(`Checking stage ${stageId}, looking for:`, apiStageIds);
-    console.log('Available stages:', paternityWorkflow.stageDistribution.map(s => s.workflow_status));
-    
-    // Sum counts for all related statuses
-    apiStageIds.forEach(apiId => {
-      const stage = paternityWorkflow.stageDistribution.find(s => s.workflow_status === apiId);
+    let count = 0;
+    statuses.forEach(status => {
+      const stage = samples.find(s => s.workflow_status === status);
       if (stage) {
-        console.log(`Found ${stage.count} samples in ${apiId}`);
-        totalCount += stage.count;
+        count += stage.count;
       }
     });
     
-    console.log(`Stage ${stageId} total: ${totalCount}`);
-    return totalCount;
+    // Fall back to stats if no workflow data
+    if (count === 0 && stats) {
+      const stageCounts = {
+        'submission': stats.pendingSubmission,
+        'extraction': stats.inExtraction,
+        'quantification': 0,
+        'pcr': stats.inPCR,
+        'electrophoresis': stats.inElectrophoresis,
+        'analysis': stats.inAnalysis,
+        'reporting': stats.pendingReports
+      };
+      return stageCounts[stageId] || 0;
+    }
+    
+    return count;
   };
 
   const progress = getWorkflowProgress();

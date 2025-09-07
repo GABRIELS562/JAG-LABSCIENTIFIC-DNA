@@ -52,42 +52,46 @@ const ForensicWorkflowDashboard = () => {
 
   const fetchSimulatorStatus = async () => {
     try {
-      // Use the paternity workflow status endpoint instead
-      const response = await api.fetchJson('/workflow/paternity/status', { method: 'GET' });
-      if (response && response.data) {
-        // Map paternity workflow data to simulator format
-        const data = response.data;
-        const queueByStage = data.stageDistribution?.reduce((acc, stage) => {
-          acc[stage.workflow_status] = stage.count;
-          return acc;
-        }, {}) || {};
-        
-        console.log('Stage distribution from API:', queueByStage);
-        
-        setSimulatorStatus({
-          isRunning: data.status === 'running',
-          queueByStage: queueByStage,
-          activeProcesses: data.totalSamples || 0,
-          queueDepth: data.totalSamples || 0,
-          labCapacity: {
-            extractionStations: 3,
-            thermalCyclers: 4,
-            geneticAnalyzers: 2,
-            dailySampleTarget: 100
-          }
-        });
-        setWorkflowMetrics({
-          totalSamplesProcessed: data.totalSamples || 0,
-          successfulCompletions: data.cyclesCompleted || 0,
-          averageProcessingTime: 10,
-          averageTAT: 24.5
-        });
-      }
+      // Fetch actual samples to get real workflow distribution
+      const samplesResponse = await api.getSamples({ limit: 300 });
+      const samples = samplesResponse?.data || [];
+      
+      // Calculate distribution from actual samples
+      const queueByStage = {};
+      samples.forEach(sample => {
+        const status = sample.workflow_status;
+        queueByStage[status] = (queueByStage[status] || 0) + 1;
+      });
+      
+      console.log('Real-time stage distribution:', queueByStage);
+      console.log('Total samples in workflow:', samples.length);
+      
+      // Count completed samples
+      const completedCount = queueByStage['report_sent'] || 0;
+      const reportReadyCount = queueByStage['report_ready'] || 0;
+      
+      setSimulatorStatus({
+        isRunning: samples.length > 0,
+        queueByStage: queueByStage,
+        activeProcesses: samples.length,
+        queueDepth: samples.length - completedCount,
+        labCapacity: {
+          extractionStations: 3,
+          thermalCyclers: 4,
+          geneticAnalyzers: 2,
+          dailySampleTarget: 100
+        }
+      });
+      
+      setWorkflowMetrics({
+        totalSamplesProcessed: samples.length,
+        successfulCompletions: completedCount + reportReadyCount,
+        averageProcessingTime: 10,
+        averageTAT: 24.5
+      });
+      
     } catch (error) {
-      // Silently handle error to avoid console spam
-      if (!error.message?.includes('404')) {
-        console.error('Failed to fetch workflow status:', error);
-      }
+      console.error('Failed to fetch workflow status:', error);
     } finally {
       setLoading(false);
     }
