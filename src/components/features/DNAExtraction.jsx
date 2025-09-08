@@ -59,8 +59,7 @@ import {
   Analytics,
   Schedule
 } from '@mui/icons-material';
-
-const API_URL = import.meta.env.VITE_API_URL || '/api';
+import { api } from '../../services/api';
 
 const DNAExtraction = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -161,99 +160,22 @@ const DNAExtraction = () => {
   const loadPendingSamples = async () => {
     try {
       setLoading(true);
-      // Simulate samples that have been submitted and are ready for extraction
-      const simulatedSamples = [
-        {
-          id: 'SUB-2024-001-C',
-          labNumber: 'LAB-2024-001-C',
-          caseNumber: 'PAT-2024-001',
-          clientName: 'John Doe',
-          sampleType: 'Buccal Swab',
-          relation: 'Child',
-          collectionDate: '2024-01-20',
-          submissionDate: '2024-01-20',
-          status: 'Pending Extraction',
-          barcode: 'BC001234567890',
-          priority: 'urgent'
-        },
-        {
-          id: 'SUB-2024-001-M',
-          labNumber: 'LAB-2024-001-M',
-          caseNumber: 'PAT-2024-001',
-          clientName: 'Jane Doe',
-          sampleType: 'Buccal Swab',
-          relation: 'Mother',
-          collectionDate: '2024-01-20',
-          submissionDate: '2024-01-20',
-          status: 'Pending Extraction',
-          barcode: 'BC001234567891',
-          priority: 'urgent'
-        },
-        {
-          id: 'SUB-2024-001-AF',
-          labNumber: 'LAB-2024-001-AF',
-          caseNumber: 'PAT-2024-001',
-          clientName: 'Robert Smith',
-          sampleType: 'Buccal Swab',
-          relation: 'Alleged Father',
-          collectionDate: '2024-01-20',
-          submissionDate: '2024-01-20',
-          status: 'Pending Extraction',
-          barcode: 'BC001234567892',
-          priority: 'urgent'
-        },
-        {
-          id: 'SUB-2024-002-C',
-          labNumber: 'LAB-2024-002-C',
-          caseNumber: 'PAT-2024-002',
-          clientName: 'Emily Johnson',
-          sampleType: 'Blood Card',
-          relation: 'Child',
-          collectionDate: '2024-01-21',
-          submissionDate: '2024-01-21',
-          status: 'Pending Extraction',
-          barcode: 'BC001234567893',
-          priority: 'routine'
-        },
-        {
-          id: 'SUB-2024-002-M',
-          labNumber: 'LAB-2024-002-M',
-          caseNumber: 'PAT-2024-002',
-          clientName: 'Sarah Johnson',
-          sampleType: 'Buccal Swab',
-          relation: 'Mother',
-          collectionDate: '2024-01-21',
-          submissionDate: '2024-01-21',
-          status: 'Pending Extraction',
-          barcode: 'BC001234567894',
-          priority: 'routine'
-        },
-        {
-          id: 'SUB-2024-002-AF',
-          labNumber: 'LAB-2024-002-AF',
-          caseNumber: 'PAT-2024-002',
-          clientName: 'Michael Williams',
-          sampleType: 'Buccal Swab',
-          relation: 'Alleged Father',
-          collectionDate: '2024-01-21',
-          submissionDate: '2024-01-21',
-          status: 'Pending Extraction',
-          barcode: 'BC001234567895',
-          priority: 'routine'
-        }
-      ];
+      setError(null);
       
-      // Store in localStorage to simulate persistence
-      const storedSamples = localStorage.getItem('pendingExtractionSamples');
-      if (storedSamples) {
-        const parsed = JSON.parse(storedSamples);
-        console.log('Loading stored samples:', parsed);
-        setPendingSamples(parsed);
-      } else {
-        console.log('Loading simulated samples:', simulatedSamples);
-        setPendingSamples(simulatedSamples);
-        localStorage.setItem('pendingExtractionSamples', JSON.stringify(simulatedSamples));
-      }
+      // Fetch samples from API using authenticated service
+      const data = await api.getSamples({ limit: 500 });
+      let allSamples = data.samples || data.data || [];
+      
+      // Filter samples for DNA extraction stages (using PCR stages as extraction comes before PCR)
+      const extractionSamples = allSamples.filter(sample => {
+        const status = sample.workflow_status;
+        return status === 'sample_collected' || 
+               status === 'pcr_ready' || 
+               status === 'pcr_batched';
+      });
+      
+      console.log('Loaded extraction samples:', extractionSamples.length);
+      setPendingSamples(extractionSamples);
     } catch (error) {
       console.error('Error loading pending samples:', error);
       setError('Failed to load pending samples');
@@ -277,9 +199,6 @@ const DNAExtraction = () => {
   };
 
   const refreshData = async () => {
-    // Clear localStorage to force reload with fresh data
-    localStorage.removeItem('pendingExtractionSamples');
-    localStorage.removeItem('extractionBatches');
     await Promise.all([loadPendingSamples(), loadExtractionBatches()]);
   };
 
@@ -373,12 +292,7 @@ const DNAExtraction = () => {
       setLoading(true);
       const wells = generatePlateLayout();
       
-      const response = await fetch(`${API_URL}/extraction/create-batch`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      const response = await api.createExtractionBatch({
           operator: batchForm.operator,
           extractionMethod: batchForm.extractionMethod,
           kitLotNumber: batchForm.kitLotNumber,
@@ -392,14 +306,12 @@ const DNAExtraction = () => {
           centrifugeTime: batchForm.centrifugeTime,
           elutionVolume: batchForm.elutionVolume,
           notes: batchForm.notes
-        })
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      if (response) {
         setSnackbar({
           open: true,
-          message: `Extraction batch ${data.data.batchNumber} created successfully`,
+          message: `Extraction batch ${response.data.batchNumber} created successfully`,
           severity: 'success'
         });
         setCreateBatchOpen(false);
@@ -421,18 +333,12 @@ const DNAExtraction = () => {
 
   const addQuantificationResult = async () => {
     try {
-      const response = await fetch(`${API_URL}/extraction/quantification`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      const response = await api.addQuantificationResult({
           extractionBatchId: activeBatch.id,
           ...quantificationData
-        })
       });
 
-      if (response.ok) {
+      if (response) {
         setSnackbar({
           open: true,
           message: 'Quantification result added successfully',
@@ -466,19 +372,13 @@ const DNAExtraction = () => {
 
   const completeExtractionBatch = async (batch) => {
     try {
-      const response = await fetch(`${API_URL}/extraction/complete-batch`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      const response = await api.completeExtractionBatch({
           batchId: batch.id,
           qualityControlPassed: true,
           notes: 'Batch completed successfully'
-        })
       });
 
-      if (response.ok) {
+      if (response) {
         setSnackbar({
           open: true,
           message: `Extraction batch ${batch.batch_number} completed successfully`,

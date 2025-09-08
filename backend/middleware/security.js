@@ -1,7 +1,7 @@
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const hpp = require('hpp');
-const { logger } = require('../utils/logger');
+const logger = require('../utils/logger');
 const { ValidationError } = require('./errorHandler');
 
 /**

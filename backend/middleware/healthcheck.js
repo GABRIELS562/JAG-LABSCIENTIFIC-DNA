@@ -1,13 +1,12 @@
-const Database = require('better-sqlite3');
+// PostgreSQL health check - no imports needed, uses existing db connection
 const path = require('path');
 const fs = require('fs');
-const { logger } = require('../utils/logger');
+const logger = require('../utils/logger');
 const { ResponseHandler } = require('../utils/responseHandler');
 
 class HealthCheckService {
   constructor() {
     this.checks = new Map();
-    this.dbPath = path.join(__dirname, '../database/ashley_lims.db');
     this.startupTime = Date.now();
     this.lastHealthCheck = null;
     this.healthStatus = 'unknown';
@@ -38,23 +37,30 @@ class HealthCheckService {
 
   async checkDatabase() {
     try {
-      const db = new Database(this.dbPath, { readonly: true, fileMustExist: false });
+      // Use existing PostgreSQL connection from server.js
+      const PostgreSQLService = require('../services/database-postgres');
+      const db = PostgreSQLService.db;
+      
+      if (!db || !db.isReady()) {
+        throw new Error('Database service not initialized');
+      }
       
       // Test basic connectivity
-      const result = db.prepare('SELECT 1 as test').get();
+      const testResult = await db.query('SELECT 1 as test');
       
       // Test a simple query on actual tables
-      const sampleCount = db.prepare('SELECT COUNT(*) as count FROM samples').get();
-      
-      db.close();
+      const sampleResult = await db.query('SELECT COUNT(*) as count FROM samples');
+      const sampleCount = parseInt(sampleResult.rows[0].count);
       
       return {
         status: 'healthy',
-        message: 'Database connection successful',
+        message: 'PostgreSQL connection successful',
         details: {
           connected: true,
-          sampleCount: sampleCount.count,
-          responseTime: Date.now() - Date.now() // Will be calculated properly in actual implementation
+          database: process.env.POSTGRES_DB || 'jagdna_lims_dev',
+          host: process.env.POSTGRES_HOST || 'localhost',
+          sampleCount: sampleCount,
+          responseTime: 0 // Will be calculated properly in actual implementation
         }
       };
     } catch (error) {

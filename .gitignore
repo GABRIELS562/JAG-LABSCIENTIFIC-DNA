@@ -104,3 +104,9 @@ pids
 # Config files with sensitive data
 config/credentials.json
 config/environments/production.json
+
+# PostgreSQL development data
+postgres_dev_data/
+
+# Docker logs
+docker-compose.override.yml

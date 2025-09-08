@@ -107,17 +107,33 @@ export default function Statistics() {
       setLoading(true);
       setError(null);
       
-      // Load comprehensive data from existing API endpoints
-      const [samplesRes, batchesRes, reportsRes] = await Promise.all([
-        api.getAllSamples(),
-        // Note: Add batch and report endpoints when available
-        // For now, we'll work with sample data
-        Promise.resolve({ data: [] }),
-        Promise.resolve({ data: [] })
-      ]);
+      // Try the optimized statistics endpoint first
+      try {
+        const statsResponse = await api.getStatistics(filterPeriod);
+        if (statsResponse.success) {
+          // Use optimized statistics data directly
+          const data = statsResponse.data;
+          setDashboardData({
+            totalSamples: data.recentSamples || [],
+            recentSamples: data.recentSamples || [],
+            workflowStats: data.workflowStats ? 
+              data.workflowStats.reduce((acc, item) => ({ ...acc, [item.workflow_status]: item.count }), {}) : {},
+            demographics: processOptimizedDemographics(data.demographics || []),
+            processingTimes: data.processingTimes || [],
+            alerts: []
+          });
+          return;
+        }
+      } catch (optimizedError) {
+        console.log('Optimized statistics not available, falling back to sample data');
+      }
       
-      if (samplesRes.success) {
-        const samples = samplesRes.data || [];
+      // Fallback to loading samples and processing client-side
+      const samplesResponse = await api.getSamples({ limit: 1000 });
+      
+      if (samplesResponse.success || (samplesResponse.samples || samplesResponse.data)) {
+        // Handle different response formats
+        const samples = samplesResponse.data || samplesResponse.samples || [];
         
         // Process samples for comprehensive statistics
         const processedData = processStatisticsData(samples, filterPeriod);
@@ -167,6 +183,28 @@ export default function Statistics() {
       batchData: [],
       reportData: [],
       qualityData: []
+    };
+  };
+
+  // Helper function for processing optimized demographics data
+  const processOptimizedDemographics = (demographics) => {
+    const relations = {};
+    const genders = {};
+    
+    demographics.forEach(item => {
+      if (item.relation) {
+        relations[item.relation] = (relations[item.relation] || 0) + item.count;
+      }
+      if (item.gender) {
+        genders[item.gender] = (genders[item.gender] || 0) + item.count;
+      }
+    });
+    
+    return {
+      relations,
+      genders,
+      testTypes: {},
+      sampleTypes: {}
     };
   };
 

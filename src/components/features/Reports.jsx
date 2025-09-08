@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getStatusColor, getBatchTypeColor, getBatchTypeLabel } from '../../utils/statusHelpers';
+import { api } from '../../services/api';
 import {
   Card,
   CardContent,
@@ -100,26 +101,39 @@ export default function Reports() {
       setLoading(true);
       setError(null);
       
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: '20',
-        batch_type: batchTypeFilter,
-        status: statusFilter,
-        search: searchQuery
-      });
-
-      const response = await fetch(`/api/reports?${params}`);
-      const data = await response.json();
+      // Build query parameters for reports API
+      const params = {
+        page,
+        limit: 20
+      };
       
-      if (data.success) {
-        setReports(data.data);
-        setTotalPages(data.pagination.pages);
+      if (searchQuery) {
+        params.search = searchQuery;
+      }
+      
+      if (batchTypeFilter !== 'all') {
+        params.batch_type = batchTypeFilter;
+      }
+      
+      if (statusFilter !== 'all') {
+        params.status = statusFilter;
+      }
+      
+      // Fetch reports directly from reports API
+      const response = await api.getReports(params);
+      
+      if (response.success) {
+        setReports(response.data || []);
+        setTotalPages(response.pagination?.pages || 1);
+        console.log('Loaded reports:', response.data?.length || 0);
       } else {
-        setError('Failed to load reports');
+        throw new Error(response.error || 'Failed to load reports');
       }
     } catch (error) {
       console.error('Error loading reports:', error);
-      setError('Error loading reports');
+      setError('Error loading reports: ' + (error.message || 'Unknown error'));
+      setReports([]);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
@@ -127,14 +141,34 @@ export default function Reports() {
 
   const loadStats = async () => {
     try {
-      const response = await fetch('/api/reports/stats');
-      const data = await response.json();
+      // Fetch report statistics directly from reports API
+      const response = await api.getReportStats();
       
-      if (data.success) {
-        setStats(data.data);
+      if (response.success) {
+        const data = response.data;
+        const stats = {
+          total_reports: data.total_reports || 0,
+          legal_reports: data.legal_reports || 0,
+          peace_of_mind_reports: data.peace_of_mind_reports || 0,
+          completed_reports: data.completed_reports || 0,
+          pending_reports: data.pending_reports || 0,
+          sent_reports: data.sent_reports || 0
+        };
+        setStats(stats);
+      } else {
+        throw new Error(response.error || 'Failed to load report stats');
       }
     } catch (error) {
-      console.error('Error loading stats:', error);
+      console.error('Error loading report stats:', error);
+      // Set default empty stats on error
+      setStats({
+        total_reports: 0,
+        legal_reports: 0,
+        peace_of_mind_reports: 0,
+        completed_reports: 0,
+        pending_reports: 0,
+        sent_reports: 0
+      });
     }
   };
 

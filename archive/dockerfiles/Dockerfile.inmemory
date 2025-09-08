@@ -1,0 +1,48 @@
+# Simple in-memory deployment for DNA LIMS
+FROM node:20-alpine AS production
+
+# Install basic dependencies
+RUN apk add --no-cache curl dumb-init
+
+# Create app user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S lims -u 1001
+
+# Set working directory
+WORKDIR /app
+
+# Copy only essential files
+COPY backend/package.json ./backend/package.json
+
+# Install only core dependencies (no better-sqlite3)
+RUN cd backend && \
+    npm install --omit=dev --no-optional express cors && \
+    npm cache clean --force
+
+# Copy backend source and in-memory server
+COPY backend/server-production-inmemory.js ./backend/server-production-inmemory.js
+
+# Copy the pre-built frontend
+COPY dist ./dist
+
+# Create necessary directories
+RUN mkdir -p \
+    /app/backend/logs \
+    /app/temp && \
+    chown -R lims:nodejs /app
+
+# Switch to non-root user
+USER lims
+
+# Expose port
+EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD curl -f http://localhost:3001/health || exit 1
+
+# Use dumb-init for proper signal handling
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+
+# Start the in-memory server
+CMD ["node", "backend/server-production-inmemory.js"]

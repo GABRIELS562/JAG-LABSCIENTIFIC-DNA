@@ -1,0 +1,233 @@
+# LIMS DevOps Deployment - Ready for K3s
+# Optimized for continuous monitoring and showcase
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lims-production
+  labels:
+    app: jagdna-lims
+    environment: production
+    monitoring: enabled
+
+---
+# ConfigMap for application configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lims-config
+  namespace: lims-production
+data:
+  NODE_ENV: "production"
+  PORT: "3001"
+  LOG_LEVEL: "info"
+  ENABLE_DEVOPS_FEATURES: "true"
+  ENABLE_WORKFLOW_AUTOMATION: "true"
+  WORKFLOW_CYCLE_INTERVAL: "10000"
+  SAMPLE_BATCH_SIZE: "10"
+  UPLOAD_DIR: "/uploads"
+  # PostgreSQL Configuration
+  POSTGRES_HOST: "postgres-service"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "jagdna_lims"
+  POSTGRES_USER: "lims_user"
+
+---
+# Secret for sensitive data (create with actual values)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: lims-secret
+  namespace: lims-production
+type: Opaque
+stringData:
+  JWT_SECRET: "devops-demo-secret-change-in-production"
+  SESSION_SECRET: "session-secret-change-in-production"
+  ADMIN_PASSWORD: "admin123"
+  POSTGRES_PASSWORD: "lims_password_change_in_prod"
+
+---
+# PersistentVolumeClaim for database
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lims-data-pvc
+  namespace: lims-production
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: local-path
+
+---
+# PersistentVolumeClaim for uploads
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lims-uploads-pvc
+  namespace: lims-production
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-path
+
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lims-backend
+  namespace: lims-production
+  labels:
+    app: lims
+    component: backend
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3001"
+    prometheus.io/path: "/metrics"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: lims
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: lims
+        component: backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3001"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: lims-backend
+        image: jagdna-lims:production
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3001
+          name: http
+          protocol: TCP
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: lims-config
+        - secretRef:
+            name: lims-secret
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: uploads
+          mountPath: /uploads
+        - name: logs
+          mountPath: /app/backend/logs
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: lims-data-pvc
+      - name: uploads
+        persistentVolumeClaim:
+          claimName: lims-uploads-pvc
+      - name: logs
+        emptyDir: {}
+
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: lims-service
+  namespace: lims-production
+  labels:
+    app: lims
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3001"
+    prometheus.io/path: "/metrics"
+spec:
+  type: NodePort
+  selector:
+    app: lims
+    component: backend
+  ports:
+  - name: http
+    port: 80
+    targetPort: 3001
+    nodePort: 30080
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 3001
+    nodePort: 30090
+    protocol: TCP
+
+---
+# Ingress (optional - for proper domain access)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lims-ingress
+  namespace: lims-production
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: lims.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: lims-service
+            port:
+              number: 80
+
+---
+# ServiceMonitor for Prometheus Operator (if installed)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: lims-metrics
+  namespace: lims-production
+  labels:
+    app: lims
+spec:
+  selector:
+    matchLabels:
+      app: lims
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics

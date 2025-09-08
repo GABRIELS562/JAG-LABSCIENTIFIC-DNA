@@ -424,6 +424,41 @@
             "date": 1756937559911,
             "name": "/Users/user/JAG-LABSCIENTIFIC-DNA/backend/logs/application-2025-09-04.log",
             "hash": "aa567f6db0235b905f255c92f6db877bdb897859fcda401331a1e94aef1de7c5"
+        },
+        {
+            "date": 1757273745378,
+            "name": "/Users/user/JAG-LABSCIENTIFIC-DNA/backend/logs/application-2025-09-07.log",
+            "hash": "e0fd6d11094433213a7940b4ada55b241a27e5403f8a0a6387172fb4314b49e6"
+        },
+        {
+            "date": 1757278618627,
+            "name": "/Users/user/JAG-LABSCIENTIFIC-DNA/backend/logs/application-2025-09-07.log.1",
+            "hash": "a567f57366e3e5bb76eb1c4c873b0c1a37fa882f88d300c4a368ff7c1b64fe38"
+        },
+        {
+            "date": 1757278622550,
+            "name": "/Users/user/JAG-LABSCIENTIFIC-DNA/backend/logs/application-2025-09-07.log.2",
+            "hash": "d7c4f1d2bbdd3c97148d8f23ebd354c3935e36dafa5fcf272a065c02e197a11f"
+        },
+        {
+            "date": 1757278626456,
+            "name": "/Users/user/JAG-LABSCIENTIFIC-DNA/backend/logs/application-2025-09-07.log.3",
+            "hash": "db7c320c72d82b5e72ec66a40e38176c2ebac97a078b45375c7c02170837df92"
+        },
+        {
+            "date": 1757278630367,
+            "name": "/Users/user/JAG-LABSCIENTIFIC-DNA/backend/logs/application-2025-09-07.log.4",
+            "hash": "d24f3fc5f4102113e2c3ca5472e0020663ad43168dbe1bf53c5027b95443dca0"
+        },
+        {
+            "date": 1757278634391,
+            "name": "/Users/user/JAG-LABSCIENTIFIC-DNA/backend/logs/application-2025-09-07.log.5",
+            "hash": "a9fb329c1606e739df8af7eeea22b4b227649993adb4c801e13c16ffbf2ff5c8"
+        },
+        {
+            "date": 1757312877705,
+            "name": "/Users/user/JAG-LABSCIENTIFIC-DNA/backend/logs/application-2025-09-08.log",
+            "hash": "78c15738e27c28c2b72bf80d67034b48652e97d1b3b3c8ab5b2a073d56a82ae0"
         }
     ],
     "hashType": "sha256"

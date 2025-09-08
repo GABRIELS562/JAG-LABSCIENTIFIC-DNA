@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { logger } = require('../utils/logger');
+const logger = require('../utils/logger');
 const { ResponseHandler } = require('../utils/responseHandler');
 
 // Environment variables with fallbacks

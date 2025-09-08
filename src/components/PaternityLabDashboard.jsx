@@ -26,6 +26,70 @@ import { api } from '../services/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+// Generate mock samples for DevOps demonstration when database is empty
+const generateMockSamplesForDemo = () => {
+  const mockSamples = [];
+  const workflowStages = [
+    'sample_collected',
+    'extraction_ready', 'extraction_in_progress', 'extraction_completed',
+    'quantification_ready', 'quantification_completed', 
+    'pcr_ready', 'pcr_batched', 'pcr_completed',
+    'electro_ready', 'electro_batched', 'electro_completed',
+    'analysis_ready', 'analysis_completed',
+    'report_ready', 'report_sent'
+  ];
+  
+  const familyNames = ['SMITH', 'JOHNSON', 'WILLIAMS', 'BROWN', 'JONES', 'GARCIA', 'MILLER', 'DAVIS', 'RODRIGUEZ', 'MARTINEZ'];
+  
+  // Generate cycling samples across all stages
+  for (let i = 1; i <= 50; i++) {
+    const family = familyNames[i % familyNames.length];
+    const timestamp = Date.now() + (i * 1000);
+    const stageIndex = (i + Math.floor(Date.now() / 15000)) % workflowStages.length;
+    
+    // Child sample
+    mockSamples.push({
+      id: i * 3 - 2,
+      lab_number: `AUTO-${timestamp}-${family}C`,
+      name: `Child${i}`,
+      surname: family,
+      workflow_status: workflowStages[stageIndex],
+      collection_date: new Date(Date.now() - i * 86400000).toISOString(),
+      case_number: `CASE-${String(i).padStart(3, '0')}`,
+      sample_type: 'buccal_swab',
+      updated_at: new Date().toISOString()
+    });
+    
+    // Father sample
+    mockSamples.push({
+      id: i * 3 - 1,
+      lab_number: `AUTO-${timestamp}-${family}F`,
+      name: `Father${i}`,
+      surname: family,
+      workflow_status: workflowStages[(stageIndex + 1) % workflowStages.length],
+      collection_date: new Date(Date.now() - i * 86400000).toISOString(),
+      case_number: `CASE-${String(i).padStart(3, '0')}`,
+      sample_type: 'buccal_swab',
+      updated_at: new Date().toISOString()
+    });
+    
+    // Mother sample
+    mockSamples.push({
+      id: i * 3,
+      lab_number: `AUTO-${timestamp}-${family}M`,
+      name: `Mother${i}`,
+      surname: family,
+      workflow_status: workflowStages[(stageIndex + 2) % workflowStages.length],
+      collection_date: new Date(Date.now() - i * 86400000).toISOString(),
+      case_number: `CASE-${String(i).padStart(3, '0')}`,
+      sample_type: 'buccal_swab',
+      updated_at: new Date().toISOString()
+    });
+  }
+  
+  return mockSamples;
+};
+
 const PaternityLabDashboard = () => {
   const navigate = useNavigate();
   const [stats, setStats] = useState({
@@ -47,6 +111,7 @@ const PaternityLabDashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [paternityWorkflow, setPaternityWorkflow] = useState(null);
   const [sampleTracking, setSampleTracking] = useState(null);
+  const [manualWorkflow, setManualWorkflow] = useState(null);
 
   // Workflow stages for 3500 Genetic Analyzer with PowerPlex ESX 17
   const workflowStages = [
@@ -141,11 +206,22 @@ const PaternityLabDashboard = () => {
       let batches = [];
       
       try {
-        // Fetch ALL samples (up to 300) to see complete workflow
-        const samplesRes = await api.getSamples({ limit: 300 });
+        // Fetch ALL samples (up to 500) to see complete workflow
+        const samplesRes = await api.getSamples({ limit: 500 });
+        console.log('Raw API response:', samplesRes);
         // Handle both old and new API response formats
-        samples = samplesRes?.samples || samplesRes?.data || [];
-        console.log('Fetched samples:', samples.length);
+        let allSamples = samplesRes?.samples || samplesRes?.data || [];
+        console.log('All samples from API:', allSamples.length);
+        
+        // If no samples from API, create mock data for DevOps demonstration
+        if (allSamples.length === 0) {
+          console.log('No samples from API, generating mock data for demo');
+          allSamples = generateMockSamplesForDemo();
+        }
+        
+        // Filter for AUTO- prefixed cycling samples for the DevOps portfolio
+        samples = allSamples.filter(s => s.lab_number && s.lab_number.startsWith('AUTO-'));
+        console.log('Filtered AUTO samples:', samples.length);
       } catch (error) {
         console.warn('Failed to fetch samples:', error);
         // Continue with empty samples array
@@ -168,7 +244,15 @@ const PaternityLabDashboard = () => {
       const stats = {
         totalSamples: samples.length,
         pendingSubmission: samples.filter(s => s.workflow_status === 'sample_collected').length,
-        inExtraction: samples.filter(s => s.workflow_status === 'extraction_ready' || s.workflow_status === 'extraction_in_progress').length,
+        inExtraction: samples.filter(s => 
+          s.workflow_status === 'extraction_ready' || 
+          s.workflow_status === 'extraction_in_progress' || 
+          s.workflow_status === 'extraction_completed'
+        ).length,
+        inQuantification: samples.filter(s => 
+          s.workflow_status === 'quantification_ready' || 
+          s.workflow_status === 'quantification_completed'
+        ).length,
         inPCR: samples.filter(s => 
           s.workflow_status === 'pcr_ready' || 
           s.workflow_status === 'pcr_batched' || 
@@ -194,16 +278,70 @@ const PaternityLabDashboard = () => {
 
       setStats(stats);
 
-      // Generate stage distribution for the live workflow tracker
+      // Generate stage distribution for the live workflow tracker - Include ALL stages
       const workflowStatuses = [
-        'sample_collected', 'pcr_ready', 'pcr_batched', 'pcr_completed',
+        'sample_collected', 
+        'extraction_ready', 'extraction_in_progress', 'extraction_completed',
+        'quantification_ready', 'quantification_completed',
+        'pcr_ready', 'pcr_batched', 'pcr_completed',
         'electro_ready', 'electro_batched', 'electro_completed',
-        'analysis_ready', 'analysis_completed', 'report_ready', 'report_sent'
+        'analysis_ready', 'analysis_completed', 
+        'report_ready', 'report_sent'
       ];
+      
+      // Fetch simulated stages for extraction and qPCR
+      let simulatedStages = {};
+      try {
+        const simResponse = await fetch(`${API_BASE_URL}/api/simulated-stages`);
+        if (simResponse.ok) {
+          const simData = await simResponse.json();
+          if (simData.samples) {
+            simData.samples.forEach(sample => {
+              simulatedStages[sample.lab_number] = sample.simulated_status;
+            });
+          }
+        }
+      } catch (error) {
+        console.warn('Could not fetch simulated stages, creating local simulation:', error);
+        // Create local simulation for demo when API is not available
+        samples.forEach(sample => {
+          const hash = sample.lab_number.split('').reduce((a, b) => {
+            a = ((a << 5) - a) + b.charCodeAt(0);
+            return a & a;
+          }, 0);
+          
+          const cycleStages = [
+            'sample_collected',
+            'extraction_in_progress',
+            'quantification_completed',
+            'pcr_ready',
+            'pcr_completed',
+            'electro_completed',
+            'analysis_completed',
+            'report_sent'
+          ];
+          
+          const timeIndex = Math.floor(Date.now() / 15000) % cycleStages.length;
+          const stageIndex = (Math.abs(hash) + timeIndex) % cycleStages.length;
+          simulatedStages[sample.lab_number] = cycleStages[stageIndex];
+        });
+      }
+      
+      // Count samples in each stage (using simulated status if available)
+      const stageCounts = {};
+      workflowStatuses.forEach(status => stageCounts[status] = 0);
+      
+      samples.forEach(sample => {
+        // Use simulated status if available, otherwise use database status
+        const status = simulatedStages[sample.lab_number] || sample.workflow_status;
+        if (stageCounts[status] !== undefined) {
+          stageCounts[status]++;
+        }
+      });
       
       const stageDistribution = workflowStatuses.map(status => ({
         workflow_status: status,
-        count: samples.filter(s => s.workflow_status === status).length
+        count: stageCounts[status] || 0
       }));
       
       setPaternityWorkflow({
@@ -211,6 +349,34 @@ const PaternityLabDashboard = () => {
         cyclesCompleted: Math.floor(samples.filter(s => s.workflow_status === 'report_sent').length / 3), // Estimate cycles (3 samples per family)
         stageDistribution: stageDistribution,
         isRunning: true
+      });
+      
+      // Process manual samples for the second DNA Workflow Monitor
+      // Get ALL samples including manual ones
+      const allSamplesRes = await api.getSamples({ limit: 500 });
+      const allSamples = allSamplesRes?.samples || allSamplesRes?.data || [];
+      // Filter out AUTO- prefixed samples to get only manual samples
+      const manualSamples = allSamples.filter(s => s.lab_number && !s.lab_number.startsWith('AUTO-'));
+      
+      // Count manual samples in each stage
+      const manualStageCounts = {};
+      workflowStatuses.forEach(status => manualStageCounts[status] = 0);
+      
+      manualSamples.forEach(sample => {
+        const status = sample.workflow_status;
+        if (manualStageCounts[status] !== undefined) {
+          manualStageCounts[status]++;
+        }
+      });
+      
+      const manualStageDistribution = workflowStatuses.map(status => ({
+        workflow_status: status,
+        count: manualStageCounts[status] || 0
+      }));
+      
+      setManualWorkflow({
+        totalSamples: manualSamples.length,
+        stageDistribution: manualStageDistribution
       });
 
       // Generate recent activity
@@ -262,7 +428,7 @@ const PaternityLabDashboard = () => {
   };
 
   // Get sample count for a specific workflow stage from stats
-  const getStageCount = (stageId) => {
+  const getStageCount = (stageId, useManual = false) => {
     // Map UI stage IDs to actual workflow statuses
     const stageMapping = {
       'submission': ['sample_collected'],
@@ -274,9 +440,12 @@ const PaternityLabDashboard = () => {
       'reporting': ['report_ready', 'report_sent']
     };
     
+    // Use manual or automatic workflow data
+    const workflowData = useManual ? manualWorkflow : paternityWorkflow;
+    
     // Count samples in the mapped workflow statuses
     const statuses = stageMapping[stageId] || [];
-    const samples = paternityWorkflow?.stageDistribution || [];
+    const samples = workflowData?.stageDistribution || [];
     
     let count = 0;
     statuses.forEach(status => {
@@ -360,7 +529,7 @@ const PaternityLabDashboard = () => {
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400 transition-colors duration-300">In Process</p>
                 <p className="text-2xl font-bold">
-                  {stats.inExtraction + stats.inPCR + stats.inElectrophoresis + stats.inAnalysis}
+                  {stats.inExtraction + (stats.inQuantification || 0) + stats.inPCR + stats.inElectrophoresis + stats.inAnalysis}
                 </p>
               </div>
               <Activity className="h-8 w-8 text-yellow-500" />
@@ -399,14 +568,14 @@ const PaternityLabDashboard = () => {
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Activity className="h-6 w-6 text-green-600 animate-pulse" />
-              <span className="text-xl font-bold">🔬 Live Paternity Testing Workflow</span>
+              <span className="text-xl font-bold">🔬 DNA Workflow Monitor - Live</span>
               <Badge variant="default" className="bg-green-500 text-white px-3 py-1">
                 RUNNING
               </Badge>
             </div>
             <div className="text-sm text-gray-600 dark:text-gray-400">
               {paternityWorkflow ? (
-                <>Cycles: <span className="font-bold text-lg">{paternityWorkflow.cyclesCompleted || 0}</span></>
+                <>Live</>
               ) : (
                 <>Connecting...</>
               )}
@@ -425,39 +594,77 @@ const PaternityLabDashboard = () => {
             </div>
           </div>
           
-          {/* Stage Distribution Grid */}
-          <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-11 gap-2 mb-4">
+          {/* Stage Distribution Grid - Fixed to match DNA Workflow order */}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-4">
             {paternityWorkflow && paternityWorkflow.stageDistribution ? (
-              paternityWorkflow.stageDistribution.map(stage => (
-                <div key={stage.workflow_status} className="text-center">
-                  <div className={`p-2 rounded-lg border-2 ${
-                    stage.count > 0 ? 'border-blue-300 dark:border-blue-600' : 'border-gray-200 dark:border-gray-700'
-                  } ${
-                    stage.workflow_status === 'sample_collected' ? 'bg-blue-100 dark:bg-blue-900/30' :
-                    stage.workflow_status === 'pcr_ready' ? 'bg-purple-100 dark:bg-purple-900/30' :
-                    stage.workflow_status === 'pcr_batched' ? 'bg-orange-100 dark:bg-orange-900/30' :
-                    stage.workflow_status === 'pcr_completed' ? 'bg-orange-200 dark:bg-orange-800/30' :
-                    stage.workflow_status === 'electro_ready' ? 'bg-yellow-100 dark:bg-yellow-900/30' :
-                    stage.workflow_status === 'electro_batched' ? 'bg-yellow-200 dark:bg-yellow-800/30' :
-                    stage.workflow_status === 'electro_completed' ? 'bg-green-100 dark:bg-green-900/30' :
-                    stage.workflow_status === 'analysis_ready' ? 'bg-teal-100 dark:bg-teal-900/30' :
-                    stage.workflow_status === 'analysis_completed' ? 'bg-green-200 dark:bg-green-800/30' :
-                    stage.workflow_status === 'report_ready' ? 'bg-indigo-100 dark:bg-indigo-900/30' :
-                    stage.workflow_status === 'report_sent' ? 'bg-green-500 text-white' :
-                    'bg-gray-100 dark:bg-gray-800'
-                  }`}>
-                    <div className="text-2xl font-bold">{stage.count}</div>
-                    <div className="text-xs mt-1 font-medium">
-                      {stage.workflow_status.replace(/_/g, ' ').toUpperCase()}
+              // Sort stages to match DNA Workflow Monitor order - Include all real workflow statuses
+              [
+                'sample_collected',
+                'extraction_completed',
+                'quantification_completed',
+                'pcr_ready',
+                'pcr_completed',
+                'electro_completed',
+                'analysis_completed',
+                'report_sent'
+              ].map(stageKey => {
+                // Map display keys to actual workflow statuses
+                const statusMap = {
+                  'sample_collected': ['sample_collected'],
+                  'extraction_completed': ['extraction_ready', 'extraction_in_progress', 'extraction_completed'],
+                  'quantification_completed': ['quantification_ready', 'quantification_completed'],
+                  'pcr_ready': ['pcr_ready', 'pcr_batched'],
+                  'pcr_completed': ['pcr_completed'],
+                  'electro_completed': ['electro_ready', 'electro_batched', 'electro_completed'],
+                  'analysis_completed': ['analysis_ready', 'analysis_completed'],
+                  'report_sent': ['report_ready', 'report_sent']
+                };
+                
+                // Count samples in all related statuses
+                let count = 0;
+                const relatedStatuses = statusMap[stageKey] || [stageKey];
+                relatedStatuses.forEach(status => {
+                  const stage = paternityWorkflow.stageDistribution.find(s => s.workflow_status === status);
+                  if (stage) count += stage.count;
+                });
+                
+                const stage = { workflow_status: stageKey, count };
+                return (
+                  <div key={stage.workflow_status} className="text-center">
+                    <div className={`p-3 rounded-lg border-2 h-24 flex flex-col justify-center ${
+                      stage.count > 0 ? 'border-blue-300 dark:border-blue-600' : 'border-gray-200 dark:border-gray-700'
+                    } ${
+                      stage.workflow_status === 'sample_collected' ? 'bg-blue-100 dark:bg-blue-900/30' :
+                      stage.workflow_status === 'extraction_completed' ? 'bg-purple-100 dark:bg-purple-900/30' :
+                      stage.workflow_status === 'quantification_completed' ? 'bg-teal-100 dark:bg-teal-900/30' :
+                      stage.workflow_status === 'pcr_ready' || stage.workflow_status === 'pcr_completed' ? 'bg-orange-100 dark:bg-orange-900/30' :
+                      stage.workflow_status === 'electro_completed' ? 'bg-yellow-100 dark:bg-yellow-900/30' :
+                      stage.workflow_status === 'analysis_completed' ? 'bg-green-100 dark:bg-green-900/30' :
+                      stage.workflow_status === 'report_sent' ? 'bg-indigo-100 dark:bg-indigo-900/30' :
+                      'bg-gray-100 dark:bg-gray-800'
+                    }`}>
+                      <div className="text-2xl font-bold">{stage.count}</div>
+                      <div className="text-xs mt-1 font-medium">
+                        {stage.workflow_status === 'sample_collected' ? 'Sample Submission' :
+                         stage.workflow_status === 'extraction_completed' ? 'DNA Extraction' :
+                         stage.workflow_status === 'quantification_completed' ? 'qPCR Quantification' :
+                         stage.workflow_status === 'pcr_ready' ? 'PCR Amplification' :
+                         stage.workflow_status === 'pcr_completed' ? 'PCR Completed' :
+                         stage.workflow_status === 'electro_completed' ? 'Capillary Electrophoresis' :
+                         stage.workflow_status === 'analysis_completed' ? 'OSIRIS Analysis' :
+                         stage.workflow_status === 'report_sent' ? 'Report Generated' :
+                         stage.workflow_status.replace(/_/g, ' ').toUpperCase()
+                        }
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                )
+              })
             ) : (
-              // Show placeholder stages while loading
-              ['Collection', 'PCR Ready', 'PCR Batch', 'PCR Done', 'Electro', 'Analysis', 'Report'].map(stage => (
+              // Show placeholder stages while loading - matching DNA Workflow order
+              ['Collection', 'Extraction', 'qPCR', 'PCR Ready', 'PCR Done', 'Electro', 'Analysis', 'Report'].map(stage => (
                 <div key={stage} className="text-center">
-                  <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 animate-pulse">
+                  <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-800 animate-pulse h-24 flex flex-col justify-center">
                     <div className="text-2xl font-bold text-gray-400">--</div>
                     <div className="text-xs mt-1">{stage}</div>
                   </div>
@@ -484,7 +691,7 @@ const PaternityLabDashboard = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Dna className="h-5 w-5" />
-            DNA Workflow Monitor
+            DNA Workflow Monitor - Manual Samples
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -523,7 +730,7 @@ const PaternityLabDashboard = () => {
                       <h4 className="font-semibold text-sm mb-1 dark:text-gray-100 transition-colors duration-300">{stage.name}</h4>
                       <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 transition-colors duration-300">{stage.description}</p>
                       <Badge variant="outline">
-                        {getStageCount(stage.id)} samples
+                        {getStageCount(stage.id, true)} samples
                       </Badge>
                     </div>
                   </CardContent>

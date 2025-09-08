@@ -1,0 +1,91 @@
+# Production Dockerfile for JAG DNA Scientific LIMS
+# Multi-stage build to create a production-ready deployment
+
+# Stage 1: Build the frontend
+FROM node:18-alpine AS frontend-builder
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files for frontend
+COPY package*.json ./
+
+# Install frontend dependencies
+RUN npm ci --only=production
+
+# Copy frontend source code
+COPY src ./src
+COPY public ./public
+COPY index.html .
+COPY vite.config.js .
+COPY tailwind.config.js .
+COPY postcss.config.js .
+COPY components.json .
+
+# Build the frontend
+RUN npm run build
+
+# Stage 2: Build the backend
+FROM node:18-alpine AS backend-builder
+
+# Set working directory
+WORKDIR /app
+
+# Copy backend package files
+COPY backend/package*.json ./backend/
+
+# Install backend dependencies
+RUN cd backend && npm ci --only=production
+
+# Copy backend source
+COPY backend ./backend
+
+# Stage 3: Production image
+FROM node:18-alpine AS production
+
+# Install system dependencies
+RUN apk add --no-cache \
+    sqlite \
+    sqlite-dev \
+    python3 \
+    make \
+    g++ \
+    curl \
+    dumb-init
+
+# Create app user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S lims -u 1001
+
+# Set working directory
+WORKDIR /app
+
+# Copy built frontend from frontend-builder stage
+COPY --from=frontend-builder --chown=lims:nodejs /app/dist ./dist
+
+# Copy backend from backend-builder stage
+COPY --from=backend-builder --chown=lims:nodejs /app/backend ./backend
+
+# Create necessary directories with proper permissions
+RUN mkdir -p \
+    /app/backend/database \
+    /app/backend/logs \
+    /app/backend/uploads \
+    /app/temp && \
+    chown -R lims:nodejs /app
+
+# Switch to non-root user
+USER lims
+
+# Expose ports
+EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD curl -f http://localhost:3001/health || exit 1
+
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+
+# Start the backend server (which also serves the frontend)
+CMD ["node", "backend/server.js"]

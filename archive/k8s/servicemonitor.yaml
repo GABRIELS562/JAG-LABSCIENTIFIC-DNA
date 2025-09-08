@@ -1,0 +1,31 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: jagdna-backend-monitor
+  namespace: production
+  labels:
+    app: jagdna-backend
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: jagdna-backend
+  endpoints:
+  - port: backend-port
+    interval: 30s
+    path: /metrics
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jagdna-backend-metrics
+  namespace: production
+  labels:
+    app: jagdna-backend
+spec:
+  selector:
+    app: jagdna-backend
+  ports:
+  - name: backend-port
+    port: 3001
+    targetPort: 3001

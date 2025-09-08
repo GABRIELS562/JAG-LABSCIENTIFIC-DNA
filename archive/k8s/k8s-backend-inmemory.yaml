@@ -1,0 +1,216 @@
+# Backend Deployment with In-Memory Database (Quick Fix)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jagdna-backend-inmemory
+  namespace: production
+spec:
+  replicas: 1  # Single replica to avoid SQLite conflicts
+  selector:
+    matchLabels:
+      app: jagdna-backend-inmemory
+  template:
+    metadata:
+      labels:
+        app: jagdna-backend-inmemory
+    spec:
+      containers:
+      - name: backend
+        image: node:20-alpine
+        ports:
+        - containerPort: 3001
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: USE_INMEMORY_DB
+          value: "true"
+        - name: PORT
+          value: "3001"
+        command: ["/bin/sh"]
+        args:
+          - -c
+          - |
+            apk add --no-cache git
+            cd /tmp
+            # Clone or copy the application code (for demo purposes, we'll create a simple server)
+            cat > server.js << 'EOF'
+            const express = require('express');
+            const cors = require('cors');
+            const app = express();
+            const port = process.env.PORT || 3001;
+
+            // Enable CORS for all origins (development)
+            app.use(cors({
+              origin: '*',
+              credentials: false
+            }));
+
+            app.use(express.json());
+
+            // In-memory data store
+            let samples = [];
+            let batches = [];
+            let testCases = [];
+
+            // Seed some test data
+            for (let i = 1; i <= 20; i++) {
+              samples.push({
+                id: i,
+                lab_number: `25_${String(i).padStart(3, '0')}`,
+                name: `Sample${i}`,
+                surname: `Test${i}`,
+                relation: ['Child', 'Mother', 'Alleged Father'][i % 3],
+                status: 'active',
+                workflow_status: ['sample_collected', 'pcr_ready', 'pcr_batched', 'completed'][i % 4],
+                collection_date: new Date().toISOString().split('T')[0],
+                case_number: `CASE_2025_${String(Math.floor(i/3) + 1).padStart(3, '0')}`
+              });
+            }
+
+            // Health check endpoint
+            app.get('/health', (req, res) => {
+              res.json({ 
+                status: 'healthy', 
+                timestamp: new Date().toISOString(),
+                database: 'in-memory',
+                samples: samples.length 
+              });
+            });
+
+            // API endpoints
+            app.get('/api/test', (req, res) => {
+              res.json({
+                message: "Backend server is running (in-memory mode)",
+                timestamp: new Date().toISOString(),
+                database: 'in-memory'
+              });
+            });
+
+            app.get('/api/samples', (req, res) => {
+              const page = parseInt(req.query.page) || 1;
+              const limit = parseInt(req.query.limit) || 50;
+              const offset = (page - 1) * limit;
+              
+              const paginatedSamples = samples.slice(offset, offset + limit);
+              
+              res.json({
+                success: true,
+                data: paginatedSamples,
+                pagination: {
+                  page,
+                  limit,
+                  total: samples.length,
+                  pages: Math.ceil(samples.length / limit)
+                }
+              });
+            });
+
+            app.get('/api/samples/counts', (req, res) => {
+              const counts = {
+                total: samples.length,
+                active: samples.filter(s => s.status === 'active').length,
+                pending: samples.filter(s => s.workflow_status === 'sample_collected').length,
+                pcrBatched: samples.filter(s => s.workflow_status === 'pcr_batched').length,
+                completed: samples.filter(s => s.workflow_status === 'completed').length
+              };
+              res.json({ success: true, data: counts });
+            });
+
+            app.get('/api/samples/all', (req, res) => {
+              res.json({ success: true, data: samples });
+            });
+
+            app.post('/api/samples', (req, res) => {
+              const newSample = {
+                id: samples.length + 1,
+                ...req.body,
+                status: req.body.status || 'active',
+                workflow_status: req.body.workflow_status || 'sample_collected'
+              };
+              samples.push(newSample);
+              res.json({ success: true, data: newSample });
+            });
+
+            app.get('/api/workflow-status', (req, res) => {
+              const counts = {
+                totalSamples: samples.length,
+                pending: samples.filter(s => s.workflow_status === 'sample_collected').length,
+                inExtraction: 0,
+                inPCR: samples.filter(s => s.workflow_status === 'pcr_batched').length,
+                inElectrophoresis: 0,
+                completed: samples.filter(s => s.workflow_status === 'completed').length,
+                alerts: []
+              };
+              res.json({ success: true, data: counts });
+            });
+
+            app.get('/api/batches', (req, res) => {
+              res.json({ success: true, data: batches });
+            });
+
+            app.get('/api/test-cases', (req, res) => {
+              res.json({ success: true, data: testCases });
+            });
+
+            // Additional API endpoints
+            app.get('/api/equipment', (req, res) => {
+              res.json({ success: true, data: [] });
+            });
+            
+            app.get('/api/reports', (req, res) => {
+              res.json({ success: true, data: [] });
+            });
+            
+            app.get('/api/quality-control', (req, res) => {
+              res.json({ success: true, data: [] });
+            });
+
+            app.listen(port, '0.0.0.0', () => {
+              console.log(`🚀 JAG DNA Backend (In-Memory) running on http://0.0.0.0:${port}`);
+              console.log(`📊 Health check: http://0.0.0.0:${port}/health`);
+              console.log(`📁 Loaded ${samples.length} sample records`);
+            });
+            EOF
+
+            # Install dependencies
+            npm init -y
+            npm install express cors
+            
+            # Start the server
+            node server.js
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+---
+# Backend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: jagdna-backend-inmemory-service
+  namespace: production
+spec:
+  selector:
+    app: jagdna-backend-inmemory
+  ports:
+  - port: 3001
+    targetPort: 3001
+  type: ClusterIP

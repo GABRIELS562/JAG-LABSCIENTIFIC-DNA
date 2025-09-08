@@ -1,0 +1,45 @@
+# Build stage for frontend
+FROM node:18-alpine as frontend-builder
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install ALL dependencies (including dev) for building
+RUN npm ci
+
+# Copy all source files
+COPY . .
+
+# Build the frontend
+RUN npm run build
+
+# Production stage
+FROM node:18-alpine
+WORKDIR /app
+
+# Install production dependencies
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Copy backend code
+COPY backend ./backend
+
+# Replace database.js with K8s version
+COPY backend/services/database-k8s.js ./backend/services/database.js
+
+# Copy server-k8s.js as the main server
+COPY backend/server-k8s.js ./backend/server.js
+
+# Copy built frontend from build stage
+COPY --from=frontend-builder /app/dist ./dist
+
+# Create necessary directories
+RUN mkdir -p backend/logs backend/database
+
+ENV NODE_ENV=production
+ENV PORT=3001
+
+EXPOSE 3001
+
+CMD ["node", "backend/server.js"]

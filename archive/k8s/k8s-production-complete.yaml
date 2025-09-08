@@ -1,0 +1,245 @@
+# Complete Production Deployment for JAG DNA Scientific LIMS
+# This deploys the ACTUAL DNA LIMS application (not a demo)
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+  labels:
+    app: jagdna-lims
+    environment: production
+
+---
+# Backend Deployment - Full DNA LIMS Application
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jagdna-lims-production
+  namespace: production
+  labels:
+    app: jagdna-lims
+    component: backend
+    environment: production
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: jagdna-lims
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: jagdna-lims
+        component: backend
+        environment: production
+    spec:
+      containers:
+      - name: lims-app
+        image: jagdna-lims:fixed
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 3001
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3001"
+        - name: DATABASE_PATH
+          value: "/app/backend/database/ashley_lims.db"
+        - name: UPLOAD_DIR
+          value: "/app/backend/uploads"
+        - name: LOG_LEVEL
+          value: "info"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 3001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 6
+        volumeMounts:
+        - name: database-storage
+          mountPath: /app/backend/database
+        - name: uploads-storage
+          mountPath: /app/backend/uploads
+        - name: logs-storage
+          mountPath: /app/backend/logs
+      volumes:
+      - name: database-storage
+        persistentVolumeClaim:
+          claimName: jagdna-database-pvc
+      - name: uploads-storage
+        persistentVolumeClaim:
+          claimName: jagdna-uploads-pvc
+      - name: logs-storage
+        emptyDir: {}
+      restartPolicy: Always
+
+---
+# Service for the LIMS Application
+apiVersion: v1
+kind: Service
+metadata:
+  name: jagdna-lims-service
+  namespace: production
+  labels:
+    app: jagdna-lims
+    component: service
+spec:
+  selector:
+    app: jagdna-lims
+    component: backend
+  ports:
+  - name: http
+    port: 80
+    targetPort: 3001
+    protocol: TCP
+  - name: api
+    port: 3001
+    targetPort: 3001
+    protocol: TCP
+  type: ClusterIP
+
+---
+# Database Persistent Volume
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: jagdna-database-pv
+  labels:
+    app: jagdna-lims
+    component: database
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /tmp/jagdna-database
+  persistentVolumeReclaimPolicy: Retain
+
+---
+# Database Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jagdna-database-pvc
+  namespace: production
+  labels:
+    app: jagdna-lims
+    component: database
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# Uploads Persistent Volume
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: jagdna-uploads-pv
+  labels:
+    app: jagdna-lims
+    component: uploads
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /tmp/jagdna-uploads
+  persistentVolumeReclaimPolicy: Retain
+
+---
+# Uploads Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jagdna-uploads-pvc
+  namespace: production
+  labels:
+    app: jagdna-lims
+    component: uploads
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+# Ingress for External Access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jagdna-lims-ingress
+  namespace: production
+  labels:
+    app: jagdna-lims
+    component: ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  rules:
+  - host: localhost
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: jagdna-lims-service
+            port:
+              number: 80
+
+---
+# ServiceMonitor for Prometheus (if using Prometheus Operator)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: jagdna-lims-metrics
+  namespace: production
+  labels:
+    app: jagdna-lims
+    component: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: jagdna-lims
+      component: service
+  endpoints:
+  - port: api
+    path: /metrics
+    interval: 30s

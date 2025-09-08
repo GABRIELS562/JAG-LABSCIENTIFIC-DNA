@@ -1,0 +1,41 @@
+{
+  "timestamp": "2025-09-08T13:07:24.365Z",
+  "samples": [
+    {
+      "lab_number": "AUTO-1757336800273-LFYNV",
+      "simulated_status": "report_sent",
+      "actual_status": "report_sent",
+      "progress": "100.0"
+    },
+    {
+      "lab_number": "AUTO-1757336808274-KM1RD",
+      "simulated_status": "analysis_completed",
+      "actual_status": "analysis_completed",
+      "progress": "83.3"
+    },
+    {
+      "lab_number": "AUTO-1757336816276-4XHRH",
+      "simulated_status": "electro_completed",
+      "actual_status": "electro_completed",
+      "progress": "66.7"
+    },
+    {
+      "lab_number": "AUTO-1757336824276-617D0",
+      "simulated_status": "pcr_batched",
+      "actual_status": "pcr_batched",
+      "progress": "41.7"
+    },
+    {
+      "lab_number": "AUTO-1757336832278-JZED2",
+      "simulated_status": "qpcr_in_progress",
+      "actual_status": "pcr_ready",
+      "progress": "25.0"
+    },
+    {
+      "lab_number": "AUTO-1757336840280-ZA39E",
+      "simulated_status": "extraction_in_progress",
+      "actual_status": "sample_collected",
+      "progress": "8.3"
+    }
+  ]
+}

@@ -307,14 +307,101 @@ router.get("/get-last-lab-number", async (req, res) => {
   }
 });
 
-// Get all samples (SQLite only)
+// Get all samples with pagination support (SQLite only)
 router.get("/samples", async (req, res) => {
   try {
     if (DB_MODE === 'sqlite') {
-      const samples = db.getSamplesWithBatchingStatus();
-      res.json({ 
-        success: true, 
-        data: samples,
+      // Extract pagination parameters
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 500; // Higher default for dashboard
+      const status = req.query.status;
+      const search = req.query.search;
+      const period = req.query.period;
+      
+      // Get all samples first, then filter and paginate
+      // Direct database query to ensure we get the data
+      let allSamples;
+      try {
+        // Initialize database service first
+        db.ensureInitialized();
+        allSamples = db.getAllSamples() || [];
+        console.log(`Database service returned ${allSamples.length} samples`);
+      } catch (serviceError) {
+        console.warn('Database service failed, trying direct query:', serviceError.message);
+        // Direct SQLite query as fallback
+        const Database = require('better-sqlite3');
+        const dbPath = require('path').join(__dirname, '..', 'database', 'ashley_lims.db');
+        const sqliteDb = new Database(dbPath, { readonly: true });
+        allSamples = sqliteDb.prepare('SELECT * FROM samples ORDER BY id DESC').all();
+        sqliteDb.close();
+        console.log(`Direct DB query returned ${allSamples.length} samples`);
+      }
+      
+      // Apply filters
+      if (status && status !== 'all') {
+        allSamples = allSamples.filter(sample => sample.workflow_status === status);
+      }
+      
+      if (search) {
+        const searchLower = search.toLowerCase();
+        allSamples = allSamples.filter(sample => 
+          (sample.lab_number && sample.lab_number.toLowerCase().includes(searchLower)) ||
+          (sample.name && sample.name.toLowerCase().includes(searchLower)) ||
+          (sample.surname && sample.surname.toLowerCase().includes(searchLower)) ||
+          (sample.case_number && sample.case_number.toLowerCase().includes(searchLower))
+        );
+      }
+      
+      if (period) {
+        const now = new Date();
+        let startDate;
+        
+        switch (period) {
+          case 'today':
+            startDate = new Date(now.setHours(0, 0, 0, 0));
+            break;
+          case 'week':
+            startDate = new Date(now.setDate(now.getDate() - 7));
+            break;
+          case 'month':
+            startDate = new Date(now.setMonth(now.getMonth() - 1));
+            break;
+        }
+        
+        if (startDate) {
+          allSamples = allSamples.filter(sample => 
+            sample.collection_date && new Date(sample.collection_date) >= startDate
+          );
+        }
+      }
+      
+      // Calculate pagination
+      const total = allSamples.length;
+      const totalPages = Math.ceil(total / limit);
+      const hasNext = page < totalPages;
+      const hasPrev = page > 1;
+      
+      // Apply pagination
+      const offset = (page - 1) * limit;
+      const samples = allSamples.slice(offset, offset + limit);
+      
+      // Return in the format expected by the frontend
+      res.json({
+        success: true,
+        message: 'Data retrieved successfully',
+        data: samples, // Keep 'data' for backward compatibility
+        samples: samples, // Also provide 'samples' for newer frontend expectations
+        meta: {
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages,
+            hasNext,
+            hasPrev
+          },
+          timestamp: new Date().toISOString()
+        },
         count: samples.length,
         database: 'SQLite'
       });
@@ -325,6 +412,7 @@ router.get("/samples", async (req, res) => {
       });
     }
   } catch (error) {
+    console.error('Error fetching samples:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -860,6 +948,261 @@ router.get("/client/test/:id/download", authenticateToken, async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Workflow statistics endpoint
+router.get("/workflow-stats", async (req, res) => {
+  try {
+    if (DB_MODE === 'sqlite') {
+      let samples;
+      try {
+        // Initialize database service first
+        db.ensureInitialized();
+        samples = db.getAllSamples() || [];
+        console.log(`Database service returned ${samples.length} samples for workflow stats`);
+      } catch (serviceError) {
+        console.warn('Database service failed for workflow stats, trying direct query:', serviceError.message);
+        // Direct SQLite query as fallback
+        const Database = require('better-sqlite3');
+        const dbPath = require('path').join(__dirname, '..', 'database', 'ashley_lims.db');
+        const sqliteDb = new Database(dbPath, { readonly: true });
+        samples = sqliteDb.prepare('SELECT * FROM samples ORDER BY id DESC').all();
+        sqliteDb.close();
+        console.log(`Direct DB query returned ${samples.length} samples for workflow stats`);
+      }
+      
+      // Count samples by workflow status
+      const stats = {
+        registered: samples.filter(s => s.workflow_status === 'sample_collected' || s.workflow_status === 'registered').length,
+        inExtraction: samples.filter(s => 
+          s.workflow_status === 'extraction_ready' || 
+          s.workflow_status === 'extraction_in_progress' || 
+          s.workflow_status === 'extraction_completed'
+        ).length,
+        inPCR: samples.filter(s => 
+          s.workflow_status === 'pcr_ready' || 
+          s.workflow_status === 'pcr_batched' || 
+          s.workflow_status === 'pcr_completed'
+        ).length,
+        inElectrophoresis: samples.filter(s => 
+          s.workflow_status === 'electro_ready' || 
+          s.workflow_status === 'electro_batched' || 
+          s.workflow_status === 'electro_completed'
+        ).length,
+        reruns: samples.filter(s => s.workflow_status === 'rerun' || s.workflow_status === 'reanalysis').length,
+        completed: samples.filter(s => s.workflow_status === 'report_sent' || s.workflow_status === 'completed').length,
+        total: samples.length
+      };
+      
+      res.json({
+        success: true,
+        message: 'Success',
+        data: stats,
+        meta: {
+          timestamp: new Date().toISOString()
+        }
+      });
+    } else {
+      res.status(501).json({ 
+        success: false, 
+        error: "Feature only available with SQLite database" 
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching workflow stats:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Sample counts endpoint
+router.get("/samples/counts", async (req, res) => {
+  try {
+    if (DB_MODE === 'sqlite') {
+      let samples;
+      try {
+        // Initialize database service first
+        db.ensureInitialized();
+        samples = db.getAllSamples() || [];
+        console.log(`Database service returned ${samples.length} samples for counts`);
+      } catch (serviceError) {
+        console.warn('Database service failed for counts, trying direct query:', serviceError.message);
+        // Direct SQLite query as fallback
+        const Database = require('better-sqlite3');
+        const dbPath = require('path').join(__dirname, '..', 'database', 'ashley_lims.db');
+        const sqliteDb = new Database(dbPath, { readonly: true });
+        samples = sqliteDb.prepare('SELECT * FROM samples ORDER BY id DESC').all();
+        sqliteDb.close();
+        console.log(`Direct DB query returned ${samples.length} samples for counts`);
+      }
+      
+      // Calculate comprehensive counts
+      const counts = {
+        total: samples.length,
+        active: samples.filter(s => 
+          s.workflow_status !== 'report_sent' && 
+          s.workflow_status !== 'completed' && 
+          s.workflow_status !== 'cancelled'
+        ).length,
+        pending: samples.filter(s => s.workflow_status === 'sample_collected' || s.workflow_status === 'registered').length,
+        pcrBatched: samples.filter(s => s.workflow_status === 'pcr_batched').length,
+        electroBatched: samples.filter(s => s.workflow_status === 'electro_batched').length,
+        rerunBatched: samples.filter(s => s.workflow_status === 'rerun' || s.workflow_status === 'reanalysis').length,
+        completed: samples.filter(s => s.workflow_status === 'report_sent' || s.workflow_status === 'completed').length,
+        processing: samples.filter(s => 
+          s.workflow_status === 'extraction_in_progress' ||
+          s.workflow_status === 'pcr_in_progress' ||
+          s.workflow_status === 'electro_in_progress' ||
+          s.workflow_status === 'analysis_in_progress'
+        ).length
+      };
+      
+      res.json({
+        success: true,
+        message: 'Success',
+        data: counts,
+        meta: {
+          timestamp: new Date().toISOString()
+        }
+      });
+    } else {
+      res.status(501).json({ 
+        success: false, 
+        error: "Feature only available with SQLite database" 
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching sample counts:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Simulated stages endpoint for live cycling demo
+router.get("/simulated-stages", async (req, res) => {
+  try {
+    if (DB_MODE === 'sqlite') {
+      const samples = db.getAllSamples() || [];
+      
+      // Filter for AUTO- prefixed samples and simulate stages
+      const autoSamples = samples.filter(s => s.lab_number && s.lab_number.startsWith('AUTO-'));
+      
+      // Create simulated cycling statuses for better demo visualization
+      const simulatedSamples = autoSamples.map(sample => {
+        // Use a hash of the lab_number to create consistent but varied simulated stages
+        const hash = sample.lab_number.split('').reduce((a, b) => {
+          a = ((a << 5) - a) + b.charCodeAt(0);
+          return a & a;
+        }, 0);
+        
+        const cycleStages = [
+          'sample_collected',
+          'extraction_in_progress', 
+          'quantification_completed',
+          'pcr_ready',
+          'pcr_completed',
+          'electro_completed',
+          'analysis_completed',
+          'report_sent'
+        ];
+        
+        // Use time and hash to create cycling effect
+        const timeIndex = Math.floor(Date.now() / 15000) % cycleStages.length;
+        const stageIndex = (Math.abs(hash) + timeIndex) % cycleStages.length;
+        
+        return {
+          lab_number: sample.lab_number,
+          actual_status: sample.workflow_status,
+          simulated_status: cycleStages[stageIndex]
+        };
+      });
+      
+      res.json({
+        success: true,
+        message: 'Simulated stages for live demo',
+        samples: simulatedSamples,
+        meta: {
+          timestamp: new Date().toISOString(),
+          total_auto_samples: autoSamples.length
+        }
+      });
+    } else {
+      res.status(501).json({ 
+        success: false, 
+        error: "Feature only available with SQLite database" 
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching simulated stages:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Debug endpoint to troubleshoot database connectivity
+router.get("/debug/samples", async (req, res) => {
+  try {
+    const path = require('path');
+    const Database = require('better-sqlite3');
+    
+    // Try different possible database paths
+    const possiblePaths = [
+      path.join(__dirname, '..', 'database', 'ashley_lims.db'),
+      path.join(__dirname, '..', '..', 'backend', 'database', 'ashley_lims.db'),
+      path.join(process.cwd(), 'backend', 'database', 'ashley_lims.db')
+    ];
+    
+    const fs = require('fs');
+    let workingPath = null;
+    let dbStats = null;
+    
+    for (const dbPath of possiblePaths) {
+      if (fs.existsSync(dbPath)) {
+        workingPath = dbPath;
+        dbStats = fs.statSync(dbPath);
+        break;
+      }
+    }
+    
+    if (!workingPath) {
+      return res.json({
+        success: false,
+        error: 'Database file not found',
+        attempted_paths: possiblePaths,
+        cwd: process.cwd()
+      });
+    }
+    
+    // Try to query the database
+    let samples = [];
+    let error = null;
+    try {
+      const testDb = new Database(workingPath, { readonly: true });
+      samples = testDb.prepare('SELECT COUNT(*) as count FROM samples').get();
+      const sampleList = testDb.prepare('SELECT lab_number, workflow_status FROM samples LIMIT 5').all();
+      testDb.close();
+      
+      res.json({
+        success: true,
+        database_path: workingPath,
+        database_size: Math.round(dbStats.size / 1024 / 1024 * 100) / 100 + ' MB',
+        sample_count: samples.count,
+        sample_examples: sampleList,
+        cwd: process.cwd()
+      });
+    } catch (queryError) {
+      res.json({
+        success: false,
+        database_path: workingPath,
+        database_size: Math.round(dbStats.size / 1024 / 1024 * 100) / 100 + ' MB',
+        error: queryError.message,
+        cwd: process.cwd()
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      cwd: process.cwd()
+    });
   }
 });
 

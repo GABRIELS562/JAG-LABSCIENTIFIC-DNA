@@ -393,6 +393,19 @@ export const api = {
     }
     
     return { success: true, data: results };
+  },
+
+  // Extraction API methods
+  async createExtractionBatch(batchData) {
+    return extractionApi.createBatch(batchData);
+  },
+
+  async addQuantificationResult(resultData) {
+    return extractionApi.addQuantificationResult(resultData);
+  },
+
+  async completeExtractionBatch(params) {
+    return extractionApi.completeBatch(params.batchId, params.qualityControlPassed, params.notes);
   }
 };
 

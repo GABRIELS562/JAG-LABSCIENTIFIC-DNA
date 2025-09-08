@@ -1,0 +1,26 @@
+# Simplified Prometheus & Grafana Configuration without persistence
+grafana:
+  adminPassword: "admin123"
+  service:
+    type: NodePort
+    nodePort: 30300
+  persistence:
+    enabled: false  # Disable persistence for simplicity
+
+prometheus:
+  service:
+    type: NodePort
+    nodePort: 30090
+  prometheusSpec:
+    retention: 1d
+    storageSpec: {}  # No persistent storage
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+
+alertmanager:
+  enabled: false  # Disable for now
+
+kubeStateMetrics:
+  enabled: true
+nodeExporter:
+  enabled: true

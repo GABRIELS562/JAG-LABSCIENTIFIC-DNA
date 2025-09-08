@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Test</title>
+</head>
+<body>
+    <div id="root">
+        <h1>If you see this, React didn't mount</h1>
+    </div>
+    <script>
+        console.log('Script loaded');
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM loaded');
+            const root = document.getElementById('root');
+            console.log('Root element:', root);
+        });
+        
+        // Check if modules are loading
+        window.addEventListener('error', (e) => {
+            console.error('Error loading:', e);
+        });
+    </script>
+</body>
+</html>

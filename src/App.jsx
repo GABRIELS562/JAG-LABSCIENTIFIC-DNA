@@ -7,6 +7,7 @@ import { Menu as MenuIcon } from '@mui/icons-material';
 import ThemeToggle from './components/ui/ThemeToggle';
 import Sidebar from './components/layout/Sidebar';
 import LoginPage from './components/auth/LoginPage';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Lazy load large feature components
 const PaternityLabDashboard = lazy(() => import('./components/PaternityLabDashboard'));
@@ -47,7 +48,6 @@ const LoadingSpinner = ({ minHeight = 'min-h-screen' }) => (
 // Import contexts and utilities
 import { ThemeProvider, useThemeContext } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
-import ErrorBoundary from './components/common/ErrorBoundary';
 
 function AppContent() {
   const { isDarkMode, toggleTheme } = useThemeContext();
@@ -118,11 +118,13 @@ function AppContent() {
             <Route 
               path="/" 
               element={
-                <div className={`min-h-screen w-full ${containerBackground} backdrop-blur-md`}>
-                  <Suspense fallback={<LoadingSpinner />}>
-                    <PaternityLabDashboard />
-                  </Suspense>
-                </div>
+                <ErrorBoundary>
+                  <div className={`min-h-screen w-full ${containerBackground} backdrop-blur-md`}>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <PaternityLabDashboard />
+                    </Suspense>
+                  </div>
+                </ErrorBoundary>
               } 
             />
             

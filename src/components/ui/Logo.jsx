@@ -6,8 +6,8 @@ const Logo = ({ sx = {} }) => {
   
   // Use different logo based on theme mode
   const logoSrc = isDarkMode 
-    ? '/jagdna-logo-dark.png'  // White text on dark background
-    : '/jagdna-logo-light.png'; // Black text on light background
+    ? '/labdna-logo-dark.png'  // White text on dark background
+    : '/labdna-logo-light.png'; // Black text on light background
   
   return (
     <Box

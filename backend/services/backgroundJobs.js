@@ -1,5 +1,5 @@
 const cron = require('node-cron');
-const { logger } = require('../utils/logger');
+const logger = require('../utils/logger');
 const { memoryManager } = require('../utils/memoryManager');
 const { trackSampleProcessed, trackBatchCreated, updateQueueSize, trackProcessingTime } = require('../middleware/metrics');
 const Database = require('better-sqlite3');
@@ -52,7 +52,11 @@ class BackgroundJobService {
       this.db.pragma('journal_mode = WAL');
       logger.info('Background jobs database initialized');
     } catch (error) {
-      logger.error('Failed to initialize background jobs database', { error: error.message });
+      if (logger && logger.error) {
+        logger.error('Failed to initialize background jobs database', { error: error.message });
+      } else {
+        console.error('Failed to initialize background jobs database', error);
+      }
     }
   }
 

@@ -59,11 +59,13 @@ export function useApiData(apiCall, dependencies = [], options = {}) {
   }, [apiCall, onSuccess, onError, transform]);
 
   // Auto-fetch on mount and dependency changes
+  // Fixed: Using stable dependency reference to prevent infinite re-renders
   useEffect(() => {
     if (immediate) {
       fetchData();
     }
-  }, [fetchData, immediate, ...dependencies]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [immediate, JSON.stringify(dependencies)]);
 
   return {
     data,

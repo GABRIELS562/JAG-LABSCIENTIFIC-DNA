@@ -38,7 +38,13 @@ class UnifiedDatabaseService {
     this.transactionDepth = 0;
     this.initAttempted = false;
     
-    // Lazy initialization - don't initialize immediately
+    // Initialize immediately to avoid lazy loading issues
+    try {
+      this.initialize();
+      console.log('✅ Database initialized successfully in constructor');
+    } catch (error) {
+      console.error('❌ Database initialization failed in constructor:', error.message);
+    }
   }
 
   ensureInitialized() {
@@ -141,9 +147,19 @@ class UnifiedDatabaseService {
 
   createTables() {
     try {
-      if (fs.existsSync(this.schemaPath)) {
-        const schema = fs.readFileSync(this.schemaPath, 'utf8');
-        this.db.exec(schema);
+      // Only create tables if they don't exist (database might already have data)
+      // Skip schema execution if samples table already exists with data
+      const samplesCount = this.db.prepare('SELECT COUNT(*) as count FROM sqlite_master WHERE type="table" AND name="samples"').get();
+      
+      if (samplesCount.count === 0) {
+        // Tables don't exist, create them
+        if (fs.existsSync(this.schemaPath)) {
+          const schema = fs.readFileSync(this.schemaPath, 'utf8');
+          this.db.exec(schema);
+          console.log('✅ Database schema created from', this.schemaPath);
+        }
+      } else {
+        console.log('✅ Database tables already exist, skipping schema creation');
       }
       
       const geneticSchemaPath = path.join(__dirname, '..', 'database', 'genetic-schema-sqlite.sql');
@@ -241,7 +257,7 @@ class UnifiedDatabaseService {
       `,
       
       getSample: 'SELECT * FROM samples WHERE lab_number = ?',
-      getAllSamples: 'SELECT * FROM samples ORDER BY id DESC',
+      getAllSamples: 'SELECT * FROM samples ORDER BY id DESC LIMIT 2000',
       updateSampleWorkflow: 'UPDATE samples SET workflow_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
       updateSampleBatch: 'UPDATE samples SET batch_id = ?, workflow_status = ?, lab_batch_number = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
       
@@ -336,7 +352,7 @@ class UnifiedDatabaseService {
   }
 
   queryAll(statementName, params = []) {
-    this.ensureConnection();
+    this.ensureInitialized();
     
     const stmt = this.preparedStatements.get(statementName);
     if (!stmt) {
@@ -420,6 +436,7 @@ class UnifiedDatabaseService {
   }
 
   getAllSamples() {
+    this.ensureInitialized();
     return this.queryAll('getAllSamples');
   }
 
@@ -477,7 +494,7 @@ class UnifiedDatabaseService {
           conditions.push("workflow_status IN ('analysis_completed')");
           break;
         default:
-          conditions.push('status = ?');
+          conditions.push('workflow_status = ?');
           params.push(filters.status);
       }
     }
@@ -1002,7 +1019,7 @@ class UnifiedDatabaseService {
 
   ensureConnection() {
     if (!this.isConnected || !this.db) {
-      this.connect();
+      this.initialize();
     }
   }
 

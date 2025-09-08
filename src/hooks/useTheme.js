@@ -23,15 +23,15 @@ const colors = {
 };
 
 export const useTheme = () => {
-  // Initialize dark mode from localStorage or system preference
+  // Initialize dark mode from localStorage, default to dark
   const [isDarkMode, setIsDarkMode] = useState(() => {
     // Check localStorage first
     const stored = localStorage.getItem('theme');
     if (stored) {
       return stored === 'dark';
     }
-    // Fall back to system preference
-    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+    // Default to dark mode (true) instead of checking system preference
+    return true;
   });
 
   const theme = useMemo(

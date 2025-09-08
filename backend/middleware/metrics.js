@@ -1,5 +1,5 @@
 const promClient = require('prom-client');
-const { logger } = require('../utils/logger');
+const logger = require('../utils/logger');
 const { memoryManager } = require('../utils/memoryManager');
 
 // Initialize Prometheus client
