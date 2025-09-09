@@ -1,19 +1,37 @@
 # Production Dockerfile for JAG DNA Scientific LIMS
-# Multi-stage build to create a production-ready deployment
+# Uses Debian 12 (Bookworm) with GLIBC 2.36 for better compatibility
 
-# Stage 1: Build the frontend
-FROM node:18-alpine AS frontend-builder
-
-# Set working directory
+# Stage 1: Dependencies
+FROM node:20-bookworm AS dependencies
 WORKDIR /app
 
-# Copy package files for frontend
+# Install build dependencies for native modules
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy package files
+COPY backend/package*.json ./backend/
 COPY package*.json ./
 
-# Install frontend dependencies
-RUN npm ci --only=production
+# Install production dependencies and rebuild native modules
+WORKDIR /app/backend
+RUN npm install --omit=dev && \
+    npm rebuild && \
+    npm cache clean --force
 
-# Copy frontend source code
+# Stage 2: Build Frontend
+FROM node:20-bookworm AS frontend-builder
+WORKDIR /app
+
+# Copy package files and install dependencies
+COPY package*.json ./
+RUN npm install
+
+# Copy frontend source
 COPY src ./src
 COPY public ./public
 COPY index.html .
@@ -22,70 +40,105 @@ COPY tailwind.config.js .
 COPY postcss.config.js .
 COPY components.json .
 
-# Build the frontend
+# Build frontend
 RUN npm run build
 
-# Stage 2: Build the backend
-FROM node:18-alpine AS backend-builder
+# Stage 3: Production
+FROM node:20-bookworm-slim AS production
 
-# Set working directory
-WORKDIR /app
-
-# Copy backend package files
-COPY backend/package*.json ./backend/
-
-# Install backend dependencies
-RUN cd backend && npm ci --only=production
-
-# Copy backend source
-COPY backend ./backend
-
-# Stage 3: Production image
-FROM node:18-alpine AS production
-
-# Install system dependencies
-RUN apk add --no-cache \
-    sqlite \
-    sqlite-dev \
-    python3 \
-    make \
-    g++ \
+# Install only runtime dependencies
+RUN apt-get update && apt-get install -y \
     curl \
-    dumb-init
+    postgresql-client \
+    sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
 
-# Create app user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S lims -u 1001
+# Create non-root user for security
+RUN groupadd -r lims && useradd -r -g lims -m lims
 
-# Set working directory
 WORKDIR /app
 
-# Copy built frontend from frontend-builder stage
-COPY --from=frontend-builder --chown=lims:nodejs /app/dist ./dist
+# Copy backend with dependencies
+COPY --from=dependencies --chown=lims:lims /app/backend ./backend
 
-# Copy backend from backend-builder stage
-COPY --from=backend-builder --chown=lims:nodejs /app/backend ./backend
+# Copy frontend build
+COPY --from=frontend-builder --chown=lims:lims /app/dist ./dist
+
+# Copy necessary backend files
+COPY --chown=lims:lims backend ./backend
+COPY --chown=lims:lims .env.example .
+
+# Remove test files and unnecessary items
+RUN rm -rf \
+    backend/tests \
+    backend/test_* \
+    backend/*.test.js \
+    backend/scripts/test-* \
+    backend/scripts/populate-* \
+    backend/scripts/migrate-*
 
 # Create necessary directories with proper permissions
 RUN mkdir -p \
     /app/backend/database \
     /app/backend/logs \
     /app/backend/uploads \
+    /app/backend/osiris_workspace \
     /app/temp && \
-    chown -R lims:nodejs /app
+    chown -R lims:lims /app
+
+# Set production environment variables
+ENV NODE_ENV=production \
+    PORT=3001 \
+    HOST=0.0.0.0 \
+    # Database configuration - defaults to PostgreSQL
+    DB_ADAPTER=postgres \
+    DB_HOST=postgresql.production.svc.cluster.local \
+    DB_PORT=5432 \
+    DB_NAME=limsdb \
+    DB_USER=lims_user \
+    DB_PASSWORD=lims2024secure \
+    # JWT and Security
+    JWT_SECRET=change-this-to-a-secure-random-secret-in-production \
+    JWT_EXPIRES_IN=7d \
+    BCRYPT_ROUNDS=10 \
+    # Logging
+    LOG_LEVEL=info \
+    LOG_FILE_PATH=/app/backend/logs \
+    LOG_MAX_FILES=14d \
+    LOG_MAX_SIZE=20m \
+    # Performance
+    NODE_OPTIONS="--max-old-space-size=1024" \
+    DATABASE_POOL_MIN=2 \
+    DATABASE_POOL_MAX=20 \
+    # Health check
+    ENABLE_HEALTH_CHECK=true \
+    HEALTH_CHECK_INTERVAL=30000 \
+    # DevOps features
+    ENABLE_METRICS=true \
+    METRICS_PORT=9090 \
+    # Workflow automation
+    ENABLE_WORKFLOW_AUTOMATION=true \
+    WORKFLOW_CYCLE_INTERVAL=30000 \
+    SAMPLE_BATCH_SIZE=5 \
+    # CORS
+    CORS_ORIGIN=* \
+    CORS_CREDENTIALS=true \
+    # Rate limiting
+    RATE_LIMIT_WINDOW_MS=900000 \
+    RATE_LIMIT_MAX_REQUESTS=100
+
+# Create volume mount points
+VOLUME ["/app/backend/logs", "/app/backend/database", "/app/backend/uploads"]
+
+# Expose application and metrics ports
+EXPOSE 3001 9090
 
 # Switch to non-root user
 USER lims
 
-# Expose ports
-EXPOSE 3001
+# Health check configuration
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:3001/api/health || exit 1
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-    CMD curl -f http://localhost:3001/health || exit 1
-
-# Use dumb-init to handle signals properly
-ENTRYPOINT ["/usr/bin/dumb-init", "--"]
-
-# Start the backend server (which also serves the frontend)
-CMD ["node", "backend/server.js"]
+# Production startup command
+CMD ["node", "--max-old-space-size=1024", "backend/server.js"]
