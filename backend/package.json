@@ -20,6 +20,7 @@
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-toast": "^1.2.15",
     "bcryptjs": "^2.4.3",
+    "sqlite3": "^5.1.6",
     "chokidar": "^4.0.3",
     "compression": "^1.8.0",
     "cors": "^2.8.5",

@@ -1,267 +1,204 @@
-// PostgreSQL-based database service
-// This replaces the old better-sqlite3 implementation for Kubernetes compatibility
-const { Pool } = require('pg');
-const path = require('path');
-const fs = require('fs');
+// Unified Database Service
+// Automatically selects PostgreSQL or SQLite based on DB_ADAPTER environment variable
 
-// Import utilities with fallback handling
-let logger, databaseLogger, performanceMonitor, DatabaseError;
-
-try {
-  const { globalErrorHandler } = require('../middleware/errorHandler');
-  DatabaseError = globalErrorHandler.DatabaseError || Error;
-} catch (error) {
-  DatabaseError = Error;
-}
-
-try {
-  const loggerUtils = require('../utils/logger');
-  logger = loggerUtils.logger || console;
-  databaseLogger = loggerUtils.databaseLogger || console;
-} catch (error) {
-  logger = console;
-  databaseLogger = console;
-}
-
-try {
-  const performanceUtils = require('../middleware/performanceMonitoring');
-  performanceMonitor = performanceUtils.performanceMonitor || null;
-} catch (error) {
-  performanceMonitor = null;
-}
+const PostgreSQLAdapter = require('./database-postgres-adapter');
+const SQLiteAdapter = require('./database-sqlite-adapter');
 
 class UnifiedDatabaseService {
   constructor() {
-    this.pool = null;
-    this.isConnected = false;
-    this.preparedStatements = new Map();
-    this.transactionDepth = 0;
-    this.initAttempted = false;
+    // Determine which adapter to use
+    const adapter = process.env.DB_ADAPTER || 'postgres';
     
-    // Initialize immediately
-    try {
-      this.initialize();
-      console.log('✅ PostgreSQL database initialized successfully');
-    } catch (error) {
-      console.error('❌ PostgreSQL database initialization failed:', error.message);
-    }
-  }
-
-  getDbHost() {
-    // In Kubernetes, use the service name
-    if (process.env.KUBERNETES_SERVICE_HOST) {
-      return 'postgresql.production.svc.cluster.local';
-    }
-    // Support both DB_HOST and POSTGRES_HOST
-    return process.env.DB_HOST || process.env.POSTGRES_HOST || 'localhost';
-  }
-
-  async initialize() {
-    if (this.initAttempted) {
-      return this.isConnected;
+    console.log(`🔧 Initializing database with adapter: ${adapter}`);
+    
+    if (adapter === 'sqlite') {
+      this.adapter = new SQLiteAdapter();
+      this.adapterType = 'sqlite';
+    } else {
+      // Default to PostgreSQL
+      this.adapter = new PostgreSQLAdapter();
+      this.adapterType = 'postgres';
     }
     
-    this.initAttempted = true;
+    // Bind all methods to maintain context
+    this.bindMethods();
     
-    try {
-      // PostgreSQL connection configuration
-      const config = {
-        host: this.getDbHost(),
-        port: process.env.DB_PORT || process.env.POSTGRES_PORT || 5432,
-        database: process.env.DB_NAME || process.env.POSTGRES_DB || 'limsdb',
-        user: process.env.DB_USER || process.env.POSTGRES_USER || 'lims_user',
-        password: process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD || 'lims2024secure',
-        max: 20,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 2000,
-      };
-
-      this.pool = new Pool(config);
-      
-      // Test connection
-      const client = await this.pool.connect();
-      await client.query('SELECT 1');
-      client.release();
-      
-      this.isConnected = true;
-      
-      // Initialize tables
-      await this.initializeTables();
-      
-      console.log(`✅ PostgreSQL connected to ${config.host}:${config.port}/${config.database}`);
-      return true;
-    } catch (error) {
-      console.error('PostgreSQL initialization error:', error);
-      this.isConnected = false;
-      throw error;
-    }
+    // Auto-initialize
+    this.initPromise = this.initialize();
   }
 
-  async initializeTables() {
-    try {
-      // Create samples table if not exists
-      await this.pool.query(`
-        CREATE TABLE IF NOT EXISTS samples (
-          id SERIAL PRIMARY KEY,
-          sample_id VARCHAR(255) UNIQUE NOT NULL,
-          patient_name VARCHAR(255),
-          sample_type VARCHAR(100),
-          status VARCHAR(50) DEFAULT 'pending',
-          metadata JSONB,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-
-      // Create workflows table if not exists  
-      await this.pool.query(`
-        CREATE TABLE IF NOT EXISTS workflows (
-          id SERIAL PRIMARY KEY,
-          sample_id VARCHAR(255),
-          workflow_type VARCHAR(100),
-          status VARCHAR(50),
-          step_number INTEGER,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-
-      console.log('✅ Database tables initialized');
-    } catch (error) {
-      console.error('Table initialization error:', error);
-    }
+  bindMethods() {
+    // Bind all adapter methods to this instance
+    const methods = [
+      'initialize', 'query', 'prepare', 'get', 'all', 'run', 'exec',
+      'beginTransaction', 'commit', 'rollback', 'transaction',
+      'pragma', 'getHealthCheck', 'getStatistics', 'close',
+      'ensureInitialized'
+    ];
+    
+    methods.forEach(method => {
+      if (typeof this.adapter[method] === 'function') {
+        this[method] = this.adapter[method].bind(this.adapter);
+      }
+    });
   }
 
-  ensureInitialized() {
-    if (!this.isConnected) {
-      throw new DatabaseError('Database not initialized. Call initialize() first.');
-    }
+  // Getter for common properties
+  get isConnected() {
+    return this.adapter.isConnected;
   }
 
-  // SQLite-compatible prepare method (converts to PostgreSQL parameterized queries)
-  prepare(sql) {
-    this.ensureInitialized();
-    
-    // Convert SQLite ? placeholders to PostgreSQL $1, $2, etc.
-    let paramIndex = 0;
-    const pgSql = sql.replace(/\?/g, () => `$${++paramIndex}`);
-    
+  get db() {
+    // For SQLite compatibility
+    return this.adapter.db || this.adapter.pool;
+  }
+
+  get pool() {
+    // For PostgreSQL compatibility
+    return this.adapter.pool || this.adapter.db;
+  }
+
+  // Ensure initialization is complete
+  async ensureReady() {
+    if (this.initPromise) {
+      await this.initPromise;
+    }
+    return this.isConnected;
+  }
+
+  // Get adapter type
+  getAdapterType() {
+    return this.adapterType;
+  }
+
+  // Get connection info
+  getConnectionInfo() {
     return {
-      run: async (...params) => {
-        try {
-          const result = await this.pool.query(pgSql, params);
-          return {
-            changes: result.rowCount,
-            lastInsertRowid: result.rows[0]?.id || null
-          };
-        } catch (error) {
-          console.error('Query execution error:', error);
-          throw error;
-        }
+      adapter: this.adapterType,
+      connected: this.isConnected,
+      environment: process.env.NODE_ENV || 'development',
+      kubernetes: !!process.env.KUBERNETES_SERVICE_HOST
+    };
+  }
+
+  // Compatibility methods for legacy code
+  
+  // SQLite-style prepare with synchronous-looking methods
+  prepareSync(sql) {
+    const stmt = this.prepare(sql);
+    return {
+      get(...params) {
+        // Note: This returns a promise, caller needs to await
+        return stmt.get(...params);
       },
-      get: async (...params) => {
-        try {
-          const result = await this.pool.query(pgSql, params);
-          return result.rows[0] || undefined;
-        } catch (error) {
-          console.error('Query execution error:', error);
-          throw error;
-        }
+      all(...params) {
+        // Note: This returns a promise, caller needs to await
+        return stmt.all(...params);
       },
-      all: async (...params) => {
-        try {
-          const result = await this.pool.query(pgSql, params);
-          return result.rows;
-        } catch (error) {
-          console.error('Query execution error:', error);
-          throw error;
-        }
+      run(...params) {
+        // Note: This returns a promise, caller needs to await
+        return stmt.run(...params);
       }
     };
   }
 
-  // Direct query execution
-  async query(sql, params = []) {
-    this.ensureInitialized();
-    
-    try {
-      // Convert SQLite ? placeholders to PostgreSQL $1, $2, etc.
-      let paramIndex = 0;
-      const pgSql = sql.replace(/\?/g, () => `$${++paramIndex}`);
-      
-      const result = await this.pool.query(pgSql, params);
-      return result.rows;
-    } catch (error) {
-      console.error('Query execution error:', error);
-      throw error;
-    }
-  }
-
-  // Transaction support
-  async beginTransaction() {
-    this.ensureInitialized();
-    const client = await this.pool.connect();
-    await client.query('BEGIN');
-    return client;
-  }
-
-  async commit(client) {
-    await client.query('COMMIT');
-    client.release();
-  }
-
-  async rollback(client) {
-    await client.query('ROLLBACK');
-    client.release();
-  }
-
-  // SQLite exec compatibility
-  async exec(sql) {
-    this.ensureInitialized();
-    
-    try {
-      // Split multiple statements and execute them
-      const statements = sql.split(';').filter(s => s.trim());
-      for (const statement of statements) {
-        if (statement.trim()) {
-          await this.pool.query(statement);
-        }
-      }
-    } catch (error) {
-      console.error('Exec error:', error);
-      throw error;
-    }
-  }
-
-  // Close connection
-  async close() {
-    if (this.pool) {
-      await this.pool.end();
-      this.isConnected = false;
-      console.log('PostgreSQL connection closed');
-    }
-  }
-
-  // SQLite compatibility methods
-  transaction(fn) {
-    return async (...args) => {
-      const client = await this.beginTransaction();
+  // Helper method for migrations
+  async runMigrations(migrations) {
+    console.log(`Running ${migrations.length} migrations...`);
+    for (const migration of migrations) {
       try {
-        const result = await fn(...args);
-        await this.commit(client);
-        return result;
+        await this.exec(migration.sql);
+        console.log(`✅ Migration completed: ${migration.name}`);
       } catch (error) {
-        await this.rollback(client);
+        console.error(`❌ Migration failed: ${migration.name}`, error);
         throw error;
       }
-    };
+    }
   }
 
-  pragma() {
-    // PostgreSQL doesn't use pragma, return dummy function
-    return () => {};
+  // Helper for bulk inserts
+  async bulkInsert(table, records, columns) {
+    const results = [];
+    for (const record of records) {
+      const values = columns.map(col => record[col]);
+      const placeholders = columns.map((_, i) => '?').join(', ');
+      const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
+      
+      try {
+        const result = await this.run(sql, values);
+        results.push(result);
+      } catch (error) {
+        console.error(`Bulk insert error for ${table}:`, error);
+        results.push({ error: error.message });
+      }
+    }
+    return results;
+  }
+
+  // Helper for upserts (insert or update)
+  async upsert(table, data, uniqueKey) {
+    const keys = Object.keys(data);
+    const values = Object.values(data);
+    
+    if (this.adapterType === 'sqlite') {
+      // SQLite upsert syntax
+      const placeholders = keys.map(() => '?').join(', ');
+      const updateSet = keys.filter(k => k !== uniqueKey)
+        .map(k => `${k} = excluded.${k}`).join(', ');
+      
+      const sql = `
+        INSERT INTO ${table} (${keys.join(', ')}) 
+        VALUES (${placeholders})
+        ON CONFLICT(${uniqueKey}) 
+        DO UPDATE SET ${updateSet}
+      `;
+      
+      return await this.run(sql, values);
+    } else {
+      // PostgreSQL upsert syntax
+      const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+      const updateSet = keys.filter(k => k !== uniqueKey)
+        .map((k, i) => `${k} = EXCLUDED.${k}`).join(', ');
+      
+      const sql = `
+        INSERT INTO ${table} (${keys.join(', ')}) 
+        VALUES (${placeholders})
+        ON CONFLICT(${uniqueKey}) 
+        DO UPDATE SET ${updateSet}
+        RETURNING *
+      `;
+      
+      const result = await this.query(sql, values);
+      return {
+        lastInsertRowid: result.rows[0]?.id,
+        changes: result.rowCount
+      };
+    }
+  }
+
+  // Compatibility for code expecting synchronous operations
+  // These methods log warnings and return promises
+  wrapSyncMethod(methodName) {
+    return (...args) => {
+      console.warn(`⚠️ Synchronous ${methodName} called - please update to use async/await`);
+      return this[methodName](...args);
+    };
   }
 }
 
-// Export singleton instance
-const databaseService = new UnifiedDatabaseService();
+// Create and export singleton instance
+let databaseService;
+
+// Initialize on first require
+if (!databaseService) {
+  databaseService = new UnifiedDatabaseService();
+  
+  // Add backward compatibility warnings for synchronous usage
+  const syncMethods = ['get', 'all', 'run'];
+  syncMethods.forEach(method => {
+    const asyncMethod = databaseService[method];
+    databaseService[`${method}Sync`] = databaseService.wrapSyncMethod(method);
+  });
+}
+
 module.exports = databaseService;

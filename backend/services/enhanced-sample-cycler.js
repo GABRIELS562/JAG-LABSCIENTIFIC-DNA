@@ -5,7 +5,7 @@
 
 const config = require('../config/workflow-config');
 const { logger } = require('../utils/logger');
-const databaseService = require('./database-unified-postgres');
+const databaseService = require('./database');
 
 class EnhancedSampleCycler {
   constructor(db = null) {

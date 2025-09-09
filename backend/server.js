@@ -49,29 +49,27 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
 
-// Initialize database connection - using PostgreSQL
+// Initialize database connection - unified adapter
 let db = null;
 let dbPool = null;
-const databaseService = require('./services/database-unified-postgres');
+const databaseService = require('./services/database');
 
-try {
-  // Use PostgreSQL database service (already instantiated)
-  db = databaseService.db;
-  
-  if (databaseService.isConnected) {
-    logger.info('PostgreSQL database initialized successfully', {
-      database: databaseService.dbPath
-    });
-  } else {
-    logger.error('PostgreSQL database failed to connect');
-    console.error('❌ PostgreSQL database failed to connect');
-    // Don't exit, let it continue with limited functionality
+// Wait for database to initialize
+(async () => {
+  try {
+    await databaseService.ensureReady();
+    db = databaseService.db;
+    dbPool = databaseService.pool;
+    
+    const connInfo = databaseService.getConnectionInfo();
+    logger.info('Database initialized successfully', connInfo);
+    console.log(`✅ Database connected using ${connInfo.adapter} adapter`);
+  } catch (error) {
+    logger.error('Database initialization failed', { error: error.message });
+    console.error('❌ Database initialization failed:', error);
+    // Don't exit immediately, allow app to start with limited functionality
   }
-} catch (error) {
-  logger.error('Database initialization failed', { error: error.message });
-  console.error('❌ Database initialization failed:', error);
-  process.exit(1);
-}
+})();
 
 const app = express();
 
@@ -1964,26 +1962,11 @@ const server = app
     
     // Start Enhanced Sample Cycler for continuous sample generation and progression
     try {
-      // Use PostgreSQL version with pool connection
-      const EnhancedSampleCyclerPostgres = require('./services/enhanced-sample-cycler-postgres');
-      const { Pool } = require('pg');
+      // Use unified database service
+      const EnhancedSampleCycler = require('./services/enhanced-sample-cycler');
       
-      // Create PostgreSQL pool with Kubernetes-aware configuration
-      const pgPool = new Pool({
-        host: process.env.KUBERNETES_SERVICE_HOST ? 
-          (process.env.DB_HOST || 'postgresql.production.svc.cluster.local') : 
-          (process.env.DB_HOST || process.env.POSTGRES_HOST || 'localhost'),
-        port: parseInt(process.env.DB_PORT || process.env.POSTGRES_PORT || '5432'),
-        database: process.env.DB_NAME || process.env.POSTGRES_DB || 'limsdb',
-        user: process.env.DB_USER || process.env.POSTGRES_USER || 'lims_user',
-        password: process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD || 'lims2024secure',
-        max: 20
-      });
-      
-      // Store pool reference for cleanup
-      dbPool = pgPool;
-      
-      const sampleCycler = new EnhancedSampleCyclerPostgres(pgPool);
+      // Use the unified database service pool/db
+      const sampleCycler = new EnhancedSampleCycler(databaseService.db);
       sampleCycler.start();
       logger.info('🔄 Enhanced Sample Cycler started - continuous sample processing');
       console.log('🔄 Enhanced Sample Cycler active - generating samples every 10 seconds');
