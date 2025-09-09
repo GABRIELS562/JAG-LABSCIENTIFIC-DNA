@@ -1,15 +1,11 @@
 const express = require('express');
-const Database = require('better-sqlite3');
 const path = require('path');
 const { authenticateToken } = require('../middleware/auth');
 const { ResponseHandler } = require('../utils/responseHandler');
 const { logger } = require('../utils/logger');
+const db = require('../services/database');
 
 const router = express.Router();
-
-// Get database connection
-const dbPath = path.join(__dirname, '..', 'database', 'ashley_lims.db');
-const db = new Database(dbPath);
 
 // CAPA (Corrective/Preventive Actions) endpoints
 
@@ -50,7 +46,8 @@ router.get('/capa', async (req, res) => {
 
     // Get total count
     const countQuery = `SELECT COUNT(*) as total FROM capa_actions ${whereClause}`;
-    const { total } = db.prepare(countQuery).get(...params);
+    const totalResult = await db.get(countQuery, ...params);
+    const total = totalResult.total;
 
     // Get paginated data
     const dataQuery = `
@@ -65,7 +62,7 @@ router.get('/capa', async (req, res) => {
     `;
 
     params.push(parseInt(limit), offset);
-    const capaActions = db.prepare(dataQuery).all(...params);
+    const capaActions = await db.all(dataQuery, ...params);
 
     ResponseHandler.paginated(res, capaActions, {
       page: parseInt(page),
@@ -89,7 +86,7 @@ router.get('/capa/:id', async (req, res) => {
       SELECT * FROM capa_actions WHERE id = ?
     `;
     
-    const capaAction = db.prepare(query).get(id);
+    const capaAction = await db.get(query, id);
     
     if (!capaAction) {
       return ResponseHandler.notFound(res, 'CAPA action not found');
@@ -125,12 +122,12 @@ router.post('/capa', async (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    const result = db.prepare(query).run(
+    const result = await db.run(query,
       capaNumber, title, description, type, priority || 'medium',
       source, responsible_person, due_date, created_by
     );
 
-    const newCapa = db.prepare('SELECT * FROM capa_actions WHERE id = ?').get(result.lastInsertRowid);
+    const newCapa = await db.get('SELECT * FROM capa_actions WHERE id = ?', result.lastInsertRowid);
 
     logger.info('CAPA action created', { 
       capaNumber, 
@@ -164,13 +161,13 @@ router.put('/capa/:id', async (req, res) => {
     values.push(id);
 
     const query = `UPDATE capa_actions SET ${fields} WHERE id = ?`;
-    const result = db.prepare(query).run(...values);
+    const result = await db.run(query, ...values);
 
     if (result.changes === 0) {
       return ResponseHandler.notFound(res, 'CAPA action not found');
     }
 
-    const updatedCapa = db.prepare('SELECT * FROM capa_actions WHERE id = ?').get(id);
+    const updatedCapa = await db.get('SELECT * FROM capa_actions WHERE id = ?', id);
 
     logger.info('CAPA action updated', { id, updates: Object.keys(updates) });
     ResponseHandler.success(res, updatedCapa, 'CAPA action updated successfully');
@@ -185,7 +182,7 @@ router.delete('/capa/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = db.prepare('DELETE FROM capa_actions WHERE id = ?').run(id);
+    const result = await db.run('DELETE FROM capa_actions WHERE id = ?', id);
 
     if (result.changes === 0) {
       return ResponseHandler.notFound(res, 'CAPA action not found');
@@ -244,7 +241,7 @@ router.get('/equipment', async (req, res) => {
       ORDER BY e.equipment_name
     `;
 
-    const equipment = db.prepare(query).all(...params);
+    const equipment = await db.all(query, ...params);
     ResponseHandler.success(res, equipment);
   } catch (error) {
     logger.error('Error fetching equipment', { error: error.message });
@@ -289,7 +286,7 @@ router.get('/equipment/calibration-schedule', async (req, res) => {
         ec.next_calibration_date
     `;
 
-    const schedule = db.prepare(query).all(upcomingDate.toISOString().split('T')[0]);
+    const schedule = await db.all(query, upcomingDate.toISOString().split('T')[0]);
     ResponseHandler.success(res, schedule);
   } catch (error) {
     logger.error('Error fetching calibration schedule', { error: error.message });
@@ -311,7 +308,7 @@ router.post('/equipment/:equipmentId/calibrations', async (req, res) => {
     }
 
     // Get equipment to calculate next calibration date
-    const equipment = db.prepare('SELECT * FROM equipment WHERE id = ?').get(equipmentId);
+    const equipment = await db.get('SELECT * FROM equipment WHERE id = ?', equipmentId);
     if (!equipment) {
       return ResponseHandler.notFound(res, 'Equipment not found');
     }
@@ -327,13 +324,13 @@ router.post('/equipment/:equipmentId/calibrations', async (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    const result = db.prepare(query).run(
+    const result = await db.run(query,
       equipmentId, calibration_date, nextCalibrationDate.toISOString().split('T')[0],
       performed_by, calibration_type, certificate_number,
       JSON.stringify(calibration_results), status, notes, document_path
     );
 
-    const newCalibration = db.prepare('SELECT * FROM equipment_calibrations WHERE id = ?').get(result.lastInsertRowid);
+    const newCalibration = await db.get('SELECT * FROM equipment_calibrations WHERE id = ?', result.lastInsertRowid);
 
     logger.info('Equipment calibration recorded', { 
       equipmentId, 
@@ -394,7 +391,7 @@ router.get('/documents', async (req, res) => {
       ORDER BY d.created_at DESC
     `;
 
-    const documents = db.prepare(query).all(...params);
+    const documents = await db.all(query, ...params);
     ResponseHandler.success(res, documents);
   } catch (error) {
     logger.error('Error fetching documents', { error: error.message });
@@ -406,7 +403,7 @@ router.get('/documents', async (req, res) => {
 router.get('/documents/categories', async (req, res) => {
   try {
     const query = 'SELECT * FROM document_categories ORDER BY name';
-    const categories = db.prepare(query).all();
+    const categories = await db.all(query);
     ResponseHandler.success(res, categories);
   } catch (error) {
     logger.error('Error fetching document categories', { error: error.message });
@@ -430,7 +427,7 @@ router.get('/training/programs', async (req, res) => {
       ORDER BY tp.program_name
     `;
 
-    const programs = db.prepare(query).all();
+    const programs = await db.all(query);
     ResponseHandler.success(res, programs);
   } catch (error) {
     logger.error('Error fetching training programs', { error: error.message });
@@ -460,7 +457,7 @@ router.get('/training/records/:employeeId', async (req, res) => {
       ORDER BY et.completion_date DESC
     `;
 
-    const records = db.prepare(query).all(employeeId);
+    const records = await db.all(query, employeeId);
     ResponseHandler.success(res, records);
   } catch (error) {
     logger.error('Error fetching training records', { error: error.message });
@@ -474,13 +471,13 @@ async function generateCapaNumber() {
   const yearPrefix = `CAPA-${year}-`;
   
   // Get the last CAPA number for this year
-  const lastCapa = db.prepare(`
+  const lastCapa = await db.get(`
     SELECT capa_number 
     FROM capa_actions 
     WHERE capa_number LIKE ? 
     ORDER BY created_at DESC 
     LIMIT 1
-  `).get(`${yearPrefix}%`);
+  `, `${yearPrefix}%`);
 
   let nextNumber = 1;
   if (lastCapa) {

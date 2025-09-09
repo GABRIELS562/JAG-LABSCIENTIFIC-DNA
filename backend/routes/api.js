@@ -327,14 +327,8 @@ router.get("/samples", async (req, res) => {
         allSamples = db.getAllSamples() || [];
         console.log(`Database service returned ${allSamples.length} samples`);
       } catch (serviceError) {
-        console.warn('Database service failed, trying direct query:', serviceError.message);
-        // Direct SQLite query as fallback
-        const Database = require('better-sqlite3');
-        const dbPath = require('path').join(__dirname, '..', 'database', 'ashley_lims.db');
-        const sqliteDb = new Database(dbPath, { readonly: true });
-        allSamples = sqliteDb.prepare('SELECT * FROM samples ORDER BY id DESC').all();
-        sqliteDb.close();
-        console.log(`Direct DB query returned ${allSamples.length} samples`);
+        console.error('Database service failed:', serviceError.message);
+        throw new Error('Failed to retrieve samples from database');
       }
       
       // Apply filters
@@ -962,14 +956,8 @@ router.get("/workflow-stats", async (req, res) => {
         samples = db.getAllSamples() || [];
         console.log(`Database service returned ${samples.length} samples for workflow stats`);
       } catch (serviceError) {
-        console.warn('Database service failed for workflow stats, trying direct query:', serviceError.message);
-        // Direct SQLite query as fallback
-        const Database = require('better-sqlite3');
-        const dbPath = require('path').join(__dirname, '..', 'database', 'ashley_lims.db');
-        const sqliteDb = new Database(dbPath, { readonly: true });
-        samples = sqliteDb.prepare('SELECT * FROM samples ORDER BY id DESC').all();
-        sqliteDb.close();
-        console.log(`Direct DB query returned ${samples.length} samples for workflow stats`);
+        console.error('Database service failed for workflow stats:', serviceError.message);
+        throw new Error('Failed to retrieve samples for workflow statistics');
       }
       
       // Count samples by workflow status
@@ -1026,14 +1014,8 @@ router.get("/samples/counts", async (req, res) => {
         samples = db.getAllSamples() || [];
         console.log(`Database service returned ${samples.length} samples for counts`);
       } catch (serviceError) {
-        console.warn('Database service failed for counts, trying direct query:', serviceError.message);
-        // Direct SQLite query as fallback
-        const Database = require('better-sqlite3');
-        const dbPath = require('path').join(__dirname, '..', 'database', 'ashley_lims.db');
-        const sqliteDb = new Database(dbPath, { readonly: true });
-        samples = sqliteDb.prepare('SELECT * FROM samples ORDER BY id DESC').all();
-        sqliteDb.close();
-        console.log(`Direct DB query returned ${samples.length} samples for counts`);
+        console.error('Database service failed for counts:', serviceError.message);
+        throw new Error('Failed to retrieve samples for counts');
       }
       
       // Calculate comprehensive counts
@@ -1140,63 +1122,30 @@ router.get("/simulated-stages", async (req, res) => {
 // Debug endpoint to troubleshoot database connectivity
 router.get("/debug/samples", async (req, res) => {
   try {
-    const path = require('path');
-    const Database = require('better-sqlite3');
+    // Get database connection info from unified service
+    const connectionInfo = db.getConnectionInfo();
     
-    // Try different possible database paths
-    const possiblePaths = [
-      path.join(__dirname, '..', 'database', 'ashley_lims.db'),
-      path.join(__dirname, '..', '..', 'backend', 'database', 'ashley_lims.db'),
-      path.join(process.cwd(), 'backend', 'database', 'ashley_lims.db')
-    ];
-    
-    const fs = require('fs');
-    let workingPath = null;
-    let dbStats = null;
-    
-    for (const dbPath of possiblePaths) {
-      if (fs.existsSync(dbPath)) {
-        workingPath = dbPath;
-        dbStats = fs.statSync(dbPath);
-        break;
-      }
-    }
-    
-    if (!workingPath) {
-      return res.json({
-        success: false,
-        error: 'Database file not found',
-        attempted_paths: possiblePaths,
-        cwd: process.cwd()
-      });
-    }
-    
-    // Try to query the database
-    let samples = [];
-    let error = null;
+    // Test basic database operations
+    let samplesInfo = { count: 0, error: null };
     try {
-      const testDb = new Database(workingPath, { readonly: true });
-      samples = testDb.prepare('SELECT COUNT(*) as count FROM samples').get();
-      const sampleList = testDb.prepare('SELECT lab_number, workflow_status FROM samples LIMIT 5').all();
-      testDb.close();
+      await db.ensureReady();
+      const samplesCount = await db.get('SELECT COUNT(*) as count FROM samples');
+      samplesInfo.count = samplesCount ? samplesCount.count : 0;
       
-      res.json({
-        success: true,
-        database_path: workingPath,
-        database_size: Math.round(dbStats.size / 1024 / 1024 * 100) / 100 + ' MB',
-        sample_count: samples.count,
-        sample_examples: sampleList,
-        cwd: process.cwd()
-      });
-    } catch (queryError) {
-      res.json({
-        success: false,
-        database_path: workingPath,
-        database_size: Math.round(dbStats.size / 1024 / 1024 * 100) / 100 + ' MB',
-        error: queryError.message,
-        cwd: process.cwd()
-      });
+      // Get a few sample records
+      const sampleList = await db.all('SELECT lab_number, workflow_status FROM samples LIMIT 5');
+      samplesInfo.examples = sampleList;
+    } catch (samplesError) {
+      samplesInfo.error = samplesError.message;
     }
+    
+    res.json({
+      success: true,
+      database_info: connectionInfo,
+      samples_info: samplesInfo,
+      timestamp: new Date().toISOString(),
+      cwd: process.cwd()
+    });
   } catch (error) {
     res.status(500).json({ 
       success: false, 

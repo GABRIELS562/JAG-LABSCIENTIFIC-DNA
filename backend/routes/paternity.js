@@ -1,14 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const Database = require('better-sqlite3');
-const path = require('path');
 const PaternityCalculator = require('../services/paternityCalculator');
 const { logger } = require('../utils/logger');
 const { ResponseHandler } = require('../utils/responseHandler');
-
-// Initialize database
-const dbPath = path.join(__dirname, '../database/ashley_lims.db');
-const db = new Database(dbPath, { fileMustExist: false });
+const db = require('../services/database');
 
 // Initialize paternity calculator
 const paternityCalc = new PaternityCalculator();
@@ -38,13 +33,11 @@ router.post('/calculate', async (req, res) => {
     // Store results in database
     if (caseId) {
       try {
-        const stmt = db.prepare(`
+        await db.run(`
           INSERT INTO paternity_calculations 
           (case_id, cpi, probability, conclusion, report_data, created_at)
           VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        `);
-        
-        stmt.run(
+        `,
           caseId,
           results.cpi,
           results.probabilityOfPaternity,
@@ -53,7 +46,7 @@ router.post('/calculate', async (req, res) => {
         );
       } catch (dbError) {
         // Table might not exist, create it
-        db.exec(`
+        await db.exec(`
           CREATE TABLE IF NOT EXISTS paternity_calculations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             case_id INTEGER,
@@ -67,13 +60,11 @@ router.post('/calculate', async (req, res) => {
         `);
         
         // Retry insert
-        const stmt = db.prepare(`
+        await db.run(`
           INSERT INTO paternity_calculations 
           (case_id, cpi, probability, conclusion, report_data, created_at)
           VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        `);
-        
-        stmt.run(
+        `,
           caseId,
           results.cpi,
           results.probabilityOfPaternity,
@@ -110,7 +101,7 @@ router.get('/case/:caseId/profiles', async (req, res) => {
     const { caseId } = req.params;
 
     // Get all samples for the case
-    const samples = db.prepare(`
+    const samples = await db.all(`
       SELECT 
         s.id,
         s.lab_number,
@@ -121,29 +112,27 @@ router.get('/case/:caseId/profiles', async (req, res) => {
       FROM samples s
       JOIN test_cases tc ON s.case_id = tc.id
       WHERE s.case_id = ?
-    `).all(caseId);
+    `, caseId);
 
     if (samples.length === 0) {
       return ResponseHandler.error(res, 'No samples found for this case', null, 404);
     }
 
     // Get genetic profiles for each sample
-    const profilesStmt = db.prepare(`
-      SELECT 
-        sample_id,
-        locus,
-        allele1,
-        allele2,
-        quality_score
-      FROM genetic_profiles
-      WHERE sample_id = ?
-      ORDER BY locus
-    `);
-
     const sampleProfiles = {};
     
     for (const sample of samples) {
-      const profiles = profilesStmt.all(sample.id);
+      const profiles = await db.all(`
+        SELECT 
+          sample_id,
+          locus,
+          allele1,
+          allele2,
+          quality_score
+        FROM genetic_profiles
+        WHERE sample_id = ?
+        ORDER BY locus
+      `, sample.id);
       sampleProfiles[sample.relation] = {
         sampleId: sample.id,
         labNumber: sample.lab_number,
@@ -262,11 +251,11 @@ router.get('/frequencies/:locus', (req, res) => {
  * Get previous calculations for a case
  * GET /api/paternity/case/:caseId/calculations
  */
-router.get('/case/:caseId/calculations', (req, res) => {
+router.get('/case/:caseId/calculations', async (req, res) => {
   try {
     const { caseId } = req.params;
 
-    const calculations = db.prepare(`
+    const calculations = await db.all(`
       SELECT 
         id,
         cpi,
@@ -277,7 +266,7 @@ router.get('/case/:caseId/calculations', (req, res) => {
       FROM paternity_calculations
       WHERE case_id = ?
       ORDER BY created_at DESC
-    `).all(caseId);
+    `, caseId);
 
     ResponseHandler.success(res, calculations.map(calc => ({
       ...calc,
@@ -300,11 +289,11 @@ router.post('/simulate/:caseId', async (req, res) => {
     const { isPaternity = true } = req.body; // Simulate true or false paternity
 
     // Get case info
-    const caseInfo = db.prepare(`
+    const caseInfo = await db.get(`
       SELECT case_number, ref_kit_number
       FROM test_cases
       WHERE id = ?
-    `).get(caseId);
+    `, caseId);
 
     if (!caseInfo) {
       return ResponseHandler.error(res, 'Case not found', null, 404);

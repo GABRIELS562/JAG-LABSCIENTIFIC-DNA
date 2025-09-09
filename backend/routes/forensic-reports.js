@@ -5,16 +5,14 @@ const path = require('path');
 const ForensicReportGenerator = require('../services/forensicReportGenerator');
 const PaternityCalculator = require('../services/paternityCalculator');
 const STRProfileMatcher = require('../services/strProfileMatcher');
-const Database = require('better-sqlite3');
 const { logger } = require('../utils/logger');
 const { ResponseHandler } = require('../utils/responseHandler');
+const db = require('../services/database');
 
 // Initialize services
 const reportGenerator = new ForensicReportGenerator();
 const paternityCalc = new PaternityCalculator();
 const strMatcher = new STRProfileMatcher();
-const dbPath = path.join(__dirname, '../database/ashley_lims.db');
-const db = new Database(dbPath, { fileMustExist: false });
 
 /**
  * Generate paternity test report
@@ -30,9 +28,9 @@ router.post('/paternity', async (req, res) => {
 
     // If caseId provided, fetch additional data
     if (caseId && !caseData.caseNumber) {
-      const caseInfo = db.prepare(`
+      const caseInfo = await db.get(`
         SELECT * FROM test_cases WHERE id = ?
-      `).get(caseId);
+      `, caseId);
       
       if (caseInfo) {
         caseData.caseNumber = caseInfo.case_number;

@@ -1,20 +1,21 @@
-const Database = require('better-sqlite3');
-const path = require('path');
 const { logger } = require('../utils/logger');
 const crypto = require('crypto');
+const db = require('./database');
 
 class CaseManagementService {
   constructor() {
-    this.dbPath = path.join(__dirname, '../database/ashley_lims.db');
-    this.db = new Database(this.dbPath, { fileMustExist: false });
+    this.db = db;
     this.initializeDatabase();
     this.caseStatuses = ['submitted', 'in_progress', 'review', 'completed', 'on_hold', 'cancelled'];
     this.priorities = ['routine', 'urgent', 'stat', 'court_date'];
   }
 
-  initializeDatabase() {
+  async initializeDatabase() {
+    // Ensure database is ready
+    await this.db.ensureReady();
+    
     // Create case management tables
-    this.db.exec(`
+    await this.db.exec(`
       CREATE TABLE IF NOT EXISTS case_details (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         case_id INTEGER,
@@ -118,22 +119,20 @@ class CaseManagementService {
   // Create new case
   async createCase(caseData) {
     try {
-      const caseNumber = this.generateCaseNumber();
+      const caseNumber = await this.generateCaseNumber();
       const chainOfCustodyId = this.generateChainOfCustodyId();
 
       // Begin transaction
-      this.db.prepare('BEGIN').run();
+      await this.db.run('BEGIN');
 
       try {
         // Insert into test_cases table
-        const caseStmt = this.db.prepare(`
+        const result = await this.db.run(`
           INSERT INTO test_cases (
             case_number, ref_kit_number, test_purpose, 
             sample_type, submission_date, status
           ) VALUES (?, ?, ?, ?, ?, ?)
-        `);
-
-        const result = caseStmt.run(
+        `,
           caseNumber,
           caseData.refKitNumber || `KIT-${Date.now()}`,
           caseData.testPurpose || 'Paternity Testing',
@@ -145,15 +144,13 @@ class CaseManagementService {
         const caseId = result.lastInsertRowid;
 
         // Insert case details
-        const detailsStmt = this.db.prepare(`
+        await this.db.run(`
           INSERT INTO case_details (
             case_id, requester_name, requester_organization, 
             requester_contact, court_case_number, court_date, 
             priority, special_instructions, chain_of_custody_id
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-
-        detailsStmt.run(
+        `,
           caseId,
           caseData.requesterName,
           caseData.requesterOrganization,
@@ -166,39 +163,39 @@ class CaseManagementService {
         );
 
         // Add initial timeline event
-        this.addTimelineEvent(caseId, 'case_created', 'Case created and submitted', 'System');
+        await this.addTimelineEvent(caseId, 'case_created', 'Case created and submitted', 'System');
 
         // Create samples for participants
         if (caseData.participants) {
           for (const participant of caseData.participants) {
-            this.createSample(caseId, participant);
+            await this.createSample(caseId, participant);
           }
         }
 
         // Set up assignments
         if (caseData.assignedTo) {
-          this.assignCase(caseId, caseData.assignedTo, 'primary_analyst');
+          await this.assignCase(caseId, caseData.assignedTo, 'primary_analyst');
         }
 
         // Add any initial notes
         if (caseData.notes) {
-          this.addCaseNote(caseId, 'initial', caseData.notes, 'System');
+          await this.addCaseNote(caseId, 'initial', caseData.notes, 'System');
         }
 
         // Check for urgent priority
         if (caseData.priority === 'urgent' || caseData.priority === 'stat') {
-          this.createAlert(caseId, 'priority', `High priority case: ${caseData.priority}`, 'high');
+          await this.createAlert(caseId, 'priority', `High priority case: ${caseData.priority}`, 'high');
         }
 
         // Check for approaching court date
         if (caseData.courtDate) {
           const daysUntilCourt = this.calculateDaysUntil(caseData.courtDate);
           if (daysUntilCourt <= 7) {
-            this.createAlert(caseId, 'court_date', `Court date in ${daysUntilCourt} days`, 'high');
+            await this.createAlert(caseId, 'court_date', `Court date in ${daysUntilCourt} days`, 'high');
           }
         }
 
-        this.db.prepare('COMMIT').run();
+        await this.db.run('COMMIT');
 
         return {
           success: true,
@@ -209,7 +206,7 @@ class CaseManagementService {
         };
 
       } catch (error) {
-        this.db.prepare('ROLLBACK').run();
+        await this.db.run('ROLLBACK');
         throw error;
       }
 
@@ -220,18 +217,16 @@ class CaseManagementService {
   }
 
   // Create sample for case
-  createSample(caseId, participant) {
+  async createSample(caseId, participant) {
     const labNumber = this.generateLabNumber();
     
-    const stmt = this.db.prepare(`
+    await this.db.run(`
       INSERT INTO samples (
         case_id, lab_number, name, surname, 
         relation, id_number, collection_date, 
         status, workflow_status
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
+    `,
       caseId,
       labNumber,
       participant.name,
@@ -247,7 +242,7 @@ class CaseManagementService {
   }
 
   // Update case status
-  updateCaseStatus(caseId, newStatus, notes = '') {
+  async updateCaseStatus(caseId, newStatus, notes = '') {
     try {
       // Validate status
       if (!this.caseStatuses.includes(newStatus)) {
@@ -255,17 +250,16 @@ class CaseManagementService {
       }
 
       // Get current status
-      const currentCase = this.db.prepare('SELECT status FROM test_cases WHERE id = ?').get(caseId);
+      const currentCase = await this.db.get('SELECT status FROM test_cases WHERE id = ?', caseId);
       if (!currentCase) {
         throw new Error('Case not found');
       }
 
       // Update status
-      const stmt = this.db.prepare('UPDATE test_cases SET status = ? WHERE id = ?');
-      stmt.run(newStatus, caseId);
+      await this.db.run('UPDATE test_cases SET status = ? WHERE id = ?', newStatus, caseId);
 
       // Add timeline event
-      this.addTimelineEvent(
+      await this.addTimelineEvent(
         caseId, 
         'status_change', 
         `Status changed from ${currentCase.status} to ${newStatus}. ${notes}`,
@@ -274,9 +268,9 @@ class CaseManagementService {
 
       // Create alerts for specific status changes
       if (newStatus === 'on_hold') {
-        this.createAlert(caseId, 'status', 'Case placed on hold', 'medium');
+        await this.createAlert(caseId, 'status', 'Case placed on hold', 'medium');
       } else if (newStatus === 'completed') {
-        this.createAlert(caseId, 'status', 'Case completed - ready for reporting', 'low');
+        await this.createAlert(caseId, 'status', 'Case completed - ready for reporting', 'low');
       }
 
       return { success: true, previousStatus: currentCase.status, newStatus };
@@ -288,68 +282,56 @@ class CaseManagementService {
   }
 
   // Add timeline event
-  addTimelineEvent(caseId, eventType, description, performedBy) {
-    const stmt = this.db.prepare(`
+  async addTimelineEvent(caseId, eventType, description, performedBy) {
+    await this.db.run(`
       INSERT INTO case_timeline (case_id, event_type, event_description, performed_by)
       VALUES (?, ?, ?, ?)
-    `);
-
-    stmt.run(caseId, eventType, description, performedBy);
+    `, caseId, eventType, description, performedBy);
   }
 
   // Add case note
-  addCaseNote(caseId, noteType, content, createdBy, isConfidential = false) {
-    const stmt = this.db.prepare(`
+  async addCaseNote(caseId, noteType, content, createdBy, isConfidential = false) {
+    await this.db.run(`
       INSERT INTO case_notes (case_id, note_type, note_content, created_by, is_confidential)
       VALUES (?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(caseId, noteType, content, createdBy, isConfidential);
+    `, caseId, noteType, content, createdBy, isConfidential);
   }
 
   // Assign case to analyst
-  assignCase(caseId, assignedTo, role = 'analyst', assignedBy = 'System') {
-    const stmt = this.db.prepare(`
+  async assignCase(caseId, assignedTo, role = 'analyst', assignedBy = 'System') {
+    await this.db.run(`
       INSERT INTO case_assignments (case_id, assigned_to, role, assigned_by)
       VALUES (?, ?, ?, ?)
-    `);
+    `, caseId, assignedTo, role, assignedBy);
 
-    stmt.run(caseId, assignedTo, role, assignedBy);
-
-    this.addTimelineEvent(caseId, 'assignment', `Case assigned to ${assignedTo} as ${role}`, assignedBy);
+    await this.addTimelineEvent(caseId, 'assignment', `Case assigned to ${assignedTo} as ${role}`, assignedBy);
   }
 
   // Create alert
-  createAlert(caseId, alertType, message, severity = 'medium') {
-    const stmt = this.db.prepare(`
+  async createAlert(caseId, alertType, message, severity = 'medium') {
+    await this.db.run(`
       INSERT INTO case_alerts (case_id, alert_type, alert_message, severity)
       VALUES (?, ?, ?, ?)
-    `);
-
-    stmt.run(caseId, alertType, message, severity);
+    `, caseId, alertType, message, severity);
   }
 
   // Resolve alert
-  resolveAlert(alertId, resolvedBy) {
-    const stmt = this.db.prepare(`
+  async resolveAlert(alertId, resolvedBy) {
+    await this.db.run(`
       UPDATE case_alerts 
       SET resolved = 1, resolved_by = ?, resolved_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `);
-
-    stmt.run(resolvedBy, alertId);
+    `, resolvedBy, alertId);
   }
 
   // Add case review
-  addCaseReview(caseId, reviewData) {
-    const stmt = this.db.prepare(`
+  async addCaseReview(caseId, reviewData) {
+    const result = await this.db.run(`
       INSERT INTO case_reviews (
         case_id, review_type, reviewer, review_status, 
         findings, recommendations, approved
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const result = stmt.run(
+    `,
       caseId,
       reviewData.type,
       reviewData.reviewer,
@@ -360,7 +342,7 @@ class CaseManagementService {
     );
 
     // Add timeline event
-    this.addTimelineEvent(
+    await this.addTimelineEvent(
       caseId,
       'review',
       `${reviewData.type} review completed by ${reviewData.reviewer}`,
@@ -369,64 +351,64 @@ class CaseManagementService {
 
     // Update case status if review is final
     if (reviewData.approved && reviewData.type === 'final') {
-      this.updateCaseStatus(caseId, 'completed', 'Final review approved');
+      await this.updateCaseStatus(caseId, 'completed', 'Final review approved');
     }
 
     return result.lastInsertRowid;
   }
 
   // Get case details
-  getCaseDetails(caseId) {
+  async getCaseDetails(caseId) {
     try {
       // Get basic case info
-      const caseInfo = this.db.prepare(`
+      const caseInfo = await this.db.get(`
         SELECT tc.*, cd.*
         FROM test_cases tc
         LEFT JOIN case_details cd ON tc.id = cd.case_id
         WHERE tc.id = ?
-      `).get(caseId);
+      `, caseId);
 
       if (!caseInfo) {
         return null;
       }
 
       // Get samples
-      const samples = this.db.prepare(`
+      const samples = await this.db.all(`
         SELECT * FROM samples WHERE case_id = ?
-      `).all(caseId);
+      `, caseId);
 
       // Get timeline
-      const timeline = this.db.prepare(`
+      const timeline = await this.db.all(`
         SELECT * FROM case_timeline 
         WHERE case_id = ?
         ORDER BY event_date DESC
-      `).all(caseId);
+      `, caseId);
 
       // Get assignments
-      const assignments = this.db.prepare(`
+      const assignments = await this.db.all(`
         SELECT * FROM case_assignments
         WHERE case_id = ? AND status = 'active'
-      `).all(caseId);
+      `, caseId);
 
       // Get notes
-      const notes = this.db.prepare(`
+      const notes = await this.db.all(`
         SELECT * FROM case_notes
         WHERE case_id = ?
         ORDER BY created_at DESC
-      `).all(caseId);
+      `, caseId);
 
       // Get active alerts
-      const alerts = this.db.prepare(`
+      const alerts = await this.db.all(`
         SELECT * FROM case_alerts
         WHERE case_id = ? AND resolved = 0
-      `).all(caseId);
+      `, caseId);
 
       // Get reviews
-      const reviews = this.db.prepare(`
+      const reviews = await this.db.all(`
         SELECT * FROM case_reviews
         WHERE case_id = ?
         ORDER BY review_date DESC
-      `).all(caseId);
+      `, caseId);
 
       return {
         ...caseInfo,
@@ -445,7 +427,7 @@ class CaseManagementService {
   }
 
   // Search cases
-  searchCases(criteria) {
+  async searchCases(criteria) {
     let query = `
       SELECT tc.*, cd.*, 
         (SELECT COUNT(*) FROM samples WHERE case_id = tc.id) as sample_count,
@@ -499,11 +481,11 @@ class CaseManagementService {
       params.push(criteria.limit);
     }
 
-    return this.db.prepare(query).all(...params);
+    return await this.db.all(query, ...params);
   }
 
   // Get case workload summary
-  getCaseWorkload() {
+  async getCaseWorkload() {
     const summary = {
       total: 0,
       byStatus: {},
@@ -514,11 +496,11 @@ class CaseManagementService {
     };
 
     // Count by status
-    const statusCounts = this.db.prepare(`
+    const statusCounts = await this.db.all(`
       SELECT status, COUNT(*) as count
       FROM test_cases
       GROUP BY status
-    `).all();
+    `);
 
     statusCounts.forEach(row => {
       summary.byStatus[row.status] = row.count;
@@ -526,37 +508,37 @@ class CaseManagementService {
     });
 
     // Count by priority
-    const priorityCounts = this.db.prepare(`
+    const priorityCounts = await this.db.all(`
       SELECT priority, COUNT(*) as count
       FROM case_details
       GROUP BY priority
-    `).all();
+    `);
 
     priorityCounts.forEach(row => {
       summary.byPriority[row.priority] = row.count;
     });
 
     // Get upcoming court dates (next 30 days)
-    summary.upcomingCourtDates = this.db.prepare(`
+    summary.upcomingCourtDates = await this.db.all(`
       SELECT tc.id, tc.case_number, cd.court_date, cd.court_case_number
       FROM test_cases tc
       JOIN case_details cd ON tc.id = cd.case_id
       WHERE cd.court_date BETWEEN DATE('now') AND DATE('now', '+30 days')
       AND tc.status != 'completed'
       ORDER BY cd.court_date
-    `).all();
+    `);
 
     // Get overdue cases (older than 14 days and not completed)
-    summary.overdue = this.db.prepare(`
+    summary.overdue = await this.db.all(`
       SELECT tc.id, tc.case_number, tc.submission_date, tc.status
       FROM test_cases tc
       WHERE tc.status NOT IN ('completed', 'cancelled')
       AND julianday('now') - julianday(tc.submission_date) > 14
       ORDER BY tc.submission_date
-    `).all();
+    `);
 
     // Get active alerts
-    summary.alerts = this.db.prepare(`
+    summary.alerts = await this.db.all(`
       SELECT ca.*, tc.case_number
       FROM case_alerts ca
       JOIN test_cases tc ON ca.case_id = tc.id
@@ -568,13 +550,13 @@ class CaseManagementService {
           ELSE 3 
         END,
         ca.created_at DESC
-    `).all();
+    `);
 
     return summary;
   }
 
   // Get analyst workload
-  getAnalystWorkload(analyst = null) {
+  async getAnalystWorkload(analyst = null) {
     let query = `
       SELECT 
         ca.assigned_to,
@@ -597,18 +579,19 @@ class CaseManagementService {
 
     query += ' GROUP BY ca.assigned_to';
 
-    return this.db.prepare(query).all(...params);
+    return await this.db.all(query, ...params);
   }
 
   // Generate case number
-  generateCaseNumber() {
+  async generateCaseNumber() {
     const year = new Date().getFullYear();
-    const count = this.db.prepare(`
+    const result = await this.db.get(`
       SELECT COUNT(*) as count 
       FROM test_cases 
       WHERE case_number LIKE ?
-    `).get(`${year}-%`).count;
-
+    `, `${year}-%`);
+    
+    const count = result ? result.count : 0;
     return `${year}-${String(count + 1).padStart(6, '0')}`;
   }
 
@@ -633,8 +616,8 @@ class CaseManagementService {
   }
 
   // Export case data
-  exportCaseData(caseId, format = 'json') {
-    const caseData = this.getCaseDetails(caseId);
+  async exportCaseData(caseId, format = 'json') {
+    const caseData = await this.getCaseDetails(caseId);
     
     if (!caseData) {
       throw new Error('Case not found');

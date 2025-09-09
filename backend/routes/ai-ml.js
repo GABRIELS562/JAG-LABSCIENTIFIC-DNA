@@ -1,15 +1,10 @@
 const express = require('express');
-const Database = require('better-sqlite3');
-const path = require('path');
 const { authenticateToken } = require('../middleware/auth');
 const { ResponseHandler } = require('../utils/responseHandler');
 const { logger } = require('../utils/logger');
+const db = require('../services/database');
 
 const router = express.Router();
-
-// Get database connection
-const dbPath = path.join(__dirname, '..', 'database', 'ashley_lims.db');
-const db = new Database(dbPath);
 
 // Predictive Maintenance endpoints
 
@@ -59,7 +54,7 @@ router.get('/predictive-maintenance/sensors', async (req, res) => {
       ORDER BY e.equipment_name, es.sensor_name
     `;
 
-    const sensors = db.prepare(query).all(...params);
+    const sensors = await db.all(query, ...params);
     ResponseHandler.success(res, sensors);
   } catch (error) {
     logger.error('Error fetching sensors', { error: error.message });
@@ -76,20 +71,22 @@ router.post('/predictive-maintenance/readings', async (req, res) => {
       return ResponseHandler.error(res, 'Readings array is required', null, 400);
     }
 
-    const transaction = db.transaction(() => {
+    // Use async transaction pattern
+    await db.run('BEGIN');
+    
+    try {
       const insertQuery = `
         INSERT INTO sensor_readings (sensor_id, reading_value, reading_timestamp, batch_id, status)
         VALUES (?, ?, ?, ?, ?)
       `;
       
-      const insertStmt = db.prepare(insertQuery);
       const results = [];
 
       for (const reading of readings) {
         const { sensor_id, reading_value, reading_timestamp, batch_id } = reading;
         
         // Get sensor thresholds to determine status
-        const sensor = db.prepare('SELECT * FROM equipment_sensors WHERE id = ?').get(sensor_id);
+        const sensor = await db.get('SELECT * FROM equipment_sensors WHERE id = ?', sensor_id);
         if (!sensor) {
           continue; // Skip invalid sensor IDs
         }
@@ -105,7 +102,7 @@ router.post('/predictive-maintenance/readings', async (req, res) => {
           status = 'warning';
         }
 
-        const result = insertStmt.run(
+        const result = await db.run(insertQuery,
           sensor_id, reading_value, reading_timestamp || new Date().toISOString(),
           batch_id, status
         );
@@ -113,10 +110,8 @@ router.post('/predictive-maintenance/readings', async (req, res) => {
         results.push({ id: result.lastInsertRowid, sensor_id, status });
       }
 
-      return results;
-    });
-
-    const insertedReadings = transaction();
+      await db.run('COMMIT');
+      const insertedReadings = results;
 
     logger.info('Sensor readings added', { count: insertedReadings.length });
     ResponseHandler.success(res, insertedReadings, 'Sensor readings added successfully', 201);
@@ -160,7 +155,7 @@ router.get('/predictive-maintenance/predictions', async (req, res) => {
       ORDER BY mp.predicted_date ASC, mp.risk_level DESC
     `;
 
-    const predictions = db.prepare(query).all(...params);
+    const predictions = await db.all(query, ...params);
     ResponseHandler.success(res, predictions);
   } catch (error) {
     logger.error('Error fetching maintenance predictions', { error: error.message });

@@ -3,13 +3,10 @@ const router = express.Router();
 const STRProfileMatcher = require('../services/strProfileMatcher');
 const { logger } = require('../utils/logger');
 const { ResponseHandler } = require('../utils/responseHandler');
-const Database = require('better-sqlite3');
-const path = require('path');
+const db = require('../services/database');
 
 // Initialize services
 const matcher = new STRProfileMatcher();
-const dbPath = path.join(__dirname, '../database/ashley_lims.db');
-const db = new Database(dbPath, { fileMustExist: false });
 
 /**
  * Compare two STR profiles

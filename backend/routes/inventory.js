@@ -1,15 +1,10 @@
 const express = require('express');
-const Database = require('better-sqlite3');
-const path = require('path');
 const { authenticateToken } = require('../middleware/auth');
 const { ResponseHandler } = require('../utils/responseHandler');
 const { logger } = require('../utils/logger');
+const db = require('../services/database');
 
 const router = express.Router();
-
-// Get database connection
-const dbPath = path.join(__dirname, '..', 'database', 'ashley_lims.db');
-const db = new Database(dbPath);
 
 // Inventory Items endpoints
 
@@ -62,7 +57,7 @@ router.get('/items', async (req, res) => {
       ORDER BY ii.name
     `;
 
-    const items = db.prepare(query).all(...params);
+    const items = await db.all(query, ...params);
     ResponseHandler.success(res, items);
   } catch (error) {
     logger.error('Error fetching inventory items', { error: error.message });
@@ -89,7 +84,7 @@ router.get('/items/:id', async (req, res) => {
       WHERE ii.id = ?
     `;
     
-    const item = db.prepare(itemQuery).get(id);
+    const item = await db.get(itemQuery, id);
     
     if (!item) {
       return ResponseHandler.notFound(res, 'Inventory item not found');
@@ -109,7 +104,7 @@ router.get('/items/:id', async (req, res) => {
       ORDER BY il.expiry_date ASC, il.received_date ASC
     `;
     
-    const lots = db.prepare(lotsQuery).all(id);
+    const lots = await db.all(lotsQuery, id);
 
     // Get recent transactions
     const transactionsQuery = `
@@ -123,7 +118,7 @@ router.get('/items/:id', async (req, res) => {
       LIMIT 10
     `;
     
-    const recentTransactions = db.prepare(transactionsQuery).all(id);
+    const recentTransactions = await db.all(transactionsQuery, id);
 
     ResponseHandler.success(res, {
       item,
@@ -161,14 +156,14 @@ router.post('/items', async (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    const result = db.prepare(query).run(
+    const result = await db.run(query,
       item_code, name, description, category_id, supplier_id, unit_of_measure,
       unit_cost, currency || 'USD', reorder_level || 10, maximum_stock_level,
       storage_location, storage_conditions, safety_data_sheet_path, hazard_class,
       shelf_life_days, quality_control_required || false
     );
 
-    const newItem = db.prepare('SELECT * FROM inventory_items WHERE id = ?').get(result.lastInsertRowid);
+    const newItem = await db.get('SELECT * FROM inventory_items WHERE id = ?', result.lastInsertRowid);
 
     logger.info('Inventory item created', { itemCode: item_code, id: result.lastInsertRowid });
     ResponseHandler.success(res, newItem, 'Inventory item created successfully', 201);
@@ -194,12 +189,15 @@ router.post('/lots', async (req, res) => {
     }
 
     // Check if lot already exists for this item
-    const existingLot = db.prepare('SELECT id FROM inventory_lots WHERE item_id = ? AND lot_number = ?').get(item_id, lot_number);
+    const existingLot = await db.get('SELECT id FROM inventory_lots WHERE item_id = ? AND lot_number = ?', item_id, lot_number);
     if (existingLot) {
       return ResponseHandler.error(res, 'Lot number already exists for this item', null, 400);
     }
 
-    const transaction = db.transaction(() => {
+    // Use async transaction pattern
+    await db.run('BEGIN');
+    
+    try {
       // Create lot record
       const lotQuery = `
         INSERT INTO inventory_lots (
@@ -209,7 +207,7 @@ router.post('/lots', async (req, res) => {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
-      const lotResult = db.prepare(lotQuery).run(
+      const lotResult = await db.run(lotQuery,
         item_id, lot_number, supplier_lot_number, quantity_received,
         quantity_received, unit_cost, received_date, expiry_date,
         manufactured_date, received_by, certificate_analysis_path, notes
@@ -222,19 +220,21 @@ router.post('/lots', async (req, res) => {
         ) VALUES (?, 'receipt', ?, ?, ?, ?)
       `;
 
-      db.prepare(transactionQuery).run(
+      await db.run(transactionQuery,
         lotResult.lastInsertRowid, quantity_received, received_by,
         unit_cost, (unit_cost || 0) * quantity_received
       );
 
-      return lotResult.lastInsertRowid;
-    });
+      await db.run('COMMIT');
+      const lotId = lotResult.lastInsertRowid;
+      const newLot = await db.get('SELECT * FROM inventory_lots WHERE id = ?', lotId);
 
-    const lotId = transaction();
-    const newLot = db.prepare('SELECT * FROM inventory_lots WHERE id = ?').get(lotId);
-
-    logger.info('Inventory lot received', { itemId: item_id, lotNumber: lot_number, lotId });
-    ResponseHandler.success(res, newLot, 'Inventory lot received successfully', 201);
+      logger.info('Inventory lot received', { itemId: item_id, lotNumber: lot_number, lotId });
+      ResponseHandler.success(res, newLot, 'Inventory lot received successfully', 201);
+    } catch (transactionError) {
+      await db.run('ROLLBACK');
+      throw transactionError;
+    }
   } catch (error) {
     logger.error('Error receiving inventory lot', { error: error.message });
     ResponseHandler.error(res, 'Failed to receive inventory lot', error);
@@ -257,13 +257,13 @@ router.patch('/lots/:id/quality-status', async (req, res) => {
       WHERE id = ?
     `;
 
-    const result = db.prepare(query).run(quality_status, notes, id);
+    const result = await db.run(query, quality_status, notes, id);
 
     if (result.changes === 0) {
       return ResponseHandler.notFound(res, 'Inventory lot not found');
     }
 
-    const updatedLot = db.prepare('SELECT * FROM inventory_lots WHERE id = ?').get(id);
+    const updatedLot = await db.get('SELECT * FROM inventory_lots WHERE id = ?', id);
 
     logger.info('Lot quality status updated', { lotId: id, qualityStatus: quality_status });
     ResponseHandler.success(res, updatedLot, 'Quality status updated successfully');
@@ -286,9 +286,12 @@ router.post('/transactions/usage', async (req, res) => {
       return ResponseHandler.error(res, 'Missing required fields', null, 400);
     }
 
-    const transaction = db.transaction(() => {
+    // Use async transaction pattern
+    await db.run('BEGIN');
+    
+    try {
       // Check available quantity
-      const lot = db.prepare('SELECT * FROM inventory_lots WHERE id = ?').get(lot_id);
+      const lot = await db.get('SELECT * FROM inventory_lots WHERE id = ?', lot_id);
       if (!lot) {
         throw new Error('Lot not found');
       }
@@ -298,8 +301,8 @@ router.post('/transactions/usage', async (req, res) => {
       }
 
       // Update lot quantity
-      db.prepare('UPDATE inventory_lots SET quantity_available = quantity_available - ? WHERE id = ?')
-        .run(quantity, lot_id);
+      await db.run('UPDATE inventory_lots SET quantity_available = quantity_available - ? WHERE id = ?',
+        quantity, lot_id);
 
       // Create transaction record
       const transactionQuery = `
@@ -309,25 +312,27 @@ router.post('/transactions/usage', async (req, res) => {
         ) VALUES (?, 'usage', ?, ?, ?, ?, ?, ?, ?)
       `;
 
-      const result = db.prepare(transactionQuery).run(
+      const result = await db.run(transactionQuery,
         lot_id, -quantity, reference_id, reference_type, performed_by, reason,
         lot.unit_cost, (lot.unit_cost || 0) * quantity
       );
 
-      return result.lastInsertRowid;
-    });
+      await db.run('COMMIT');
+      const transactionId = result.lastInsertRowid;
+      const newTransaction = await db.get(`
+        SELECT it.*, il.lot_number, ii.name as item_name
+        FROM inventory_transactions it
+        JOIN inventory_lots il ON it.lot_id = il.id
+        JOIN inventory_items ii ON il.item_id = ii.id
+        WHERE it.id = ?
+      `, transactionId);
 
-    const transactionId = transaction();
-    const newTransaction = db.prepare(`
-      SELECT it.*, il.lot_number, ii.name as item_name
-      FROM inventory_transactions it
-      JOIN inventory_lots il ON it.lot_id = il.id
-      JOIN inventory_items ii ON il.item_id = ii.id
-      WHERE it.id = ?
-    `).get(transactionId);
-
-    logger.info('Inventory usage recorded', { lotId: lot_id, quantity, transactionId });
-    ResponseHandler.success(res, newTransaction, 'Usage recorded successfully', 201);
+      logger.info('Inventory usage recorded', { lotId: lot_id, quantity, transactionId });
+      ResponseHandler.success(res, newTransaction, 'Usage recorded successfully', 201);
+    } catch (transactionError) {
+      await db.run('ROLLBACK');
+      throw transactionError;
+    }
   } catch (error) {
     logger.error('Error recording inventory usage', { error: error.message });
     ResponseHandler.error(res, 'Failed to record inventory usage', error);
@@ -357,7 +362,7 @@ router.get('/reports/low-stock', async (req, res) => {
       ORDER BY (current_stock / NULLIF(ii.reorder_level, 0)) ASC, ii.name
     `;
 
-    const lowStockItems = db.prepare(query).all();
+    const lowStockItems = await db.all(query);
     ResponseHandler.success(res, lowStockItems);
   } catch (error) {
     logger.error('Error generating low stock report', { error: error.message });
@@ -392,7 +397,7 @@ router.get('/reports/expiry', async (req, res) => {
       ORDER BY il.expiry_date ASC, ii.name
     `;
 
-    const expiringItems = db.prepare(query).all(days_ahead);
+    const expiringItems = await db.all(query, days_ahead);
     ResponseHandler.success(res, expiringItems);
   } catch (error) {
     logger.error('Error generating expiry report', { error: error.message });
@@ -416,7 +421,7 @@ router.get('/cost-analysis/test/:testTypeId', async (req, res) => {
       GROUP BY tt.id
     `;
     
-    const testType = db.prepare(testQuery).get(testTypeId);
+    const testType = await db.get(testQuery, testTypeId);
     
     if (!testType) {
       return ResponseHandler.notFound(res, 'Test type not found');
@@ -439,7 +444,7 @@ router.get('/cost-analysis/test/:testTypeId', async (req, res) => {
       ORDER BY tru.critical DESC, cost_per_test DESC
     `;
     
-    const reagentCosts = db.prepare(costQuery).all(testTypeId);
+    const reagentCosts = await db.all(costQuery, testTypeId);
     
     const totalReagentCost = reagentCosts.reduce((sum, reagent) => sum + (reagent.cost_per_test || 0), 0);
     const minTestsPossible = Math.min(...reagentCosts.filter(r => r.critical).map(r => r.tests_possible || 0));
@@ -479,7 +484,7 @@ router.get('/categories', async (req, res) => {
       ORDER BY ic.name
     `;
 
-    const categories = db.prepare(query).all();
+    const categories = await db.all(query);
     ResponseHandler.success(res, categories);
   } catch (error) {
     logger.error('Error fetching inventory categories', { error: error.message });
@@ -511,7 +516,7 @@ router.get('/suppliers', async (req, res) => {
     `;
 
     const params = status !== 'all' ? [status] : [];
-    const suppliers = db.prepare(query).all(...params);
+    const suppliers = await db.all(query, ...params);
     
     ResponseHandler.success(res, suppliers);
   } catch (error) {
