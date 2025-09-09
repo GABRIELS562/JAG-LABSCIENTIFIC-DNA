@@ -4,14 +4,13 @@
  * Based on forensic genetics principles and ISFG recommendations
  */
 
-const Database = require('better-sqlite3');
+const db = require('./database');
 const path = require('path');
 const { logger } = require('../utils/logger');
 
 class STRProfileMatcher {
   constructor() {
-    this.dbPath = path.join(__dirname, '../database/ashley_lims.db');
-    this.db = new Database(this.dbPath, { fileMustExist: false });
+    this.db = db;
     
     // Initialize database tables if they don't exist
     this.initializeTables();

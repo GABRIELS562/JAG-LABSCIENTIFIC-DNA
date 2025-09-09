@@ -1,4 +1,4 @@
-const Database = require('better-sqlite3');
+const db = require('../services/database');
 const path = require('path');
 const { logger } = require('./logger');
 
@@ -28,22 +28,16 @@ class DatabasePool {
   initialize() {
     try {
       // Create write connection (WAL mode allows concurrent reads)
-      this.writeConnection = new Database(this.dbPath, {
-        verbose: this.options.verbose,
-        fileMustExist: false,
-        timeout: this.options.timeout
-      });
+      // Use unified database service instead of direct Database instantiation
+      this.writeConnection = db;
 
       // Configure for optimal performance
       this.configureDatabase(this.writeConnection);
 
       // Create read connections
       for (let i = 0; i < this.options.maxConnections; i++) {
-        const readConnection = new Database(this.dbPath, {
-          verbose: this.options.verbose,
-          readonly: true,
-          timeout: this.options.timeout
-        });
+        // Use unified database service for read connections too
+        const readConnection = db;
         
         this.configureDatabase(readConnection);
         this.readConnections.push(readConnection);

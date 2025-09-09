@@ -1,11 +1,10 @@
-const Database = require('better-sqlite3');
+const db = require('./database');
 const path = require('path');
 const { logger } = require('../utils/logger');
 
 class QualityControlService {
   constructor() {
-    this.dbPath = path.join(__dirname, '../database/ashley_lims.db');
-    this.db = new Database(this.dbPath, { fileMustExist: false });
+    this.db = db;
     this.initializeDatabase();
     this.qcThresholds = this.loadQCThresholds();
   }

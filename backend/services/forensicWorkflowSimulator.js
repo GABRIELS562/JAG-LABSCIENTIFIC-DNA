@@ -1,4 +1,4 @@
-const Database = require('better-sqlite3');
+const db = require('./database');
 const path = require('path');
 const fs = require('fs').promises;
 const { logger } = require('../utils/logger');
@@ -11,7 +11,6 @@ const { trackSampleProcessed, trackBatchCreated, updateQueueSize } = require('..
  */
 class ForensicWorkflowSimulator {
   constructor() {
-    this.dbPath = path.join(__dirname, '../database/ashley_lims.db');
     this.db = null;
     this.isRunning = false;
     this.simulationSpeed = 1; // 1 = real-time, 10 = 10x speed
@@ -80,8 +79,7 @@ class ForensicWorkflowSimulator {
 
   async initialize() {
     try {
-      this.db = new Database(this.dbPath, { fileMustExist: false });
-      this.db.pragma('journal_mode = WAL');
+      this.db = db;
       this.db.pragma('synchronous = NORMAL');
       
       // Create necessary tables if they don't exist

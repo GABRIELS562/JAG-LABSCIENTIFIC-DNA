@@ -37,16 +37,11 @@ class HealthCheckService {
 
   async checkDatabase() {
     try {
-      // Use existing SQLite connection
+      // Use existing PostgreSQL connection
       const databaseService = require('../services/database');
-      const db = databaseService.db;
-      
-      if (!db || !databaseService.isConnected) {
-        throw new Error('Database service not initialized');
-      }
       
       // Test basic connectivity
-      const testResult = db.prepare('SELECT 1 as test').get();
+      const testResult = await databaseService.get('SELECT 1 as test');
       
       // Test a simple query on actual tables
       const sampleResult = db.prepare('SELECT COUNT(*) as count FROM samples').get();
@@ -54,7 +49,7 @@ class HealthCheckService {
       
       return {
         status: 'healthy',
-        message: 'SQLite connection successful',
+        message: 'PostgreSQL connection successful',
         details: {
           connected: true,
           database: databaseService.dbPath,

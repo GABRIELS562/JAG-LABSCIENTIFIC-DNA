@@ -4,13 +4,12 @@
  * Each batch of 10 samples progresses through different stages
  */
 
-const Database = require('better-sqlite3');
+const db = require('./database');
 const path = require('path');
 const { logger } = require('../utils/logger');
 
 class PaternityWorkflowCycler {
   constructor() {
-    this.dbPath = path.join(__dirname, '../database/ashley_lims.db');
     this.db = null;
     this.isRunning = false;
     this.cycleInterval = null;
@@ -72,8 +71,7 @@ class PaternityWorkflowCycler {
 
   async initialize() {
     try {
-      this.db = new Database(this.dbPath);
-      this.db.pragma('journal_mode = WAL');
+      this.db = db;
       
       // Initialize workflow stage configurations table
       await this.initializeWorkflowTables();

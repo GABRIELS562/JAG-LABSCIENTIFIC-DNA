@@ -1,19 +1,19 @@
 const express = require("express");
 const router = express.Router();
-// SQLite database only - Google Sheets disabled
+// PostgreSQL database only - Google Sheets disabled
 // const { sheets, appendRows, SHEETS } = require("../services/spreadsheets");
 const db = require("../services/database");
 const { authenticateToken, requireStaff } = require("../middleware/auth");
 
-// Configuration - Set to 'sqlite' for new database, 'sheets' for Google Sheets backup
-const DB_MODE = process.env.DB_MODE || 'sqlite';
+// Configuration - Set to 'postgres' for new database
+const DB_MODE = process.env.DB_MODE || 'postgres';
 
-// Helper function to write to SQLite only
-async function dualWrite(sqliteOperation, sheetsOperation = null) {
+// Helper function to write to PostgreSQL only
+async function dualWrite(postgresOperation, sheetsOperation = null) {
   try {
-    // SQLite operation only
-    const sqliteResult = sqliteOperation();
-    return sqliteResult;
+    // PostgreSQL operation only
+    const postgresResult = await postgresOperation();
+    return postgresResult;
   } catch (error) {
     console.error('Database operation failed:', error);
     throw error;
@@ -24,8 +24,8 @@ async function dualWrite(sqliteOperation, sheetsOperation = null) {
 router.get("/test", (req, res) => {
   res.json({
     success: true,
-    message: `API is working with ${DB_MODE === 'sqlite' ? 'SQLite database' : 'Google Sheets'}`,
-    database: DB_MODE === 'sqlite' ? 'SQLite' : 'Google Sheets',
+    message: `API is working with ${DB_MODE === 'postgres' ? 'PostgreSQL database' : 'Google Sheets'}`,
+    database: DB_MODE === 'postgres' ? 'PostgreSQL' : 'Google Sheets',
     backup_enabled: process.env.ENABLE_SHEETS_BACKUP === 'true'
   });
 });
@@ -33,7 +33,7 @@ router.get("/test", (req, res) => {
 // Enhanced database refresh endpoint with optimizations
 router.post("/refresh-database", async (req, res) => {
   try {
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       const startTime = Date.now();
       
       // Optimize database with VACUUM and ANALYZE
@@ -76,7 +76,7 @@ router.post("/refresh-database", async (req, res) => {
     } else {
       res.status(501).json({ 
         success: false, 
-        error: "Database refresh only available with SQLite database" 
+        error: "Database refresh only available with PostgreSQL database" 
       });
     }
   } catch (error) {
@@ -103,7 +103,7 @@ router.post("/submit-test", async (req, res) => {
       hasLegalDeclarations: !!legalDeclarations
     });
 
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       // SQLite implementation (primary)
       const result = await dualWrite(
         () => {
@@ -260,7 +260,7 @@ router.post("/submit-test", async (req, res) => {
         success: true, 
         message: "Paternity test submitted successfully",
         data: result,
-        database: 'SQLite'
+        database: 'PostgreSQL'
       });
     } else {
       // Google Sheets implementation (fallback)
@@ -290,13 +290,13 @@ router.post("/submit-test", async (req, res) => {
 // Get last lab number
 router.get("/get-last-lab-number", async (req, res) => {
   try {
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       const labNumber = db.generateLabNumber();
       res.json({ 
         success: true, 
         lab_number: labNumber,
         message: "Lab number generated successfully",
-        database: 'SQLite'
+        database: 'PostgreSQL'
       });
     } else {
       // Google Sheets implementation
@@ -310,7 +310,7 @@ router.get("/get-last-lab-number", async (req, res) => {
 // Get all samples with pagination support (SQLite only)
 router.get("/samples", async (req, res) => {
   try {
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       // Extract pagination parameters
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 500; // Higher default for dashboard
@@ -397,12 +397,12 @@ router.get("/samples", async (req, res) => {
           timestamp: new Date().toISOString()
         },
         count: samples.length,
-        database: 'SQLite'
+        database: 'PostgreSQL'
       });
     } else {
       res.status(501).json({ 
         success: false, 
-        error: "Feature only available with SQLite database" 
+        error: "Feature only available with PostgreSQL database" 
       });
     }
   } catch (error) {
@@ -419,19 +419,19 @@ router.get("/samples/search", async (req, res) => {
       return res.status(400).json({ success: false, error: "Query parameter 'q' is required" });
     }
     
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       const results = db.searchSamples(q);
       res.json({ 
         success: true, 
         data: results,
         count: results.length,
         query: q,
-        database: 'SQLite'
+        database: 'PostgreSQL'
       });
     } else {
       res.status(501).json({ 
         success: false, 
-        error: "Search feature only available with SQLite database" 
+        error: "Search feature only available with PostgreSQL database" 
       });
     }
   } catch (error) {
@@ -442,17 +442,17 @@ router.get("/samples/search", async (req, res) => {
 // Sample Queue Management endpoints
 router.get("/samples/queue-counts", async (req, res) => {
   try {
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       const counts = db.getSampleQueueCounts();
       res.json({ 
         success: true, 
         data: counts,
-        database: 'SQLite'
+        database: 'PostgreSQL'
       });
     } else {
       res.status(501).json({ 
         success: false, 
-        error: "Feature only available with SQLite database" 
+        error: "Feature only available with PostgreSQL database" 
       });
     }
   } catch (error) {
@@ -472,19 +472,19 @@ router.get("/samples/queue/:queueType", async (req, res) => {
       });
     }
     
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       const samples = db.getSamplesForQueue(queueType);
       res.json({ 
         success: true, 
         data: samples,
         count: samples.length,
         queue: queueType,
-        database: 'SQLite'
+        database: 'PostgreSQL'
       });
     } else {
       res.status(501).json({ 
         success: false, 
-        error: "Feature only available with SQLite database" 
+        error: "Feature only available with PostgreSQL database" 
       });
     }
   } catch (error) {
@@ -519,17 +519,17 @@ router.put("/samples/workflow-status", async (req, res) => {
       });
     }
     
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       db.batchUpdateSampleWorkflowStatus(sampleIds, workflowStatus);
       res.json({ 
         success: true, 
         message: `Updated ${sampleIds.length} samples to ${workflowStatus}`,
-        database: 'SQLite'
+        database: 'PostgreSQL'
       });
     } else {
       res.status(501).json({ 
         success: false, 
-        error: "Feature only available with SQLite database" 
+        error: "Feature only available with PostgreSQL database" 
       });
     }
   } catch (error) {
@@ -542,7 +542,7 @@ router.put("/samples/workflow-status", async (req, res) => {
 // Generate batch
 router.post("/generate-batch", async (req, res) => {
   try {
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       const { batchNumber, operator, wells, template, date, sampleCount } = req.body;
 
       // Store complete plate layout for visualization
@@ -642,7 +642,7 @@ router.post("/generate-batch", async (req, res) => {
           operator: operator,
           wells_created: wells ? Object.keys(wells).length : 0
         },
-        database: 'SQLite'
+        database: 'PostgreSQL'
       });
     } else {
       // Google Sheets fallback
@@ -657,13 +657,13 @@ router.post("/generate-batch", async (req, res) => {
 // Get all batches
 router.get("/batches", async (req, res) => {
   try {
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       const batches = db.getAllBatches();
       res.json({ 
         success: true, 
         data: batches,
         count: batches.length,
-        database: 'SQLite'
+        database: 'PostgreSQL'
       });
     } else {
       // Mock data for Google Sheets
@@ -684,7 +684,7 @@ router.get("/batches", async (req, res) => {
 // Get samples for a specific batch
 router.get("/batches/:batchNumber/samples", async (req, res) => {
   try {
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       const { batchNumber } = req.params;
       const samples = db.getSamplesByBatchNumber(batchNumber);
       res.json({ 
@@ -692,12 +692,12 @@ router.get("/batches/:batchNumber/samples", async (req, res) => {
         data: samples,
         count: samples.length,
         batchNumber: batchNumber,
-        database: 'SQLite'
+        database: 'PostgreSQL'
       });
     } else {
       res.status(501).json({ 
         success: false, 
-        error: "Feature only available with SQLite database" 
+        error: "Feature only available with PostgreSQL database" 
       });
     }
   } catch (error) {
@@ -708,19 +708,19 @@ router.get("/batches/:batchNumber/samples", async (req, res) => {
 // Get well assignments for a specific batch
 router.get("/well-assignments/:batchId", async (req, res) => {
   try {
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       const { batchId } = req.params;
       const wellAssignments = db.getWellAssignments(batchId);
       res.json({ 
         success: true, 
         data: wellAssignments,
         count: wellAssignments.length,
-        database: 'SQLite'
+        database: 'PostgreSQL'
       });
     } else {
       res.status(501).json({ 
         success: false, 
-        error: "Feature only available with SQLite database" 
+        error: "Feature only available with PostgreSQL database" 
       });
     }
   } catch (error) {
@@ -731,7 +731,7 @@ router.get("/well-assignments/:batchId", async (req, res) => {
 // Save batch
 router.post("/save-batch", authenticateToken, requireStaff, async (req, res) => {
   try {
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       const { batchNumber, operator, wells, template, date } = req.body;
 
       const existingBatch = db.getBatch(batchNumber);
@@ -741,7 +741,7 @@ router.post("/save-batch", authenticateToken, requireStaff, async (req, res) => 
           success: true, 
           message: "Batch already exists",
           data: existingBatch,
-          database: 'SQLite'
+          database: 'PostgreSQL'
         });
       }
 
@@ -764,7 +764,7 @@ router.post("/save-batch", authenticateToken, requireStaff, async (req, res) => 
           batch_id: batchResult.lastInsertRowid,
           batch_number: batchNumber
         },
-        database: 'SQLite'
+        database: 'PostgreSQL'
       });
     } else {
       // Google Sheets fallback
@@ -778,7 +778,7 @@ router.post("/save-batch", authenticateToken, requireStaff, async (req, res) => 
 // Statistics endpoint
 router.get("/statistics", async (req, res) => {
   try {
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       const { period = 'daily' } = req.query;
       const stats = db.getStatistics(period);
       const counts = db.getSampleCounts();
@@ -790,7 +790,7 @@ router.get("/statistics", async (req, res) => {
           total_counts: counts,
           period: period
         },
-        database: 'SQLite'
+        database: 'PostgreSQL'
       });
     } else {
       // Mock data for Google Sheets
@@ -812,7 +812,7 @@ router.get("/statistics", async (req, res) => {
 // Quality Control endpoints
 router.post("/quality-control", authenticateToken, requireStaff, async (req, res) => {
   try {
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       const { batch_id, date, control_type, result, operator, comments } = req.body;
 
       const qcData = {
@@ -832,7 +832,7 @@ router.post("/quality-control", authenticateToken, requireStaff, async (req, res
         data: {
           qc_id: qcResult.lastInsertRowid
         },
-        database: 'SQLite'
+        database: 'PostgreSQL'
       });
     } else {
       res.json({ success: true, message: "QC record created", database: 'Google Sheets' });
@@ -844,7 +844,7 @@ router.post("/quality-control", authenticateToken, requireStaff, async (req, res
 
 router.get("/quality-control", async (req, res) => {
   try {
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       const { batch_id } = req.query;
       const qcRecords = db.getQualityControlRecords(batch_id);
       
@@ -852,7 +852,7 @@ router.get("/quality-control", async (req, res) => {
         success: true, 
         data: qcRecords,
         count: qcRecords.length,
-        database: 'SQLite'
+        database: 'PostgreSQL'
       });
     } else {
       // Mock data for Google Sheets
@@ -873,7 +873,7 @@ router.get("/quality-control", async (req, res) => {
 // Get client test results (authenticated clients can access their own data)
 router.get("/client/tests", authenticateToken, async (req, res) => {
   try {
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       const samples = db.getAllSamples().slice(0, 10);
       
       const tests = samples.map(sample => ({
@@ -886,7 +886,7 @@ router.get("/client/tests", authenticateToken, async (req, res) => {
         downloadUrl: sample.status === 'completed' ? `/api/client/test/${sample.id}/download` : null
       }));
       
-      res.json({ success: true, tests, database: 'SQLite' });
+      res.json({ success: true, tests, database: 'PostgreSQL' });
     } else {
       // Mock data for Google Sheets
       const tests = [
@@ -913,7 +913,7 @@ router.get("/client/test/:id/download", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       const sample = db.getSample(id);
       
       if (!sample) {
@@ -930,7 +930,7 @@ router.get("/client/test/:id/download", authenticateToken, async (req, res) => {
           surname: sample.surname,
           status: sample.status
         },
-        database: 'SQLite'
+        database: 'PostgreSQL'
       });
     } else {
       res.json({ 
@@ -948,7 +948,7 @@ router.get("/client/test/:id/download", authenticateToken, async (req, res) => {
 // Workflow statistics endpoint
 router.get("/workflow-stats", async (req, res) => {
   try {
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       let samples;
       try {
         // Initialize database service first
@@ -994,7 +994,7 @@ router.get("/workflow-stats", async (req, res) => {
     } else {
       res.status(501).json({ 
         success: false, 
-        error: "Feature only available with SQLite database" 
+        error: "Feature only available with PostgreSQL database" 
       });
     }
   } catch (error) {
@@ -1006,7 +1006,7 @@ router.get("/workflow-stats", async (req, res) => {
 // Sample counts endpoint
 router.get("/samples/counts", async (req, res) => {
   try {
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       let samples;
       try {
         // Initialize database service first
@@ -1050,7 +1050,7 @@ router.get("/samples/counts", async (req, res) => {
     } else {
       res.status(501).json({ 
         success: false, 
-        error: "Feature only available with SQLite database" 
+        error: "Feature only available with PostgreSQL database" 
       });
     }
   } catch (error) {
@@ -1062,7 +1062,7 @@ router.get("/samples/counts", async (req, res) => {
 // Simulated stages endpoint for live cycling demo
 router.get("/simulated-stages", async (req, res) => {
   try {
-    if (DB_MODE === 'sqlite') {
+    if (DB_MODE === 'postgres') {
       const samples = db.getAllSamples() || [];
       
       // Filter for AUTO- prefixed samples and simulate stages
@@ -1110,7 +1110,7 @@ router.get("/simulated-stages", async (req, res) => {
     } else {
       res.status(501).json({ 
         success: false, 
-        error: "Feature only available with SQLite database" 
+        error: "Feature only available with PostgreSQL database" 
       });
     }
   } catch (error) {

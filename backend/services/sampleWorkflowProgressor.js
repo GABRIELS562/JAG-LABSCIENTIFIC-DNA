@@ -3,13 +3,12 @@
  * Continuously moves the 50 paternity samples through workflow stages
  */
 
-const Database = require('better-sqlite3');
+const db = require('./database');
 const path = require('path');
 const { logger } = require('../utils/logger');
 
 class SampleWorkflowProgressor {
   constructor() {
-    this.dbPath = path.join(__dirname, '../database/ashley_lims.db');
     this.db = null;
     this.isRunning = false;
     this.cycleInterval = null;
@@ -32,8 +31,7 @@ class SampleWorkflowProgressor {
 
   initialize() {
     try {
-      this.db = new Database(this.dbPath);
-      this.db.pragma('journal_mode = WAL');
+      this.db = db;
       logger.info('Sample Workflow Progressor initialized');
       return { success: true };
     } catch (error) {

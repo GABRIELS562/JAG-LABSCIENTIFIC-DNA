@@ -49,7 +49,7 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
 
-// Initialize database connection - unified adapter
+// Initialize PostgreSQL database connection
 let db = null;
 let dbPool = null;
 const databaseService = require('./services/database');
@@ -57,13 +57,12 @@ const databaseService = require('./services/database');
 // Wait for database to initialize
 (async () => {
   try {
-    await databaseService.ensureReady();
-    db = databaseService.db;
+    await databaseService.initialize();
+    db = databaseService;
     dbPool = databaseService.pool;
     
-    const connInfo = databaseService.getConnectionInfo();
-    logger.info('Database initialized successfully', connInfo);
-    console.log(`✅ Database connected using ${connInfo.adapter} adapter`);
+    logger.info('PostgreSQL database initialized successfully');
+    console.log(`✅ PostgreSQL database connected successfully`);
   } catch (error) {
     logger.error('Database initialization failed', { error: error.message });
     console.error('❌ Database initialization failed:', error);

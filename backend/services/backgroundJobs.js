@@ -2,7 +2,7 @@ const cron = require('node-cron');
 const logger = require('../utils/logger');
 const { memoryManager } = require('../utils/memoryManager');
 const { trackSampleProcessed, trackBatchCreated, updateQueueSize, trackProcessingTime } = require('../middleware/metrics');
-const Database = require('better-sqlite3');
+const db = require('./database');
 const path = require('path');
 const ForensicWorkflowSimulator = require('./forensicWorkflowSimulator');
 const PaternityWorkflowCycler = require('./paternityWorkflowCycler');
@@ -14,7 +14,6 @@ class BackgroundJobService {
     this.intervals = new Set(); // Track all intervals for cleanup
     this.timeouts = new Set(); // Track all timeouts for cleanup
     this.isRunning = false;
-    this.dbPath = path.join(__dirname, '../database/ashley_lims.db');
     this.db = null;
     this.forensicSimulator = new ForensicWorkflowSimulator();
     this.paternityWorkflowCycler = new PaternityWorkflowCycler();
@@ -48,8 +47,7 @@ class BackgroundJobService {
 
   initializeDatabase() {
     try {
-      this.db = new Database(this.dbPath, { fileMustExist: false });
-      this.db.pragma('journal_mode = WAL');
+      this.db = db;
       logger.info('Background jobs database initialized');
     } catch (error) {
       if (logger && logger.error) {

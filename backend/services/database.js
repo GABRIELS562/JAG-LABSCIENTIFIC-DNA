@@ -1,204 +1,271 @@
-// Unified Database Service
-// Automatically selects PostgreSQL or SQLite based on DB_ADAPTER environment variable
+// Simple PostgreSQL-only database service
+const { Pool } = require('pg');
 
-const PostgreSQLAdapter = require('./database-postgres-adapter');
-const SQLiteAdapter = require('./database-sqlite-adapter');
+// Database configuration
+function getDbHost() {
+  // In Kubernetes, use the service name
+  if (process.env.KUBERNETES_SERVICE_HOST) {
+    return 'postgresql.production.svc.cluster.local';
+  }
+  // Support both DB_HOST and POSTGRES_HOST
+  return process.env.DB_HOST || process.env.POSTGRES_HOST || 'localhost';
+}
 
-class UnifiedDatabaseService {
-  constructor() {
-    // Determine which adapter to use
-    const adapter = process.env.DB_ADAPTER || 'postgres';
+const config = {
+  host: getDbHost(),
+  port: process.env.DB_PORT || process.env.POSTGRES_PORT || 5432,
+  database: process.env.DB_NAME || process.env.POSTGRES_DB || 'limsdb',
+  user: process.env.DB_USER || process.env.POSTGRES_USER || 'lims_user',
+  password: process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD || 'lims2024secure',
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+};
+
+const pool = new Pool(config);
+
+// Initialize connection and tables
+async function initialize() {
+  try {
+    // Test connection
+    const client = await pool.connect();
+    await client.query('SELECT 1');
+    client.release();
     
-    console.log(`🔧 Initializing database with adapter: ${adapter}`);
+    // Initialize tables
+    await initializeTables();
     
-    if (adapter === 'sqlite') {
-      this.adapter = new SQLiteAdapter();
-      this.adapterType = 'sqlite';
-    } else {
-      // Default to PostgreSQL
-      this.adapter = new PostgreSQLAdapter();
-      this.adapterType = 'postgres';
-    }
-    
-    // Bind all methods to maintain context
-    this.bindMethods();
-    
-    // Auto-initialize
-    this.initPromise = this.initialize();
+    console.log(`✅ PostgreSQL connected to ${config.host}:${config.port}/${config.database}`);
+    return true;
+  } catch (error) {
+    console.error('PostgreSQL initialization error:', error);
+    throw error;
   }
+}
 
-  bindMethods() {
-    // Bind all adapter methods to this instance
-    const methods = [
-      'initialize', 'query', 'prepare', 'get', 'all', 'run', 'exec',
-      'beginTransaction', 'commit', 'rollback', 'transaction',
-      'pragma', 'getHealthCheck', 'getStatistics', 'close',
-      'ensureInitialized'
-    ];
-    
-    methods.forEach(method => {
-      if (typeof this.adapter[method] === 'function') {
-        this[method] = this.adapter[method].bind(this.adapter);
-      }
-    });
+async function initializeTables() {
+  const tables = [
+    `CREATE TABLE IF NOT EXISTS samples (
+      id SERIAL PRIMARY KEY,
+      sample_id VARCHAR(255) UNIQUE NOT NULL,
+      patient_name VARCHAR(255),
+      sample_type VARCHAR(100),
+      status VARCHAR(50) DEFAULT 'pending',
+      metadata JSONB,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS workflows (
+      id SERIAL PRIMARY KEY,
+      sample_id VARCHAR(255),
+      workflow_type VARCHAR(100),
+      status VARCHAR(50),
+      step_number INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS test_cases (
+      id SERIAL PRIMARY KEY,
+      sample_id VARCHAR(255),
+      test_type VARCHAR(100),
+      status VARCHAR(50) DEFAULT 'pending',
+      results JSONB,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS batches (
+      id SERIAL PRIMARY KEY,
+      batch_id VARCHAR(255) UNIQUE NOT NULL,
+      status VARCHAR(50) DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      username VARCHAR(255) UNIQUE NOT NULL,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password VARCHAR(255) NOT NULL,
+      role VARCHAR(50) DEFAULT 'user',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`
+  ];
+
+  for (const sql of tables) {
+    await pool.query(sql);
   }
+  console.log('✅ PostgreSQL tables initialized');
+}
 
-  // Getter for common properties
-  get isConnected() {
-    return this.adapter.isConnected;
-  }
-
-  get db() {
-    // For SQLite compatibility
-    return this.adapter.db || this.adapter.pool;
-  }
-
-  get pool() {
-    // For PostgreSQL compatibility
-    return this.adapter.pool || this.adapter.db;
-  }
-
-  // Ensure initialization is complete
-  async ensureReady() {
-    if (this.initPromise) {
-      await this.initPromise;
-    }
-    return this.isConnected;
-  }
-
-  // Get adapter type
-  getAdapterType() {
-    return this.adapterType;
-  }
-
-  // Get connection info
-  getConnectionInfo() {
-    return {
-      adapter: this.adapterType,
-      connected: this.isConnected,
-      environment: process.env.NODE_ENV || 'development',
-      kubernetes: !!process.env.KUBERNETES_SERVICE_HOST
-    };
-  }
-
-  // Compatibility methods for legacy code
+// Convert SQLite placeholders to PostgreSQL
+function convertSqlToPostgreSQL(sql) {
+  let paramIndex = 0;
+  let convertedSql = sql.replace(/\?/g, () => `$${++paramIndex}`);
   
-  // SQLite-style prepare with synchronous-looking methods
-  prepareSync(sql) {
-    const stmt = this.prepare(sql);
-    return {
-      get(...params) {
-        // Note: This returns a promise, caller needs to await
-        return stmt.get(...params);
-      },
-      all(...params) {
-        // Note: This returns a promise, caller needs to await
-        return stmt.all(...params);
-      },
-      run(...params) {
-        // Note: This returns a promise, caller needs to await
-        return stmt.run(...params);
-      }
-    };
-  }
+  // Convert SQLite functions to PostgreSQL equivalents
+  return convertedSql
+    .replace(/datetime\('now'\)/gi, 'NOW()')
+    .replace(/AUTOINCREMENT/gi, '')
+    .replace(/INTEGER PRIMARY KEY/gi, 'SERIAL PRIMARY KEY')
+    .replace(/TEXT/gi, 'VARCHAR(255)')
+    .replace(/DATETIME/gi, 'TIMESTAMP');
+}
 
-  // Helper method for migrations
-  async runMigrations(migrations) {
-    console.log(`Running ${migrations.length} migrations...`);
-    for (const migration of migrations) {
-      try {
-        await this.exec(migration.sql);
-        console.log(`✅ Migration completed: ${migration.name}`);
-      } catch (error) {
-        console.error(`❌ Migration failed: ${migration.name}`, error);
-        throw error;
-      }
+// Helper methods
+async function query(text, params = []) {
+  const pgSql = convertSqlToPostgreSQL(text);
+  return await pool.query(pgSql, params);
+}
+
+async function get(text, params = []) {
+  const result = await query(text, params);
+  return result.rows[0] || null;
+}
+
+async function all(text, params = []) {
+  const result = await query(text, params);
+  return result.rows;
+}
+
+async function run(text, params = []) {
+  const result = await query(text, params);
+  return {
+    lastInsertRowid: result.rows[0]?.id || null,
+    changes: result.rowCount
+  };
+}
+
+// Execute multiple statements
+async function exec(sql) {
+  const statements = sql.split(';').filter(s => s.trim());
+  for (const statement of statements) {
+    if (statement.trim()) {
+      await pool.query(statement);
     }
   }
+}
 
-  // Helper for bulk inserts
-  async bulkInsert(table, records, columns) {
-    const results = [];
-    for (const record of records) {
-      const values = columns.map(col => record[col]);
-      const placeholders = columns.map((_, i) => '?').join(', ');
-      const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
-      
-      try {
-        const result = await this.run(sql, values);
-        results.push(result);
-      } catch (error) {
-        console.error(`Bulk insert error for ${table}:`, error);
-        results.push({ error: error.message });
-      }
-    }
-    return results;
+// Transaction support
+async function beginTransaction() {
+  const client = await pool.connect();
+  await client.query('BEGIN');
+  return client;
+}
+
+async function commit(client) {
+  if (client && client.query) {
+    await client.query('COMMIT');
+    client.release();
   }
+}
 
-  // Helper for upserts (insert or update)
-  async upsert(table, data, uniqueKey) {
-    const keys = Object.keys(data);
-    const values = Object.values(data);
-    
-    if (this.adapterType === 'sqlite') {
-      // SQLite upsert syntax
-      const placeholders = keys.map(() => '?').join(', ');
-      const updateSet = keys.filter(k => k !== uniqueKey)
-        .map(k => `${k} = excluded.${k}`).join(', ');
-      
-      const sql = `
-        INSERT INTO ${table} (${keys.join(', ')}) 
-        VALUES (${placeholders})
-        ON CONFLICT(${uniqueKey}) 
-        DO UPDATE SET ${updateSet}
-      `;
-      
-      return await this.run(sql, values);
-    } else {
-      // PostgreSQL upsert syntax
-      const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-      const updateSet = keys.filter(k => k !== uniqueKey)
-        .map((k, i) => `${k} = EXCLUDED.${k}`).join(', ');
-      
-      const sql = `
-        INSERT INTO ${table} (${keys.join(', ')}) 
-        VALUES (${placeholders})
-        ON CONFLICT(${uniqueKey}) 
-        DO UPDATE SET ${updateSet}
-        RETURNING *
-      `;
-      
-      const result = await this.query(sql, values);
+async function rollback(client) {
+  if (client && client.query) {
+    await client.query('ROLLBACK');
+    client.release();
+  }
+}
+
+function transaction(fn) {
+  return async (...args) => {
+    const client = await beginTransaction();
+    try {
+      const result = await fn(...args);
+      await commit(client);
+      return result;
+    } catch (error) {
+      await rollback(client);
+      throw error;
+    }
+  };
+}
+
+// Prepare statement (SQLite-compatible)
+function prepare(sql) {
+  const pgSql = convertSqlToPostgreSQL(sql);
+  
+  return {
+    async get(...params) {
+      const result = await pool.query(pgSql, params);
+      return result.rows[0] || null;
+    },
+    async all(...params) {
+      const result = await pool.query(pgSql, params);
+      return result.rows;
+    },
+    async run(...params) {
+      const result = await pool.query(pgSql, params);
       return {
-        lastInsertRowid: result.rows[0]?.id,
+        lastInsertRowid: result.rows[0]?.id || null,
         changes: result.rowCount
       };
     }
-  }
+  };
+}
 
-  // Compatibility for code expecting synchronous operations
-  // These methods log warnings and return promises
-  wrapSyncMethod(methodName) {
-    return (...args) => {
-      console.warn(`⚠️ Synchronous ${methodName} called - please update to use async/await`);
-      return this[methodName](...args);
+// Health check
+async function getHealthCheck() {
+  try {
+    await pool.query('SELECT 1');
+    return {
+      status: 'healthy',
+      connected: true,
+      database: 'postgresql',
+      host: getDbHost()
+    };
+  } catch (error) {
+    return {
+      status: 'unhealthy',
+      connected: false,
+      error: error.message
     };
   }
 }
 
-// Create and export singleton instance
-let databaseService;
-
-// Initialize on first require
-if (!databaseService) {
-  databaseService = new UnifiedDatabaseService();
-  
-  // Add backward compatibility warnings for synchronous usage
-  const syncMethods = ['get', 'all', 'run'];
-  syncMethods.forEach(method => {
-    const asyncMethod = databaseService[method];
-    databaseService[`${method}Sync`] = databaseService.wrapSyncMethod(method);
-  });
+// Statistics
+async function getStatistics() {
+  try {
+    const stats = await get(`
+      SELECT 
+        (SELECT COUNT(*) FROM samples) as samples,
+        (SELECT COUNT(*) FROM test_cases) as test_cases,
+        (SELECT COUNT(*) FROM batches) as batches
+    `);
+    
+    return {
+      samples: parseInt(stats.samples) || 0,
+      testCases: parseInt(stats.test_cases) || 0,
+      batches: parseInt(stats.batches) || 0,
+      database: 'postgresql'
+    };
+  } catch (error) {
+    return null;
+  }
 }
 
-module.exports = databaseService;
+// Close connection
+async function close() {
+  if (pool) {
+    await pool.end();
+    console.log('PostgreSQL connection closed');
+  }
+}
+
+// Initialize on startup
+const initPromise = initialize();
+
+// Export everything
+module.exports = {
+  pool,
+  query,
+  get,
+  all,
+  run,
+  exec,
+  prepare,
+  beginTransaction,
+  commit,
+  rollback,
+  transaction,
+  getHealthCheck,
+  getStatistics,
+  close,
+  initialize: () => initPromise
+};

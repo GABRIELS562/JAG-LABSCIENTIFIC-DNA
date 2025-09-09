@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
-const Database = require('better-sqlite3');
+const db = require('./services/database');
 const path = require('path');
 
 // Test the workflow configuration system
 const dbPath = path.join(__dirname, 'database/ashley_lims.db');
 
 try {
-  const db = new Database(dbPath);
+  // Using unified database service instead of direct Database instantiation
   
   console.log('🔍 Testing Workflow Configuration System');
   console.log('=====================================');

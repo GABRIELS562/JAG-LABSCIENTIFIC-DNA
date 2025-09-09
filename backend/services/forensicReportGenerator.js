@@ -7,13 +7,12 @@
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
-const Database = require('better-sqlite3');
+const db = require('./database');
 const { logger } = require('../utils/logger');
 
 class ForensicReportGenerator {
   constructor() {
-    this.dbPath = path.join(__dirname, '../database/ashley_lims.db');
-    this.db = new Database(this.dbPath, { fileMustExist: false });
+    this.db = db;
     this.reportsDir = path.join(__dirname, '../reports');
     
     // Ensure reports directory exists
