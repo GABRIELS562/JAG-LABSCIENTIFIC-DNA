@@ -9,7 +9,7 @@ const databaseService = require('./database');
 
 class EnhancedSampleCycler {
   constructor(db = null) {
-    this.db = db || databaseService.db;
+    this.db = db || databaseService;
     this.isRunning = false;
     this.intervals = {};
     this.stats = {
@@ -58,9 +58,9 @@ class EnhancedSampleCycler {
   }
 
   startSampleGeneration() {
-    const generateSamples = () => {
+    const generateSamples = async () => {
       try {
-        const currentCount = this.getCurrentSampleCount();
+        const currentCount = await this.getCurrentSampleCount();
         
         if (currentCount >= config.sampleGeneration.maxActiveSamples) {
           logger.debug(`Sample limit reached (${currentCount}/${config.sampleGeneration.maxActiveSamples})`);
@@ -72,7 +72,7 @@ class EnhancedSampleCycler {
           config.sampleGeneration.batchSize;
 
         for (let i = 0; i < batchSize; i++) {
-          this.generateSample();
+          await this.generateSample();
         }
 
         logger.info(`📊 Generated ${batchSize} new samples`);
@@ -85,7 +85,7 @@ class EnhancedSampleCycler {
     generateSamples(); // Generate immediately
   }
 
-  generateSample() {
+  async generateSample() {
     const firstName = config.sampleNames.firstNames[Math.floor(Math.random() * config.sampleNames.firstNames.length)];
     const lastName = config.sampleNames.lastNames[Math.floor(Math.random() * config.sampleNames.lastNames.length)];
     const sampleType = this.selectByProbability(config.sampleTypes);
@@ -112,14 +112,12 @@ class EnhancedSampleCycler {
     };
 
     try {
-      const stmt = this.db.prepare(`
+      const result = await this.db.run(`
         INSERT INTO samples (
           lab_number, case_number, name, surname, relation,
-          collection_date, workflow_status, status, sample_type
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      
-      const result = stmt.run(
+          collection_date, workflow_status, status, sample_type, metadata
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
         sample.lab_number,
         sample.case_number,
         sample.name,
@@ -128,7 +126,8 @@ class EnhancedSampleCycler {
         sample.collection_date,
         sample.workflow_status,
         sample.status,
-        sample.sample_type
+        sample.sample_type,
+        sample.metadata
       );
 
       this.stats.samplesGenerated++;
@@ -244,7 +243,7 @@ class EnhancedSampleCycler {
   }
 
   startMetricsUpdate() {
-    const updateMetrics = () => {
+    const updateMetrics = async () => {
       try {
         const now = Date.now();
         const timeDiff = (now - this.lastStatsUpdate) / 1000; // seconds
@@ -252,14 +251,12 @@ class EnhancedSampleCycler {
         this.stats.averageThroughput = this.stats.samplesCompleted / (timeDiff / 3600); // per hour
         
         // Get current distribution
-        const stmt = this.db.prepare(`
+        const distribution = await this.db.all(`
           SELECT workflow_status, COUNT(*) as count 
           FROM samples 
           WHERE status = 'active'
           GROUP BY workflow_status
         `);
-        
-        const distribution = stmt.all();
         
         logger.info('📈 Workflow Metrics:', {
           generated: this.stats.samplesGenerated,
@@ -293,14 +290,13 @@ class EnhancedSampleCycler {
     this.intervals.spikes = setInterval(triggerSpike, config.devops.spikeInterval);
   }
 
-  getCurrentSampleCount() {
+  async getCurrentSampleCount() {
     try {
-      const stmt = this.db.prepare(`
+      const result = await this.db.get(`
         SELECT COUNT(*) as count 
         FROM samples 
         WHERE status = 'active'
       `);
-      const result = stmt.get();
       return parseInt(result?.count) || 0;
     } catch (error) {
       logger.error('Failed to get sample count:', error);

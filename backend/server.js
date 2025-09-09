@@ -1960,22 +1960,25 @@ const server = app
     }
     
     // Start Enhanced Sample Cycler for continuous sample generation and progression
-    try {
-      // Use unified database service
-      const EnhancedSampleCycler = require('./services/enhanced-sample-cycler');
-      
-      // Use the unified database service pool/db
-      const sampleCycler = new EnhancedSampleCycler(databaseService.db);
-      sampleCycler.start();
-      logger.info('🔄 Enhanced Sample Cycler started - continuous sample processing');
-      console.log('🔄 Enhanced Sample Cycler active - generating samples every 10 seconds');
-      
-      // Store reference globally for graceful shutdown
-      global.sampleCycler = sampleCycler;
-    } catch (error) {
-      logger.error('Failed to start Enhanced Sample Cycler', { error: error.message });
-      console.log('⚠️  Warning: Enhanced Sample Cycler failed to start:', error.message);
-    }
+    // Wait a bit for database to be ready
+    setTimeout(() => {
+      try {
+        // Use unified database service
+        const EnhancedSampleCycler = require('./services/enhanced-sample-cycler');
+        
+        // Pass the database service itself, not .db
+        const sampleCycler = new EnhancedSampleCycler(databaseService);
+        sampleCycler.start();
+        logger.info('🔄 Enhanced Sample Cycler started - continuous sample processing');
+        console.log('🔄 Enhanced Sample Cycler active - generating samples every 10 seconds');
+        
+        // Store reference globally for graceful shutdown
+        global.sampleCycler = sampleCycler;
+      } catch (error) {
+        logger.error('Failed to start Enhanced Sample Cycler', { error: error.message });
+        console.log('⚠️  Warning: Enhanced Sample Cycler failed to start:', error.message);
+      }
+    }, 2000); // Wait 2 seconds for database to initialize
     
     // Start sample generator for DevOps monitoring
     if (process.env.ENABLE_DEVOPS_FEATURES === 'true' || process.env.NODE_ENV === 'production') {
