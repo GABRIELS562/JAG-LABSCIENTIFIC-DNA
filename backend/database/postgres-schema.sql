@@ -245,7 +245,17 @@ CREATE TABLE IF NOT EXISTS sample_workflow_timing (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 15. Workflow Cycles Table
+-- 15. Basic Workflows Table (for compatibility)
+CREATE TABLE IF NOT EXISTS workflows (
+    id SERIAL PRIMARY KEY,
+    sample_id VARCHAR(255),
+    workflow_type VARCHAR(100),
+    status VARCHAR(50),
+    step_number INTEGER,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 16. Workflow Cycles Table
 CREATE TABLE IF NOT EXISTS workflow_cycles (
     id SERIAL PRIMARY KEY,
     cycle_name VARCHAR(255),

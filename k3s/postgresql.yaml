@@ -9,10 +9,10 @@ metadata:
     app: postgresql
 type: Opaque
 data:
-  # Base64 encoded - change in production!
-  POSTGRES_USER: bGltc19hZG1pbg==  # lims_admin
-  POSTGRES_PASSWORD: bGltc19zZWN1cmVfcGFzc3dvcmQ=  # lims_secure_password
-  POSTGRES_DB: bGltc19kYXRhYmFzZQ==  # lims_database
+  # Base64 encoded - matching application requirements
+  POSTGRES_USER: bGltc191c2Vy  # lims_user
+  POSTGRES_PASSWORD: bGltczIwMjRzZWN1cmU=  # lims2024secure  
+  POSTGRES_DB: bGltc2Ri  # limsdb
 
 ---
 apiVersion: v1

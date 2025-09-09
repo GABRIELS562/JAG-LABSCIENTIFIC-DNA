@@ -12,15 +12,37 @@ class PostgreSQLService {
     this.isInitialized = false;
   }
 
+  // Determine the correct database host based on environment
+  getDbHost() {
+    // In Kubernetes, check for service discovery
+    if (process.env.KUBERNETES_SERVICE_HOST) {
+      // Use PostgreSQL service name in Kubernetes
+      return process.env.DB_HOST || 'postgresql.production.svc.cluster.local';
+    }
+    
+    // Check for explicit database URL
+    if (process.env.DATABASE_URL) {
+      try {
+        const url = new URL(process.env.DATABASE_URL);
+        return url.hostname;
+      } catch (error) {
+        // Fall through to environment variables
+      }
+    }
+    
+    // Use environment variables or default
+    return process.env.DB_HOST || process.env.POSTGRES_HOST || 'localhost';
+  }
+
   async initialize() {
     try {
-      // Database connection config
+      // Database connection config - Kubernetes-aware
       const config = {
-        host: process.env.POSTGRES_HOST || 'localhost',
-        port: process.env.POSTGRES_PORT || 5432,
-        database: process.env.POSTGRES_DB || 'jagdna_lims',
-        user: process.env.POSTGRES_USER || 'lims_user',
-        password: process.env.POSTGRES_PASSWORD || 'secure_password_2024',
+        host: this.getDbHost(),
+        port: parseInt(process.env.DB_PORT || process.env.POSTGRES_PORT || '5432'),
+        database: process.env.DB_NAME || process.env.POSTGRES_DB || 'limsdb',
+        user: process.env.DB_USER || process.env.POSTGRES_USER || 'lims_user',
+        password: process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD || 'lims2024secure',
         max: 10, // max connections
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 2000,

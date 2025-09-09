@@ -36,28 +36,98 @@ class UnifiedPostgreSQLService {
     this.preparedStatements = new Map();
     this.transactionDepth = 0;
     
-    // Configuration
+    // Configuration - supports both K8s service and environment variables
     this.config = {
-      host: process.env.POSTGRES_HOST || 'localhost',
-      port: process.env.POSTGRES_PORT || 5432,
-      database: process.env.POSTGRES_DB || 'jagdna_lims',
-      user: process.env.POSTGRES_USER || 'lims_user',
-      password: process.env.POSTGRES_PASSWORD || 'secure_password_2024',
+      host: this.getDbHost(),
+      port: parseInt(process.env.DB_PORT || process.env.POSTGRES_PORT || '5432'),
+      database: process.env.DB_NAME || process.env.POSTGRES_DB || 'limsdb',
+      user: process.env.DB_USER || process.env.POSTGRES_USER || 'lims_user',
+      password: process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD || 'lims2024secure',
       max: 20,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 2000,
     };
     
-    // Initialize immediately
+    // Initialize asynchronously (will be called by server.js)
+    // Don't initialize immediately to avoid blocking constructor
+  }
+
+  // Determine the correct database host based on environment
+  getDbHost() {
+    // In Kubernetes, check for service discovery
+    if (process.env.KUBERNETES_SERVICE_HOST) {
+      // Use PostgreSQL service name in Kubernetes
+      return process.env.DB_HOST || 'postgresql.production.svc.cluster.local';
+    }
+    
+    // Check for explicit database URL
+    if (process.env.DATABASE_URL) {
+      try {
+        const url = new URL(process.env.DATABASE_URL);
+        return url.hostname;
+      } catch (error) {
+        // Fall through to environment variables
+      }
+    }
+    
+    // Use environment variables or default
+    return process.env.DB_HOST || process.env.POSTGRES_HOST || 'localhost';
+  }
+
+  async initializeTables() {
+    const fs = require('fs');
+    const path = require('path');
+    
     try {
-      this.initialize();
-      console.log('✅ PostgreSQL database initialized successfully');
+      // Initialize basic required tables
+      const initSql = `
+        -- Basic Samples table with required fields
+        CREATE TABLE IF NOT EXISTS samples (
+            id SERIAL PRIMARY KEY,
+            sample_id VARCHAR(255) UNIQUE NOT NULL,
+            patient_name VARCHAR(255),
+            sample_type VARCHAR(100),
+            status VARCHAR(50) DEFAULT 'pending',
+            metadata JSONB,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- Basic Workflows table
+        CREATE TABLE IF NOT EXISTS workflows (
+            id SERIAL PRIMARY KEY,
+            sample_id VARCHAR(255),
+            workflow_type VARCHAR(100),
+            status VARCHAR(50),
+            step_number INTEGER,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- Create indexes for performance
+        CREATE INDEX IF NOT EXISTS idx_samples_sample_id ON samples(sample_id);
+        CREATE INDEX IF NOT EXISTS idx_samples_status ON samples(status);
+        CREATE INDEX IF NOT EXISTS idx_workflows_sample_id ON workflows(sample_id);
+        CREATE INDEX IF NOT EXISTS idx_workflows_status ON workflows(status);
+      `;
+      
+      const client = await this.pool.connect();
+      try {
+        await client.query(initSql);
+        console.log('✅ PostgreSQL tables initialized successfully');
+      } finally {
+        client.release();
+      }
     } catch (error) {
-      console.error('❌ PostgreSQL database initialization failed:', error.message);
+      if (logger.error) {
+        logger.error('Failed to initialize PostgreSQL tables', { error: error.message });
+      } else {
+        console.error('❌ Failed to initialize PostgreSQL tables:', error.message);
+      }
+      // Don't throw - let the app continue with existing tables
     }
   }
 
-  initialize() {
+  async initialize() {
     if (this.initAttempted) {
       return;
     }
@@ -67,9 +137,12 @@ class UnifiedPostgreSQLService {
       this.pool = new Pool(this.config);
       
       // Test connection
-      this.testConnection();
+      await this.testConnection();
       
       this.isConnected = true;
+      
+      // Initialize required tables
+      await this.initializeTables();
       
       if (logger.info) {
         logger.info('PostgreSQL initialized successfully', {

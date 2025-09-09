@@ -51,6 +51,7 @@ if (!fs.existsSync(logsDir)) {
 
 // Initialize database connection - using PostgreSQL
 let db = null;
+let dbPool = null;
 const databaseService = require('./services/database-unified-postgres');
 
 try {
@@ -361,7 +362,7 @@ app.get("/api/samples", (req, res) => {
       const params = filters.status ? [filters.status] : [];
       
       streamingResponse.streamDatabaseResults(res, query, params, {
-        dbPool,
+        dbPool: databaseService.getPool(),
         chunkSize: 100
       });
     } else {
@@ -1931,14 +1932,16 @@ app.use(globalErrorHandler);
 
 const port = process.env.PORT || 3001;
 
-// Database service already initialized above
-try {
-  databaseService.initialize();
-  logger.info('Database service initialized successfully');
-} catch (error) {
-  logger.error('Failed to initialize database service', { error: error.message });
-  // Continue anyway - the service will try to initialize on first use
-}
+// Database service initialization
+(async () => {
+  try {
+    await databaseService.initialize();
+    logger.info('Database service initialized successfully');
+  } catch (error) {
+    logger.error('Failed to initialize database service', { error: error.message });
+    // Continue anyway - the service will try to initialize on first use
+  }
+})();
 
 const server = app
   .listen(port, '0.0.0.0', () => {
@@ -1965,15 +1968,20 @@ const server = app
       const EnhancedSampleCyclerPostgres = require('./services/enhanced-sample-cycler-postgres');
       const { Pool } = require('pg');
       
-      // Create PostgreSQL pool
+      // Create PostgreSQL pool with Kubernetes-aware configuration
       const pgPool = new Pool({
-        host: process.env.POSTGRES_HOST || 'localhost',
-        port: process.env.POSTGRES_PORT || 5432,
-        database: process.env.POSTGRES_DB || 'jagdna_lims',
-        user: process.env.POSTGRES_USER || 'lims_user',
-        password: process.env.POSTGRES_PASSWORD || 'secure_password_2024',
+        host: process.env.KUBERNETES_SERVICE_HOST ? 
+          (process.env.DB_HOST || 'postgresql.production.svc.cluster.local') : 
+          (process.env.DB_HOST || process.env.POSTGRES_HOST || 'localhost'),
+        port: parseInt(process.env.DB_PORT || process.env.POSTGRES_PORT || '5432'),
+        database: process.env.DB_NAME || process.env.POSTGRES_DB || 'limsdb',
+        user: process.env.DB_USER || process.env.POSTGRES_USER || 'lims_user',
+        password: process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD || 'lims2024secure',
         max: 20
       });
+      
+      // Store pool reference for cleanup
+      dbPool = pgPool;
       
       const sampleCycler = new EnhancedSampleCyclerPostgres(pgPool);
       sampleCycler.start();
@@ -2076,7 +2084,10 @@ process.on('SIGTERM', async () => {
     
     // Close database connections
     if (dbPool) {
-      dbPool.close();
+      dbPool.end();
+    }
+    if (databaseService && databaseService.close) {
+      databaseService.close();
     } else if (db) {
       db.close();
     }
@@ -2112,7 +2123,10 @@ process.on('SIGINT', async () => {
     
     // Close database connections
     if (dbPool) {
-      dbPool.close();
+      dbPool.end();
+    }
+    if (databaseService && databaseService.close) {
+      databaseService.close();
     } else if (db) {
       db.close();
     }
