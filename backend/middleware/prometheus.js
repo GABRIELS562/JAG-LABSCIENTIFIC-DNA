@@ -4,57 +4,68 @@
 
 const promClient = require('prom-client');
 
-// Create a Registry
-const register = new promClient.Registry();
+// Create a Registry or use existing one
+let register = promClient.register;
+
+// Clear existing metrics to prevent duplication
+register.clear();
+
+// Create new registry
+register = new promClient.Registry();
 
 // Add default metrics (CPU, memory, etc.)
 promClient.collectDefaultMetrics({ register });
 
 // Custom metrics for LIMS
-const httpRequestDuration = new promClient.Histogram({
-  name: 'lims_http_request_duration_seconds',
-  help: 'Duration of HTTP requests in seconds',
-  labelNames: ['method', 'route', 'status'],
-  buckets: [0.1, 0.5, 1, 2, 5]
-});
+let httpRequestDuration, activeWorkflowGauge, sampleProcessingCounter;
+let batchSizeHistogram, errorCounter, databaseConnectionsGauge;
 
-const activeWorkflowGauge = new promClient.Gauge({
-  name: 'lims_active_workflows',
-  help: 'Number of active workflows by stage',
-  labelNames: ['stage']
-});
+try {
+  httpRequestDuration = new promClient.Histogram({
+    name: 'lims_http_request_duration_seconds',
+    help: 'Duration of HTTP requests in seconds',
+    labelNames: ['method', 'route', 'status'],
+    buckets: [0.1, 0.5, 1, 2, 5],
+    registers: [register]
+  });
 
-const sampleProcessingCounter = new promClient.Counter({
-  name: 'lims_samples_processed_total',
-  help: 'Total number of samples processed',
-  labelNames: ['stage', 'status']
-});
+  activeWorkflowGauge = new promClient.Gauge({
+    name: 'lims_active_workflows',
+    help: 'Number of active workflows by stage',
+    labelNames: ['stage'],
+    registers: [register]
+  });
 
-const batchSizeHistogram = new promClient.Histogram({
-  name: 'lims_batch_size',
-  help: 'Size of processing batches',
-  labelNames: ['type'],
-  buckets: [5, 10, 15, 20, 25, 30]
-});
+  sampleProcessingCounter = new promClient.Counter({
+    name: 'lims_samples_processed_total',
+    help: 'Total number of samples processed',
+    labelNames: ['stage', 'status'],
+    registers: [register]
+  });
 
-const errorCounter = new promClient.Counter({
-  name: 'lims_errors_total',
-  help: 'Total number of errors',
-  labelNames: ['type', 'severity']
-});
+  batchSizeHistogram = new promClient.Histogram({
+    name: 'lims_batch_size',
+    help: 'Size of processing batches',
+    labelNames: ['type'],
+    buckets: [5, 10, 15, 20, 25, 30],
+    registers: [register]
+  });
 
-const databaseConnectionsGauge = new promClient.Gauge({
-  name: 'lims_database_connections',
-  help: 'Number of active database connections'
-});
+  errorCounter = new promClient.Counter({
+    name: 'lims_errors_total',
+    help: 'Total number of errors',
+    labelNames: ['type', 'severity'],
+    registers: [register]
+  });
 
-// Register custom metrics
-register.registerMetric(httpRequestDuration);
-register.registerMetric(activeWorkflowGauge);
-register.registerMetric(sampleProcessingCounter);
-register.registerMetric(batchSizeHistogram);
-register.registerMetric(errorCounter);
-register.registerMetric(databaseConnectionsGauge);
+  databaseConnectionsGauge = new promClient.Gauge({
+    name: 'lims_database_connections',
+    help: 'Number of active database connections',
+    registers: [register]
+  });
+} catch (error) {
+  console.error('Error registering Prometheus metrics:', error.message);
+}
 
 // Middleware to track HTTP metrics
 const httpMetricsMiddleware = (req, res, next) => {

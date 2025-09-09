@@ -54,7 +54,7 @@ class SampleGenerator {
     logger.info('🛑 Sample Generator Stopped');
   }
 
-  generateSamples() {
+  async generateSamples() {
     try {
       const relations = ['Child', 'Mother', 'Alleged Father', 'Sibling'];
       const surnames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones'];

@@ -206,8 +206,9 @@ const PaternityLabDashboard = () => {
       let batches = [];
       
       try {
-        // Fetch ALL samples (up to 500) to see complete workflow
-        const samplesRes = await api.getSamples({ limit: 500 });
+        // Fetch ALL samples (up to 500) to see complete workflow - bypass cache for live data
+        const timestamp = Date.now();
+        const samplesRes = await api.getSamples({ limit: 500, _t: timestamp });
         console.log('Raw API response:', samplesRes);
         // Handle both old and new API response formats
         let allSamples = samplesRes?.samples || samplesRes?.data || [];
@@ -352,8 +353,8 @@ const PaternityLabDashboard = () => {
       });
       
       // Process manual samples for the second DNA Workflow Monitor
-      // Get ALL samples including manual ones
-      const allSamplesRes = await api.getSamples({ limit: 500 });
+      // Get ALL samples including manual ones - bypass cache for live data
+      const allSamplesRes = await api.getSamples({ limit: 500, _t: timestamp });
       const allSamples = allSamplesRes?.samples || allSamplesRes?.data || [];
       // Filter out AUTO- prefixed samples to get only manual samples
       const manualSamples = allSamples.filter(s => s.lab_number && !s.lab_number.startsWith('AUTO-'));

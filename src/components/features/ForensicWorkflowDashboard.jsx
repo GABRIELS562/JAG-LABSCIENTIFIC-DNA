@@ -52,8 +52,9 @@ const ForensicWorkflowDashboard = () => {
 
   const fetchSimulatorStatus = async () => {
     try {
-      // Fetch actual samples to get real workflow distribution
-      const samplesResponse = await api.getSamples({ limit: 300 });
+      // Fetch actual samples to get real workflow distribution - bypass cache for live data
+      const timestamp = Date.now();
+      const samplesResponse = await api.getSamples({ limit: 300, _t: timestamp });
       const samples = samplesResponse?.data || [];
       
       // Calculate distribution from actual samples

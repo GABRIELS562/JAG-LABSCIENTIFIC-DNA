@@ -20,6 +20,7 @@ const { backgroundJobService } = require('./services/backgroundJobs');
 const performanceRoutes = require('./routes/performance');
 const SampleGenerator = require('./services/sample-generator');
 const prometheusMetrics = require('./middleware/prometheus');
+const EnhancedSampleCycler = require('./services/enhanced-sample-cycler');
 
 // Import routes
 const apiRoutes = require("./routes/api");
@@ -48,34 +49,23 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
 
-// Initialize PostgreSQL database connection
+// Initialize database connection - using PostgreSQL
 let db = null;
-const PostgreSQLService = require('./services/database-postgres');
-
-// Set default environment variables for development
-if (!process.env.POSTGRES_HOST) {
-  process.env.POSTGRES_HOST = 'localhost';
-  process.env.POSTGRES_DB = 'jagdna_lims_dev';
-  process.env.POSTGRES_USER = 'lims_dev';
-  process.env.POSTGRES_PASSWORD = 'dev_password';
-}
+const databaseService = require('./services/database-unified-postgres');
 
 try {
-  db = PostgreSQLService.db;
+  // Use PostgreSQL database service (already instantiated)
+  db = databaseService.db;
   
-  // Initialize PostgreSQL connection
-  PostgreSQLService.initializeDatabase().then(() => {
+  if (databaseService.isConnected) {
     logger.info('PostgreSQL database initialized successfully', {
-      host: process.env.POSTGRES_HOST,
-      database: process.env.POSTGRES_DB
+      database: databaseService.dbPath
     });
-  }).catch(error => {
-    logger.error('PostgreSQL initialization failed', { error: error.message });
-    console.error('❌ PostgreSQL initialization failed:', error);
-    console.error('💡 Make sure PostgreSQL is running: docker-compose -f docker-compose.dev-postgres.yml up -d');
-    process.exit(1);
-  });
-  
+  } else {
+    logger.error('PostgreSQL database failed to connect');
+    console.error('❌ PostgreSQL database failed to connect');
+    // Don't exit, let it continue with limited functionality
+  }
 } catch (error) {
   logger.error('Database initialization failed', { error: error.message });
   console.error('❌ Database initialization failed:', error);
@@ -303,7 +293,7 @@ function createSample(sampleData) {
       );
       
       // Clear sample counts cache since we added a new sample
-      sampleCountsCache = null;
+      sampleCountsCache.clear();
       
       // Track sample creation metrics
       trackSampleProcessed('created', 'registration');
@@ -1941,8 +1931,7 @@ app.use(globalErrorHandler);
 
 const port = process.env.PORT || 3001;
 
-// Initialize database service before starting server
-const databaseService = require('./services/database');
+// Database service already initialized above
 try {
   databaseService.initialize();
   logger.info('Database service initialized successfully');
@@ -1968,6 +1957,34 @@ const server = app
     } catch (error) {
       logger.error('Failed to start background jobs', { error: error.message });
       console.log('⚠️  Warning: Background jobs failed to start:', error.message);
+    }
+    
+    // Start Enhanced Sample Cycler for continuous sample generation and progression
+    try {
+      // Use PostgreSQL version with pool connection
+      const EnhancedSampleCyclerPostgres = require('./services/enhanced-sample-cycler-postgres');
+      const { Pool } = require('pg');
+      
+      // Create PostgreSQL pool
+      const pgPool = new Pool({
+        host: process.env.POSTGRES_HOST || 'localhost',
+        port: process.env.POSTGRES_PORT || 5432,
+        database: process.env.POSTGRES_DB || 'jagdna_lims',
+        user: process.env.POSTGRES_USER || 'lims_user',
+        password: process.env.POSTGRES_PASSWORD || 'secure_password_2024',
+        max: 20
+      });
+      
+      const sampleCycler = new EnhancedSampleCyclerPostgres(pgPool);
+      sampleCycler.start();
+      logger.info('🔄 Enhanced Sample Cycler started - continuous sample processing');
+      console.log('🔄 Enhanced Sample Cycler active - generating samples every 10 seconds');
+      
+      // Store reference globally for graceful shutdown
+      global.sampleCycler = sampleCycler;
+    } catch (error) {
+      logger.error('Failed to start Enhanced Sample Cycler', { error: error.message });
+      console.log('⚠️  Warning: Enhanced Sample Cycler failed to start:', error.message);
     }
     
     // Start sample generator for DevOps monitoring
@@ -2032,6 +2049,16 @@ process.on('SIGTERM', async () => {
       logger.info('Background jobs stopped');
     } catch (error) {
       logger.error('Error stopping background jobs', { error: error.message });
+    }
+    
+    // Stop Enhanced Sample Cycler
+    try {
+      if (global.sampleCycler) {
+        global.sampleCycler.stop();
+        logger.info('Enhanced Sample Cycler stopped');
+      }
+    } catch (error) {
+      logger.error('Error stopping Enhanced Sample Cycler', { error: error.message });
     }
     
     // Cleanup memory management

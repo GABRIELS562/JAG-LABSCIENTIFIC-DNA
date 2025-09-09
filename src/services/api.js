@@ -219,16 +219,18 @@ export const api = {
   // Enhanced samples API with pagination support
   async getSamples(params = {}) {
     // Support both legacy and new pagination format
-    if (params.page || params.limit || params.status || params.search) {
+    if (params.page || params.limit || params.status || params.search || params._t) {
       const queryParams = new URLSearchParams();
       if (params.page) queryParams.append('page', params.page.toString());
       if (params.limit) queryParams.append('limit', params.limit.toString());
       if (params.status && params.status !== 'all') queryParams.append('status', params.status);
       if (params.search) queryParams.append('search', params.search);
       if (params.period) queryParams.append('period', params.period);
+      if (params._t) queryParams.append('_t', params._t.toString()); // Add timestamp to bypass cache
       
       const url = `/samples${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-      return apiClient.fetchJson(url);
+      // Don't use cache when timestamp is provided
+      return apiClient.fetchJson(url, {}, !params._t);
     } else {
       // Legacy format
       const queryParams = new URLSearchParams();
