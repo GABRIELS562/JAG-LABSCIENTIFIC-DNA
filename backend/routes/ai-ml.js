@@ -113,8 +113,12 @@ router.post('/predictive-maintenance/readings', async (req, res) => {
       await db.run('COMMIT');
       const insertedReadings = results;
 
-    logger.info('Sensor readings added', { count: insertedReadings.length });
-    ResponseHandler.success(res, insertedReadings, 'Sensor readings added successfully', 201);
+      logger.info('Sensor readings added', { count: insertedReadings.length });
+      ResponseHandler.success(res, insertedReadings, 'Sensor readings added successfully', 201);
+    } catch (transactionError) {
+      await db.run('ROLLBACK');
+      throw transactionError;
+    }
   } catch (error) {
     logger.error('Error adding sensor readings', { error: error.message });
     ResponseHandler.error(res, 'Failed to add sensor readings', error);

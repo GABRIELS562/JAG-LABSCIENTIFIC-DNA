@@ -1,5 +1,23 @@
-// Simple PostgreSQL-only database service
-const { Pool } = require('pg');
+// Complete LIMS database service with PostgreSQL/SQLite fallback
+let pool = null;
+let Database = null;
+let db = null;
+let databaseType = 'postgresql';
+
+// Try to load PostgreSQL, fallback to SQLite
+try {
+  const { Pool } = require('pg');
+  module.exports.Pool = Pool;
+} catch (err) {
+  console.log('PostgreSQL not available, will use SQLite fallback');
+}
+
+// Try to load SQLite
+try {
+  Database = require('better-sqlite3');
+} catch (err) {
+  console.log('SQLite not available');
+}
 
 // Database configuration
 function getDbHost() {
@@ -22,60 +40,201 @@ const config = {
   connectionTimeoutMillis: 2000,
 };
 
-const pool = new Pool(config);
+// Global lab number counter
+let labNumberCounter = 1000;
+
+// Initialize database connection
+function initializeConnection() {
+  // Try PostgreSQL first
+  if (module.exports.Pool) {
+    try {
+      pool = new module.exports.Pool(config);
+      databaseType = 'postgresql';
+      return pool;
+    } catch (error) {
+      console.warn('PostgreSQL failed, falling back to SQLite:', error.message);
+    }
+  }
+  
+  // Fallback to SQLite
+  if (Database) {
+    try {
+      const dbPath = require('path').join(__dirname, '../database.db');
+      db = new Database(dbPath);
+      databaseType = 'sqlite';
+      console.log('Using SQLite database:', dbPath);
+      return db;
+    } catch (error) {
+      console.error('SQLite also failed:', error.message);
+    }
+  }
+  
+  throw new Error('No database available (neither PostgreSQL nor SQLite)');
+}
 
 // Initialize connection and tables
 async function initialize() {
   try {
-    // Test connection
-    const client = await pool.connect();
-    await client.query('SELECT 1');
-    client.release();
+    initializeConnection();
+    
+    if (databaseType === 'postgresql') {
+      // Test PostgreSQL connection
+      const client = await pool.connect();
+      await client.query('SELECT 1');
+      client.release();
+      console.log(`✅ PostgreSQL connected to ${config.host}:${config.port}/${config.database}`);
+    } else {
+      // Test SQLite connection
+      db.prepare('SELECT 1').get();
+      console.log('✅ SQLite database connected');
+    }
     
     // Initialize tables
     await initializeTables();
     
-    console.log(`✅ PostgreSQL connected to ${config.host}:${config.port}/${config.database}`);
     return true;
   } catch (error) {
-    console.error('PostgreSQL initialization error:', error);
+    console.error('Database initialization error:', error);
+    
+    // Try fallback if PostgreSQL failed
+    if (databaseType === 'postgresql') {
+      console.log('Attempting SQLite fallback...');
+      try {
+        if (Database) {
+          const dbPath = require('path').join(__dirname, '../database.db');
+          db = new Database(dbPath);
+          databaseType = 'sqlite';
+          console.log('✅ Fallback to SQLite successful');
+          await initializeTables();
+          return true;
+        }
+      } catch (fallbackError) {
+        console.error('SQLite fallback also failed:', fallbackError);
+      }
+    }
+    
     throw error;
   }
 }
 
 async function initializeTables() {
+  if (databaseType === 'postgresql') {
+    return initializePostgreSQLTables();
+  } else {
+    return initializeSQLiteTables();
+  }
+}
+
+async function initializePostgreSQLTables() {
   const tables = [
-    `CREATE TABLE IF NOT EXISTS samples (
+    // Core LIMS tables with complete schema
+    `CREATE TABLE IF NOT EXISTS test_cases (
       id SERIAL PRIMARY KEY,
-      sample_id VARCHAR(255) UNIQUE NOT NULL,
-      patient_name VARCHAR(255),
+      case_number VARCHAR(255) UNIQUE NOT NULL,
+      ref_kit_number VARCHAR(255),
+      submission_date DATE,
+      client_type VARCHAR(50) DEFAULT 'paternity',
+      mother_present VARCHAR(10) DEFAULT 'NO',
+      email_contact VARCHAR(255),
+      phone_contact VARCHAR(50),
+      address_area TEXT,
+      comments TEXT,
+      test_purpose VARCHAR(100),
       sample_type VARCHAR(100),
-      status VARCHAR(50) DEFAULT 'pending',
-      metadata JSONB,
+      authorized_collector VARCHAR(255),
+      consent_type VARCHAR(100),
+      has_signatures VARCHAR(10),
+      has_witness VARCHAR(10),
+      witness_name VARCHAR(255),
+      legal_declarations JSONB,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`,
-    `CREATE TABLE IF NOT EXISTS workflows (
+    `CREATE TABLE IF NOT EXISTS samples (
       id SERIAL PRIMARY KEY,
-      sample_id VARCHAR(255),
-      workflow_type VARCHAR(100),
-      status VARCHAR(50),
-      step_number INTEGER,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`,
-    `CREATE TABLE IF NOT EXISTS test_cases (
-      id SERIAL PRIMARY KEY,
-      sample_id VARCHAR(255),
-      test_type VARCHAR(100),
+      case_id INTEGER REFERENCES test_cases(id),
+      lab_number VARCHAR(255) UNIQUE NOT NULL,
+      name VARCHAR(255),
+      surname VARCHAR(255),
+      id_dob VARCHAR(255),
+      date_of_birth DATE,
+      place_of_birth VARCHAR(255),
+      nationality VARCHAR(100),
+      occupation VARCHAR(255),
+      address TEXT,
+      phone_number VARCHAR(50),
+      email VARCHAR(255),
+      id_number VARCHAR(255),
+      id_type VARCHAR(50),
+      marital_status VARCHAR(50),
+      ethnicity VARCHAR(100),
+      collection_date DATE,
+      submission_date DATE,
+      relation VARCHAR(100),
+      additional_notes TEXT,
+      workflow_status VARCHAR(100) DEFAULT 'sample_collected',
       status VARCHAR(50) DEFAULT 'pending',
-      results JSONB,
+      batch_id INTEGER,
+      case_number VARCHAR(255),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS batches (
       id SERIAL PRIMARY KEY,
-      batch_id VARCHAR(255) UNIQUE NOT NULL,
+      batch_number VARCHAR(255) UNIQUE NOT NULL,
+      operator VARCHAR(255),
+      pcr_date DATE,
+      electro_date DATE,
+      settings VARCHAR(255) DEFAULT '27cycles30minExt',
+      total_samples INTEGER DEFAULT 0,
+      plate_layout JSONB,
       status VARCHAR(50) DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS well_assignments (
+      id SERIAL PRIMARY KEY,
+      batch_id INTEGER REFERENCES batches(id),
+      well_position VARCHAR(10),
+      sample_id INTEGER,
+      well_type VARCHAR(50),
+      kit_number VARCHAR(255),
+      sample_name VARCHAR(255),
+      comment TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS quality_control (
+      id SERIAL PRIMARY KEY,
+      batch_id INTEGER REFERENCES batches(id),
+      date DATE,
+      control_type VARCHAR(100),
+      result VARCHAR(50),
+      operator VARCHAR(255),
+      comments TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS reports (
+      id SERIAL PRIMARY KEY,
+      case_id INTEGER REFERENCES test_cases(id),
+      report_type VARCHAR(100),
+      report_data JSONB,
+      generated_by VARCHAR(255),
+      status VARCHAR(50) DEFAULT 'draft',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS equipment (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255),
+      type VARCHAR(100),
+      manufacturer VARCHAR(255),
+      model VARCHAR(255),
+      serial_number VARCHAR(255),
+      status VARCHAR(50) DEFAULT 'operational',
+      location VARCHAR(255),
+      last_maintenance DATE,
+      next_maintenance DATE,
+      metadata JSONB,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS users (
@@ -91,7 +250,166 @@ async function initializeTables() {
   for (const sql of tables) {
     await pool.query(sql);
   }
-  console.log('✅ PostgreSQL tables initialized');
+  console.log('✅ PostgreSQL LIMS tables initialized');
+
+  // Create indexes for performance
+  const indexes = [
+    'CREATE INDEX IF NOT EXISTS idx_samples_lab_number ON samples(lab_number)',
+    'CREATE INDEX IF NOT EXISTS idx_samples_workflow_status ON samples(workflow_status)',
+    'CREATE INDEX IF NOT EXISTS idx_samples_case_id ON samples(case_id)',
+    'CREATE INDEX IF NOT EXISTS idx_test_cases_case_number ON test_cases(case_number)',
+    'CREATE INDEX IF NOT EXISTS idx_batches_batch_number ON batches(batch_number)',
+    'CREATE INDEX IF NOT EXISTS idx_well_assignments_batch_id ON well_assignments(batch_id)'
+  ];
+
+  for (const sql of indexes) {
+    try {
+      await pool.query(sql);
+    } catch (err) {
+      // Index might already exist
+    }
+  }
+}
+
+function initializeSQLiteTables() {
+  const tables = [
+    `CREATE TABLE IF NOT EXISTS test_cases (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      case_number TEXT UNIQUE NOT NULL,
+      ref_kit_number TEXT,
+      submission_date TEXT,
+      client_type TEXT DEFAULT 'paternity',
+      mother_present TEXT DEFAULT 'NO',
+      email_contact TEXT,
+      phone_contact TEXT,
+      address_area TEXT,
+      comments TEXT,
+      test_purpose TEXT,
+      sample_type TEXT,
+      authorized_collector TEXT,
+      consent_type TEXT,
+      has_signatures TEXT,
+      has_witness TEXT,
+      witness_name TEXT,
+      legal_declarations TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS samples (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      case_id INTEGER,
+      lab_number TEXT UNIQUE NOT NULL,
+      name TEXT,
+      surname TEXT,
+      id_dob TEXT,
+      date_of_birth TEXT,
+      place_of_birth TEXT,
+      nationality TEXT,
+      occupation TEXT,
+      address TEXT,
+      phone_number TEXT,
+      email TEXT,
+      id_number TEXT,
+      id_type TEXT,
+      marital_status TEXT,
+      ethnicity TEXT,
+      collection_date TEXT,
+      submission_date TEXT,
+      relation TEXT,
+      additional_notes TEXT,
+      workflow_status TEXT DEFAULT 'sample_collected',
+      status TEXT DEFAULT 'pending',
+      batch_id INTEGER,
+      case_number TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (case_id) REFERENCES test_cases(id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS batches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      batch_number TEXT UNIQUE NOT NULL,
+      operator TEXT,
+      pcr_date TEXT,
+      electro_date TEXT,
+      settings TEXT DEFAULT '27cycles30minExt',
+      total_samples INTEGER DEFAULT 0,
+      plate_layout TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS well_assignments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      batch_id INTEGER,
+      well_position TEXT,
+      sample_id INTEGER,
+      well_type TEXT,
+      kit_number TEXT,
+      sample_name TEXT,
+      comment TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (batch_id) REFERENCES batches(id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS quality_control (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      batch_id INTEGER,
+      date TEXT,
+      control_type TEXT,
+      result TEXT,
+      operator TEXT,
+      comments TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (batch_id) REFERENCES batches(id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      case_id INTEGER,
+      report_type TEXT,
+      report_data TEXT,
+      generated_by TEXT,
+      status TEXT DEFAULT 'draft',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (case_id) REFERENCES test_cases(id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS equipment (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      type TEXT,
+      manufacturer TEXT,
+      model TEXT,
+      serial_number TEXT,
+      status TEXT DEFAULT 'operational',
+      location TEXT,
+      last_maintenance TEXT,
+      next_maintenance TEXT,
+      metadata TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`
+  ];
+
+  for (const sql of tables) {
+    db.exec(sql);
+  }
+  console.log('✅ SQLite LIMS tables initialized');
+
+  // Create indexes for performance
+  const indexes = [
+    'CREATE INDEX IF NOT EXISTS idx_samples_lab_number ON samples(lab_number)',
+    'CREATE INDEX IF NOT EXISTS idx_samples_workflow_status ON samples(workflow_status)',
+    'CREATE INDEX IF NOT EXISTS idx_samples_case_id ON samples(case_id)',
+    'CREATE INDEX IF NOT EXISTS idx_test_cases_case_number ON test_cases(case_number)',
+    'CREATE INDEX IF NOT EXISTS idx_batches_batch_number ON batches(batch_number)',
+    'CREATE INDEX IF NOT EXISTS idx_well_assignments_batch_id ON well_assignments(batch_id)'
+  ];
+
+  for (const sql of indexes) {
+    try {
+      db.exec(sql);
+    } catch (err) {
+      // Index might already exist
+    }
+  }
 }
 
 // Convert SQLite placeholders to PostgreSQL
@@ -108,28 +426,70 @@ function convertSqlToPostgreSQL(sql) {
     .replace(/DATETIME/gi, 'TIMESTAMP');
 }
 
-// Helper methods
+// Helper methods that work with both PostgreSQL and SQLite
 async function query(text, params = []) {
-  const pgSql = convertSqlToPostgreSQL(text);
-  return await pool.query(pgSql, params);
+  if (databaseType === 'postgresql') {
+    const pgSql = convertSqlToPostgreSQL(text);
+    return await pool.query(pgSql, params);
+  } else {
+    // Convert PostgreSQL placeholders to SQLite
+    let sqliteQuery = text;
+    params.forEach((param, index) => {
+      sqliteQuery = sqliteQuery.replace(`$${index + 1}`, '?');
+    });
+    const stmt = db.prepare(sqliteQuery);
+    const result = stmt.all(...params);
+    return { rows: result };
+  }
 }
 
 async function get(text, params = []) {
-  const result = await query(text, params);
-  return result.rows[0] || null;
+  if (databaseType === 'postgresql') {
+    const result = await query(text, params);
+    return result.rows[0] || null;
+  } else {
+    let sqliteQuery = text;
+    params.forEach((param, index) => {
+      sqliteQuery = sqliteQuery.replace(`$${index + 1}`, '?');
+    });
+    const stmt = db.prepare(sqliteQuery);
+    return stmt.get(...params) || null;
+  }
 }
 
 async function all(text, params = []) {
-  const result = await query(text, params);
-  return result.rows;
+  if (databaseType === 'postgresql') {
+    const result = await query(text, params);
+    return result.rows;
+  } else {
+    let sqliteQuery = text;
+    params.forEach((param, index) => {
+      sqliteQuery = sqliteQuery.replace(`$${index + 1}`, '?');
+    });
+    const stmt = db.prepare(sqliteQuery);
+    return stmt.all(...params);
+  }
 }
 
 async function run(text, params = []) {
-  const result = await query(text, params);
-  return {
-    lastInsertRowid: result.rows[0]?.id || null,
-    changes: result.rowCount
-  };
+  if (databaseType === 'postgresql') {
+    const result = await query(text, params);
+    return {
+      lastInsertRowid: result.rows[0]?.id || null,
+      changes: result.rowCount
+    };
+  } else {
+    let sqliteQuery = text;
+    params.forEach((param, index) => {
+      sqliteQuery = sqliteQuery.replace(`$${index + 1}`, '?');
+    });
+    const stmt = db.prepare(sqliteQuery);
+    const result = stmt.run(...params);
+    return {
+      lastInsertRowid: result.lastInsertRowid,
+      changes: result.changes
+    };
+  }
 }
 
 // Execute multiple statements
@@ -203,19 +563,475 @@ function prepare(sql) {
 // Health check
 async function getHealthCheck() {
   try {
-    await pool.query('SELECT 1');
-    return {
-      status: 'healthy',
-      connected: true,
-      database: 'postgresql',
-      host: getDbHost()
-    };
+    if (databaseType === 'postgresql') {
+      await pool.query('SELECT 1');
+      return {
+        status: 'healthy',
+        connected: true,
+        database: 'postgresql',
+        host: getDbHost()
+      };
+    } else {
+      db.prepare('SELECT 1').get();
+      return {
+        status: 'healthy',
+        connected: true,
+        database: 'sqlite',
+        path: require('path').join(__dirname, '../database.db')
+      };
+    }
   } catch (error) {
     return {
       status: 'unhealthy',
       connected: false,
       error: error.message
     };
+  }
+}
+
+// LIMS-specific methods
+
+// Lab number generation
+function generateLabNumber(clientType = 'paternity') {
+  const year = new Date().getFullYear();
+  const prefix = clientType === 'urgent' ? 'URG' : clientType === 'lt' ? 'LT' : '';
+  const number = (++labNumberCounter).toString().padStart(3, '0');
+  return `${year}_${prefix}${number}`;
+}
+
+function generateSequentialLabNumbers(clientType = 'paternity', count = 1) {
+  const numbers = [];
+  for (let i = 0; i < count; i++) {
+    numbers.push(generateLabNumber(clientType));
+  }
+  return numbers;
+}
+
+function generateCaseNumber() {
+  const year = new Date().getFullYear();
+  const counter = (++labNumberCounter).toString().padStart(3, '0');
+  return `CASE_${year}_${counter}`;
+}
+
+// Test case methods
+async function createTestCase(data) {
+  const sql = `
+    INSERT INTO test_cases (
+      case_number, ref_kit_number, submission_date, client_type, mother_present,
+      email_contact, phone_contact, address_area, comments, test_purpose,
+      sample_type, authorized_collector, consent_type, has_signatures,
+      has_witness, witness_name, legal_declarations
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+    RETURNING id
+  `;
+  
+  const params = [
+    data.case_number, data.ref_kit_number, data.submission_date, data.client_type,
+    data.mother_present, data.email_contact, data.phone_contact, data.address_area,
+    data.comments, data.test_purpose, data.sample_type, data.authorized_collector,
+    data.consent_type, data.has_signatures, data.has_witness, data.witness_name,
+    JSON.stringify(data.legal_declarations)
+  ];
+  
+  const result = await query(sql, params);
+  return { lastInsertRowid: result.rows[0]?.id || null };
+}
+
+// Sample methods
+async function createSample(data) {
+  const sql = `
+    INSERT INTO samples (
+      case_id, lab_number, name, surname, id_dob, date_of_birth, place_of_birth,
+      nationality, occupation, address, phone_number, email, id_number, id_type,
+      marital_status, ethnicity, collection_date, submission_date, relation,
+      additional_notes, workflow_status, case_number
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+    RETURNING id
+  `;
+  
+  const params = [
+    data.case_id, data.lab_number, data.name, data.surname, data.id_dob,
+    data.date_of_birth, data.place_of_birth, data.nationality, data.occupation,
+    data.address, data.phone_number, data.email, data.id_number, data.id_type,
+    data.marital_status, data.ethnicity, data.collection_date, data.submission_date,
+    data.relation, data.additional_notes, data.workflow_status || 'sample_collected',
+    data.case_number
+  ];
+  
+  const result = await query(sql, params);
+  return { lastInsertRowid: result.rows[0]?.id || null };
+}
+
+async function getAllSamples() {
+  try {
+    // Ensure database is initialized
+    await initPromise;
+    
+    if (databaseType === 'postgresql') {
+      const result = await pool.query('SELECT * FROM samples ORDER BY created_at DESC');
+      return result.rows || [];
+    } else {
+      // SQLite - ensure db is initialized
+      if (!db) {
+        console.warn('Database not initialized, attempting to initialize...');
+        await initialize();
+      }
+      const stmt = db.prepare('SELECT * FROM samples ORDER BY created_at DESC');
+      return stmt.all() || [];
+    }
+  } catch (error) {
+    console.error('Error getting all samples:', error);
+    return [];
+  }
+}
+
+async function getSample(id) {
+  try {
+    return await get('SELECT * FROM samples WHERE id = $1', [id]);
+  } catch (error) {
+    console.error('Error getting sample:', error);
+    return null;
+  }
+}
+
+async function searchSamples(searchQuery) {
+  const sql = `
+    SELECT * FROM samples 
+    WHERE lab_number LIKE $1 OR name LIKE $1 OR surname LIKE $1 OR case_number LIKE $1
+    ORDER BY created_at DESC
+    LIMIT 100
+  `;
+  try {
+    return await all(sql, [`%${searchQuery}%`]);
+  } catch (error) {
+    console.error('Error searching samples:', error);
+    return [];
+  }
+}
+
+// Batch methods
+async function createBatch(data) {
+  const sql = `
+    INSERT INTO batches (
+      batch_number, operator, pcr_date, electro_date, settings,
+      total_samples, plate_layout
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+    RETURNING id
+  `;
+  
+  const params = [
+    data.batch_number, data.operator, data.pcr_date, data.electro_date,
+    data.settings, data.total_samples, JSON.stringify(data.plate_layout)
+  ];
+  
+  const result = await query(sql, params);
+  return { lastInsertRowid: result.rows[0]?.id || null };
+}
+
+async function getAllBatches() {
+  try {
+    // Ensure database is initialized
+    await initPromise;
+    
+    if (databaseType === 'postgresql') {
+      const result = await pool.query('SELECT * FROM batches ORDER BY created_at DESC');
+      return result.rows || [];
+    } else {
+      // SQLite - ensure db is initialized
+      if (!db) {
+        console.warn('Database not initialized, attempting to initialize...');
+        await initialize();
+      }
+      const stmt = db.prepare('SELECT * FROM batches ORDER BY created_at DESC');
+      return stmt.all() || [];
+    }
+  } catch (error) {
+    console.error('Error getting all batches:', error);
+    return [];
+  }
+}
+
+async function getBatch(batchNumber) {
+  try {
+    return await get('SELECT * FROM batches WHERE batch_number = $1', [batchNumber]);
+  } catch (error) {
+    console.error('Error getting batch:', error);
+    return null;
+  }
+}
+
+// Well assignment methods
+async function createWellAssignment(data) {
+  const sql = `
+    INSERT INTO well_assignments (
+      batch_id, well_position, sample_id, well_type, kit_number, sample_name, comment
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+    RETURNING id
+  `;
+  
+  const params = [
+    data.batch_id, data.well_position, data.sample_id, data.well_type,
+    data.kit_number, data.sample_name, data.comment
+  ];
+  
+  const result = await query(sql, params);
+  return { lastInsertRowid: result.rows[0]?.id || null };
+}
+
+async function getWellAssignments(batchId) {
+  try {
+    return await all('SELECT * FROM well_assignments WHERE batch_id = $1', [batchId]) || [];
+  } catch (error) {
+    console.error('Error getting well assignments:', error);
+    return [];
+  }
+}
+
+// Sample workflow methods
+async function getSampleQueueCounts() {
+  try {
+    const counts = await get(`
+      SELECT 
+        COUNT(CASE WHEN workflow_status = 'pcr_ready' THEN 1 END) as pcr_ready,
+        COUNT(CASE WHEN workflow_status = 'pcr_batched' THEN 1 END) as pcr_batched,
+        COUNT(CASE WHEN workflow_status = 'electro_ready' THEN 1 END) as electro_ready,
+        COUNT(CASE WHEN workflow_status = 'electro_batched' THEN 1 END) as electro_batched,
+        COUNT(CASE WHEN workflow_status = 'analysis_ready' THEN 1 END) as analysis_ready,
+        COUNT(CASE WHEN workflow_status IN ('completed', 'report_sent') THEN 1 END) as completed
+      FROM samples
+    `);
+    
+    return {
+      pcr_ready: parseInt(counts.pcr_ready) || 0,
+      pcr_batched: parseInt(counts.pcr_batched) || 0,
+      electro_ready: parseInt(counts.electro_ready) || 0,
+      electro_batched: parseInt(counts.electro_batched) || 0,
+      analysis_ready: parseInt(counts.analysis_ready) || 0,
+      completed: parseInt(counts.completed) || 0
+    };
+  } catch (error) {
+    console.error('Error getting sample queue counts:', error);
+    return {};
+  }
+}
+
+async function getSamplesForQueue(queueType) {
+  const statusMap = {
+    pcr_ready: ['pcr_ready'],
+    pcr_batched: ['pcr_batched'],
+    electro_ready: ['electro_ready'],
+    electro_batched: ['electro_batched'],
+    analysis_ready: ['analysis_ready'],
+    completed: ['completed', 'report_sent']
+  };
+  
+  const statuses = statusMap[queueType] || [queueType];
+  const placeholders = statuses.map((_, i) => `$${i + 1}`).join(', ');
+  
+  try {
+    return await all(`SELECT * FROM samples WHERE workflow_status IN (${placeholders}) ORDER BY created_at DESC`, statuses) || [];
+  } catch (error) {
+    console.error('Error getting samples for queue:', error);
+    return [];
+  }
+}
+
+async function batchUpdateSampleWorkflowStatus(sampleIds, workflowStatus) {
+  if (!Array.isArray(sampleIds) || sampleIds.length === 0) return;
+  
+  const placeholders = sampleIds.map((_, i) => `$${i + 1}`).join(', ');
+  const sql = `UPDATE samples SET workflow_status = $${sampleIds.length + 1}, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`;
+  
+  try {
+    return await run(sql, [...sampleIds, workflowStatus]);
+  } catch (error) {
+    console.error('Error updating sample workflow status:', error);
+    throw error;
+  }
+}
+
+async function getSamplesByBatchNumber(batchNumber) {
+  try {
+    return await all(`
+      SELECT s.* FROM samples s
+      JOIN well_assignments wa ON s.id = wa.sample_id
+      JOIN batches b ON wa.batch_id = b.id
+      WHERE b.batch_number = $1
+    `, [batchNumber]) || [];
+  } catch (error) {
+    console.error('Error getting samples by batch number:', error);
+    return [];
+  }
+}
+
+// Quality Control methods
+async function createQualityControl(data) {
+  const sql = `
+    INSERT INTO quality_control (batch_id, date, control_type, result, operator, comments)
+    VALUES ($1, $2, $3, $4, $5, $6)
+    RETURNING id
+  `;
+  
+  const params = [data.batch_id, data.date, data.control_type, data.result, data.operator, data.comments];
+  const result = await query(sql, params);
+  return { lastInsertRowid: result.rows[0]?.id || null };
+}
+
+async function getQualityControlRecords(batchId = null) {
+  try {
+    if (batchId) {
+      return await all('SELECT * FROM quality_control WHERE batch_id = $1 ORDER BY created_at DESC', [batchId]) || [];
+    } else {
+      return await all('SELECT * FROM quality_control ORDER BY created_at DESC') || [];
+    }
+  } catch (error) {
+    console.error('Error getting QC records:', error);
+    return [];
+  }
+}
+
+// Equipment methods
+async function getAllEquipment() {
+  try {
+    // Ensure database is initialized
+    await initPromise;
+    
+    if (databaseType === 'postgresql') {
+      const result = await pool.query('SELECT * FROM equipment ORDER BY name');
+      return result.rows || [];
+    } else {
+      // SQLite - ensure db is initialized
+      if (!db) {
+        console.warn('Database not initialized, attempting to initialize...');
+        await initialize();
+      }
+      const stmt = db.prepare('SELECT * FROM equipment ORDER BY name');
+      return stmt.all() || [];
+    }
+  } catch (error) {
+    console.error('Error getting all equipment:', error);
+    return [];
+  }
+}
+
+// Reports methods
+async function getAllReports() {
+  try {
+    // Ensure database is initialized
+    await initPromise;
+    
+    if (databaseType === 'postgresql') {
+      const result = await pool.query('SELECT * FROM reports ORDER BY created_at DESC');
+      return result.rows || [];
+    } else {
+      // SQLite - ensure db is initialized
+      if (!db) {
+        console.warn('Database not initialized, attempting to initialize...');
+        await initialize();
+      }
+      const stmt = db.prepare('SELECT * FROM reports ORDER BY created_at DESC');
+      return stmt.all() || [];
+    }
+  } catch (error) {
+    console.error('Error getting all reports:', error);
+    return [];
+  }
+}
+
+// Statistics methods
+async function getStatistics(period = 'daily') {
+  try {
+    let dateFilter = '';
+    switch (period) {
+      case 'daily':
+        dateFilter = "AND created_at >= CURRENT_DATE";
+        break;
+      case 'weekly':
+        dateFilter = "AND created_at >= CURRENT_DATE - INTERVAL '7 days'";
+        break;
+      case 'monthly':
+        dateFilter = "AND created_at >= CURRENT_DATE - INTERVAL '30 days'";
+        break;
+    }
+    
+    const stats = await all(`
+      SELECT 
+        workflow_status as status,
+        COUNT(*) as count
+      FROM samples 
+      WHERE 1=1 ${dateFilter}
+      GROUP BY workflow_status
+      ORDER BY count DESC
+    `);
+    
+    return stats || [];
+  } catch (error) {
+    console.error('Error getting statistics:', error);
+    return [];
+  }
+}
+
+async function getSampleCounts() {
+  try {
+    const counts = await get(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN workflow_status IN ('sample_collected', 'extraction_ready') THEN 1 END) as pending,
+        COUNT(CASE WHEN workflow_status IN ('pcr_batched', 'electro_batched', 'analysis_in_progress') THEN 1 END) as processing,
+        COUNT(CASE WHEN workflow_status IN ('completed', 'report_sent') THEN 1 END) as completed
+      FROM samples
+    `);
+    
+    return {
+      total: parseInt(counts.total) || 0,
+      pending: parseInt(counts.pending) || 0,
+      processing: parseInt(counts.processing) || 0,
+      completed: parseInt(counts.completed) || 0
+    };
+  } catch (error) {
+    console.error('Error getting sample counts:', error);
+    return { total: 0, pending: 0, processing: 0, completed: 0 };
+  }
+}
+
+// Utility methods
+function ensureInitialized() {
+  // For compatibility with existing code
+}
+
+function createTables() {
+  return initializeTables();
+}
+
+function getConnectionInfo() {
+  if (databaseType === 'postgresql') {
+    return {
+      type: 'postgresql',
+      host: config.host,
+      port: config.port,
+      database: config.database,
+      user: config.user,
+      connected: true
+    };
+  } else {
+    return {
+      type: 'sqlite',
+      path: require('path').join(__dirname, '../database.db'),
+      connected: true
+    };
+  }
+}
+
+async function ensureReady() {
+  try {
+    if (databaseType === 'postgresql') {
+      await pool.query('SELECT 1');
+    } else {
+      db.prepare('SELECT 1').get();
+    }
+    return true;
+  } catch (error) {
+    throw new Error(`Database not ready: ${error.message}`);
   }
 }
 
@@ -242,17 +1058,21 @@ async function getStatistics() {
 
 // Close connection
 async function close() {
-  if (pool) {
+  if (databaseType === 'postgresql' && pool) {
     await pool.end();
     console.log('PostgreSQL connection closed');
+  } else if (databaseType === 'sqlite' && db) {
+    db.close();
+    console.log('SQLite connection closed');
   }
 }
 
 // Initialize on startup
 const initPromise = initialize();
 
-// Export everything
+// Export everything including LIMS methods
 module.exports = {
+  // Core PostgreSQL methods
   pool,
   query,
   get,
@@ -267,5 +1087,33 @@ module.exports = {
   getHealthCheck,
   getStatistics,
   close,
-  initialize: () => initPromise
+  initialize: () => initPromise,
+  
+  // LIMS-specific methods
+  generateLabNumber,
+  generateSequentialLabNumbers,
+  generateCaseNumber,
+  createTestCase,
+  createSample,
+  getAllSamples,
+  getSample,
+  searchSamples,
+  createBatch,
+  getAllBatches,
+  getBatch,
+  createWellAssignment,
+  getWellAssignments,
+  getSampleQueueCounts,
+  getSamplesForQueue,
+  batchUpdateSampleWorkflowStatus,
+  getSamplesByBatchNumber,
+  createQualityControl,
+  getQualityControlRecords,
+  getAllEquipment,
+  getAllReports,
+  getSampleCounts,
+  ensureInitialized,
+  createTables,
+  getConnectionInfo,
+  ensureReady
 };

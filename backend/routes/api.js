@@ -5,11 +5,10 @@ const router = express.Router();
 const db = require("../services/database");
 const { authenticateToken, requireStaff } = require("../middleware/auth");
 
-// Configuration - Set to 'postgres' for new database
-const DB_MODE = process.env.DB_MODE || 'postgres';
+// PostgreSQL database only - all functionality migrated to PostgreSQL
 
-// Helper function to write to PostgreSQL only
-async function dualWrite(postgresOperation, sheetsOperation = null) {
+// Helper function for PostgreSQL operations
+async function dualWrite(postgresOperation) {
   try {
     // PostgreSQL operation only
     const postgresResult = await postgresOperation();
@@ -24,61 +23,52 @@ async function dualWrite(postgresOperation, sheetsOperation = null) {
 router.get("/test", (req, res) => {
   res.json({
     success: true,
-    message: `API is working with ${DB_MODE === 'postgres' ? 'PostgreSQL database' : 'Google Sheets'}`,
-    database: DB_MODE === 'postgres' ? 'PostgreSQL' : 'Google Sheets',
-    backup_enabled: process.env.ENABLE_SHEETS_BACKUP === 'true'
+    message: 'API is working with PostgreSQL database',
+    database: 'PostgreSQL',
+    timestamp: new Date().toISOString()
   });
 });
 
 // Enhanced database refresh endpoint with optimizations
 router.post("/refresh-database", async (req, res) => {
   try {
-    if (DB_MODE === 'postgres') {
-      const startTime = Date.now();
-      
-      // Optimize database with VACUUM and ANALYZE
-      try {
-        db.db.exec('VACUUM');
-        db.db.exec('ANALYZE');
-      } catch (optimizeError) {
-        console.warn('Database optimization warning:', optimizeError.message);
-      }
-      
-      // Only recreate tables if schema has changed
-      const forceRebuild = req.body?.forceRebuild || false;
-      if (forceRebuild) {
-        db.createTables();
-      }
-      
-      // Get database statistics efficiently
-      const stats = {
-        samples: db.getAllSamples().length,
-        batches: db.getAllBatches().length,
-        qc_records: db.getQualityControlRecords().length,
-        equipment: db.getAllEquipment().length,
-        test_cases: db.getAllTestCases().length,
-        reports: db.getAllReports().length
-      };
-      
-      const processingTime = Date.now() - startTime;
-      
-      res.json({
-        success: true,
-        message: 'Database refreshed and optimized successfully',
-        timestamp: new Date().toISOString(),
-        statistics: stats,
-        performance: {
-          processingTime: `${processingTime}ms`,
-          optimized: true,
-          schemaRebuilt: forceRebuild
-        }
-      });
-    } else {
-      res.status(501).json({ 
-        success: false, 
-        error: "Database refresh only available with PostgreSQL database" 
-      });
+    const startTime = Date.now();
+    
+    // Only recreate tables if schema has changed
+    const forceRebuild = req.body?.forceRebuild || false;
+    if (forceRebuild) {
+      await db.createTables();
     }
+    
+    // Get database statistics efficiently
+    const [samples, batches, qcRecords, equipment, reports] = await Promise.all([
+      db.getAllSamples(),
+      db.getAllBatches(),
+      db.getQualityControlRecords(),
+      db.getAllEquipment(),
+      db.getAllReports()
+    ]);
+    
+    const stats = {
+      samples: samples.length,
+      batches: batches.length,
+      qc_records: qcRecords.length,
+      equipment: equipment.length,
+      reports: reports.length
+    };
+    
+    const processingTime = Date.now() - startTime;
+    
+    res.json({
+      success: true,
+      message: 'Database refreshed successfully',
+      timestamp: new Date().toISOString(),
+      statistics: stats,
+      performance: {
+        processingTime: `${processingTime}ms`,
+        schemaRebuilt: forceRebuild
+      }
+    });
   } catch (error) {
     console.error('Database refresh error:', error);
     res.status(500).json({ 
@@ -89,7 +79,7 @@ router.post("/refresh-database", async (req, res) => {
   }
 });
 
-// Submit test endpoint - Dual database support
+// Submit test endpoint - PostgreSQL implementation
 router.post("/submit-test", async (req, res) => {
   try {
     const { childRow, fatherRow, motherRow, signatures, witness, legalDeclarations, consentType } = req.body;
@@ -103,311 +93,270 @@ router.post("/submit-test", async (req, res) => {
       hasLegalDeclarations: !!legalDeclarations
     });
 
-    if (DB_MODE === 'postgres') {
-      // SQLite implementation (primary)
-      const result = await dualWrite(
-        () => {
-          // Generate sequential lab numbers in proper family order: Child, Father, Mother
-          const sampleCount = motherRow ? 3 : 2; // Child + Father + Mother OR Child + Father
-          const labNumbers = db.generateSequentialLabNumbers(clientType, sampleCount);
-          
-          let childLabNo, fatherLabNo, motherLabNo;
-          if (motherRow) {
-            [childLabNo, fatherLabNo, motherLabNo] = labNumbers;
-          } else {
-            [childLabNo, fatherLabNo] = labNumbers;
-          }
-
-          // Create a test case first
-          const caseNumber = db.generateCaseNumber();
-          const testCaseData = {
-            case_number: caseNumber,
-            ref_kit_number: childRow.refKitNumber || 'DEFAULT_KIT',
-            submission_date: childRow.submissionDate,
-            client_type: clientType,
-            mother_present: motherRow ? 'YES' : 'NO',
-            email_contact: childRow.emailContact,
-            phone_contact: childRow.phoneContact,
-            address_area: childRow.addressArea,
-            comments: childRow.comments,
-            test_purpose: childRow.testPurpose || 'paternity',
-            sample_type: childRow.sampleType || 'buccal_swab',
-            authorized_collector: childRow.authorizedCollector || '',
-            consent_type: consentType || 'paternity',
-            has_signatures: signatures ? 'YES' : 'NO',
-            has_witness: witness ? 'YES' : 'NO',
-            witness_name: witness ? witness.name : null,
-            legal_declarations: legalDeclarations ? JSON.stringify(legalDeclarations) : null
-          };
-
-          const caseResult = db.createTestCase(testCaseData);
-          const caseId = caseResult.lastInsertRowid;
-
-          const results = [];
-
-          // Create mother sample if present
-          if (motherRow) {
-            const motherSampleData = {
-              case_id: caseId,
-              lab_number: motherLabNo,
-              name: motherRow.name,
-              surname: motherRow.surname,
-              id_dob: motherRow.idDob,
-              date_of_birth: motherRow.dateOfBirth,
-              place_of_birth: motherRow.placeOfBirth,
-              nationality: motherRow.nationality,
-              occupation: motherRow.occupation || 'N/A',
-              address: motherRow.address || childRow.addressArea,
-              phone_number: motherRow.phoneNumber || childRow.phoneContact,
-              email: motherRow.email || childRow.emailContact,
-              id_number: motherRow.idNumber,
-              id_type: motherRow.idType,
-              marital_status: motherRow.maritalStatus,
-              ethnicity: motherRow.ethnicity,
-              collection_date: motherRow.collectionDate,
-              submission_date: childRow.submissionDate,
-              relation: 'Mother',
-              additional_notes: motherRow.additionalNotes || childRow.comments
-            };
-            const motherResult = db.createSample(motherSampleData);
-            results.push({ type: 'mother', sample_id: motherResult.lastInsertRowid, lab_number: motherLabNo });
-          }
-
-          // Create child sample
-          const childSampleData = {
-            case_id: caseId,
-            lab_number: childLabNo,
-            name: childRow.name,
-            surname: childRow.surname,
-            id_dob: childRow.idDob,
-            date_of_birth: childRow.dateOfBirth,
-            place_of_birth: childRow.placeOfBirth,
-            nationality: childRow.nationality,
-            occupation: childRow.occupation || 'N/A',
-            address: childRow.address || childRow.addressArea,
-            phone_number: childRow.phoneNumber || childRow.phoneContact,
-            email: childRow.email || childRow.emailContact,
-            id_number: childRow.idNumber,
-            id_type: childRow.idType,
-            marital_status: childRow.maritalStatus,
-            ethnicity: childRow.ethnicity,
-            collection_date: childRow.collectionDate,
-            submission_date: childRow.submissionDate,
-            relation: `Child(${fatherLabNo})`,
-            additional_notes: childRow.additionalNotes || childRow.comments
-          };
-
-          // Create father sample
-          const fatherSampleData = {
-            case_id: caseId,
-            lab_number: fatherLabNo,
-            name: fatherRow.name,
-            surname: fatherRow.surname,
-            id_dob: fatherRow.idDob,
-            date_of_birth: fatherRow.dateOfBirth,
-            place_of_birth: fatherRow.placeOfBirth,
-            nationality: fatherRow.nationality,
-            occupation: fatherRow.occupation || 'N/A',
-            address: fatherRow.address || fatherRow.addressArea,
-            phone_number: fatherRow.phoneNumber || fatherRow.phoneContact,
-            email: fatherRow.email || fatherRow.emailContact,
-            id_number: fatherRow.idNumber,
-            id_type: fatherRow.idType,
-            marital_status: fatherRow.maritalStatus,
-            ethnicity: fatherRow.ethnicity,
-            collection_date: fatherRow.collectionDate,
-            submission_date: fatherRow.submissionDate,
-            relation: 'Alleged Father',
-            additional_notes: fatherRow.additionalNotes || fatherRow.comments
-          };
-
-          const childResult = db.createSample(childSampleData);
-          const fatherResult = db.createSample(fatherSampleData);
-
-          results.push(
-            { type: 'child', sample_id: childResult.lastInsertRowid, lab_number: childLabNo },
-            { type: 'father', sample_id: fatherResult.lastInsertRowid, lab_number: fatherLabNo }
-          );
-
-          return {
-            case_number: caseNumber,
-            case_id: caseId,
-            samples: results,
-            client_type: clientType
-          };
-        },
-        // Google Sheets backup operation
-        async () => {
-          const childData = [
-            childRow.labNo, childRow.name, childRow.surname, childRow.idDob,
-            childRow.relation, childRow.collectionDate, childRow.submissionDate,
-            childRow.motherPresent, childRow.emailContact, childRow.addressArea,
-            childRow.phoneContact, "", "", "", "", childRow.comments
-          ];
-
-          const fatherData = [
-            fatherRow.labNo, fatherRow.name, fatherRow.surname, fatherRow.idDob,
-            fatherRow.relation, fatherRow.collectionDate, fatherRow.submissionDate,
-            fatherRow.motherPresent, fatherRow.emailContact, fatherRow.addressArea,
-            fatherRow.phoneContact, "", "", "", "", fatherRow.comments
-          ];
-
-          await appendRows("MAIN", SHEETS.MAIN_DATA.name, [childData, fatherData]);
+    // PostgreSQL implementation
+    const result = await dualWrite(
+      async () => {
+        // Generate sequential lab numbers in proper family order: Child, Father, Mother
+        const sampleCount = motherRow ? 3 : 2; // Child + Father + Mother OR Child + Father
+        const labNumbers = db.generateSequentialLabNumbers(clientType, sampleCount);
+        
+        let childLabNo, fatherLabNo, motherLabNo;
+        if (motherRow) {
+          [childLabNo, fatherLabNo, motherLabNo] = labNumbers;
+        } else {
+          [childLabNo, fatherLabNo] = labNumbers;
         }
-      );
 
-      res.json({ 
-        success: true, 
-        message: "Paternity test submitted successfully",
-        data: result,
-        database: 'PostgreSQL'
-      });
-    } else {
-      // Google Sheets implementation (fallback)
-      const childData = [
-        childRow.labNo, childRow.name, childRow.surname, childRow.idDob,
-        childRow.relation, childRow.collectionDate, childRow.submissionDate,
-        childRow.motherPresent, childRow.emailContact, childRow.addressArea,
-        childRow.phoneContact, "", "", "", "", childRow.comments
-      ];
+        // Create a test case first
+        const caseNumber = db.generateCaseNumber();
+        const testCaseData = {
+          case_number: caseNumber,
+          ref_kit_number: childRow.refKitNumber || 'DEFAULT_KIT',
+          submission_date: childRow.submissionDate,
+          client_type: clientType,
+          mother_present: motherRow ? 'YES' : 'NO',
+          email_contact: childRow.emailContact,
+          phone_contact: childRow.phoneContact,
+          address_area: childRow.addressArea,
+          comments: childRow.comments,
+          test_purpose: childRow.testPurpose || 'paternity',
+          sample_type: childRow.sampleType || 'buccal_swab',
+          authorized_collector: childRow.authorizedCollector || '',
+          consent_type: consentType || 'paternity',
+          has_signatures: signatures ? 'YES' : 'NO',
+          has_witness: witness ? 'YES' : 'NO',
+          witness_name: witness ? witness.name : null,
+          legal_declarations: legalDeclarations ? JSON.stringify(legalDeclarations) : null
+        };
 
-      const fatherData = [
-        fatherRow.labNo, fatherRow.name, fatherRow.surname, fatherRow.idDob,
-        fatherRow.relation, fatherRow.collectionDate, fatherRow.submissionDate,
-        fatherRow.motherPresent, fatherRow.emailContact, fatherRow.addressArea,
-        fatherRow.phoneContact, "", "", "", "", fatherRow.comments
-      ];
+        const caseResult = await db.createTestCase(testCaseData);
+        const caseId = await caseResult.lastInsertRowid;
 
-      await appendRows("MAIN", SHEETS.MAIN_DATA.name, [childData, fatherData]);
-      res.json({ success: true, database: 'Google Sheets' });
-    }
+        const results = [];
+
+        // Create mother sample if present
+        if (motherRow) {
+          const motherSampleData = {
+            case_id: caseId,
+            lab_number: motherLabNo,
+            name: motherRow.name,
+            surname: motherRow.surname,
+            id_dob: motherRow.idDob,
+            date_of_birth: motherRow.dateOfBirth,
+            place_of_birth: motherRow.placeOfBirth,
+            nationality: motherRow.nationality,
+            occupation: motherRow.occupation || 'N/A',
+            address: motherRow.address || childRow.addressArea,
+            phone_number: motherRow.phoneNumber || childRow.phoneContact,
+            email: motherRow.email || childRow.emailContact,
+            id_number: motherRow.idNumber,
+            id_type: motherRow.idType,
+            marital_status: motherRow.maritalStatus,
+            ethnicity: motherRow.ethnicity,
+            collection_date: motherRow.collectionDate,
+            submission_date: childRow.submissionDate,
+            relation: 'Mother',
+            additional_notes: motherRow.additionalNotes || childRow.comments,
+            case_number: caseNumber
+          };
+          const motherResult = await db.createSample(motherSampleData);
+          results.push({ type: 'mother', sample_id: await motherResult.lastInsertRowid, lab_number: motherLabNo });
+        }
+
+        // Create child sample
+        const childSampleData = {
+          case_id: caseId,
+          lab_number: childLabNo,
+          name: childRow.name,
+          surname: childRow.surname,
+          id_dob: childRow.idDob,
+          date_of_birth: childRow.dateOfBirth,
+          place_of_birth: childRow.placeOfBirth,
+          nationality: childRow.nationality,
+          occupation: childRow.occupation || 'N/A',
+          address: childRow.address || childRow.addressArea,
+          phone_number: childRow.phoneNumber || childRow.phoneContact,
+          email: childRow.email || childRow.emailContact,
+          id_number: childRow.idNumber,
+          id_type: childRow.idType,
+          marital_status: childRow.maritalStatus,
+          ethnicity: childRow.ethnicity,
+          collection_date: childRow.collectionDate,
+          submission_date: childRow.submissionDate,
+          relation: `Child(${fatherLabNo})`,
+          additional_notes: childRow.additionalNotes || childRow.comments,
+          case_number: caseNumber
+        };
+
+        // Create father sample
+        const fatherSampleData = {
+          case_id: caseId,
+          lab_number: fatherLabNo,
+          name: fatherRow.name,
+          surname: fatherRow.surname,
+          id_dob: fatherRow.idDob,
+          date_of_birth: fatherRow.dateOfBirth,
+          place_of_birth: fatherRow.placeOfBirth,
+          nationality: fatherRow.nationality,
+          occupation: fatherRow.occupation || 'N/A',
+          address: fatherRow.address || fatherRow.addressArea,
+          phone_number: fatherRow.phoneNumber || fatherRow.phoneContact,
+          email: fatherRow.email || fatherRow.emailContact,
+          id_number: fatherRow.idNumber,
+          id_type: fatherRow.idType,
+          marital_status: fatherRow.maritalStatus,
+          ethnicity: fatherRow.ethnicity,
+          collection_date: fatherRow.collectionDate,
+          submission_date: fatherRow.submissionDate,
+          relation: 'Alleged Father',
+          additional_notes: fatherRow.additionalNotes || fatherRow.comments,
+          case_number: caseNumber
+        };
+
+        const childResult = await db.createSample(childSampleData);
+        const fatherResult = await db.createSample(fatherSampleData);
+
+        results.push(
+          { type: 'child', sample_id: await childResult.lastInsertRowid, lab_number: childLabNo },
+          { type: 'father', sample_id: await fatherResult.lastInsertRowid, lab_number: fatherLabNo }
+        );
+
+        return {
+          case_number: caseNumber,
+          case_id: caseId,
+          samples: results,
+          client_type: clientType
+        };
+      }
+    );
+
+    res.json({ 
+      success: true, 
+      message: "Paternity test submitted successfully",
+      data: result,
+      meta: {
+        timestamp: new Date().toISOString()
+      }
+    });
   } catch (error) {
     console.error('Submit test error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
 // Get last lab number
 router.get("/get-last-lab-number", async (req, res) => {
   try {
-    if (DB_MODE === 'postgres') {
-      const labNumber = db.generateLabNumber();
-      res.json({ 
-        success: true, 
-        lab_number: labNumber,
-        message: "Lab number generated successfully",
-        database: 'PostgreSQL'
-      });
-    } else {
-      // Google Sheets implementation
-      res.json({ success: true, database: 'Google Sheets' });
-    }
+    const labNumber = db.generateLabNumber();
+    res.json({ 
+      success: true, 
+      lab_number: labNumber,
+      message: "Lab number generated successfully",
+      meta: {
+        timestamp: new Date().toISOString()
+      }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Error generating lab number:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
-// Get all samples with pagination support (SQLite only)
+// Get all samples with pagination support
 router.get("/samples", async (req, res) => {
   try {
-    if (DB_MODE === 'postgres') {
-      // Extract pagination parameters
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 500; // Higher default for dashboard
-      const status = req.query.status;
-      const search = req.query.search;
-      const period = req.query.period;
+    // Extract pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 500;
+    const status = req.query.status;
+    const search = req.query.search;
+    const period = req.query.period;
+    
+    // For simpler SQLite compatibility, get all samples and filter in memory
+    const allSamples = await db.getAllSamples();
+    let filteredSamples = allSamples || [];
+    
+    // Apply filters
+    if (status && status !== 'all') {
+      filteredSamples = filteredSamples.filter(s => s.workflow_status === status);
+    }
+    
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredSamples = filteredSamples.filter(s => 
+        (s.lab_number && s.lab_number.toLowerCase().includes(searchLower)) ||
+        (s.name && s.name.toLowerCase().includes(searchLower)) ||
+        (s.surname && s.surname.toLowerCase().includes(searchLower)) ||
+        (s.case_number && s.case_number.toLowerCase().includes(searchLower))
+      );
+    }
+    
+    if (period) {
+      const now = new Date();
+      let startDate;
       
-      // Get all samples first, then filter and paginate
-      // Direct database query to ensure we get the data
-      let allSamples;
-      try {
-        // Initialize database service first
-        db.ensureInitialized();
-        allSamples = db.getAllSamples() || [];
-        console.log(`Database service returned ${allSamples.length} samples`);
-      } catch (serviceError) {
-        console.error('Database service failed:', serviceError.message);
-        throw new Error('Failed to retrieve samples from database');
+      switch (period) {
+        case 'today':
+          startDate = new Date(now.setHours(0, 0, 0, 0));
+          break;
+        case 'week':
+          startDate = new Date(now.setDate(now.getDate() - 7));
+          break;
+        case 'month':
+          startDate = new Date(now.setMonth(now.getMonth() - 1));
+          break;
       }
       
-      // Apply filters
-      if (status && status !== 'all') {
-        allSamples = allSamples.filter(sample => sample.workflow_status === status);
-      }
-      
-      if (search) {
-        const searchLower = search.toLowerCase();
-        allSamples = allSamples.filter(sample => 
-          (sample.lab_number && sample.lab_number.toLowerCase().includes(searchLower)) ||
-          (sample.name && sample.name.toLowerCase().includes(searchLower)) ||
-          (sample.surname && sample.surname.toLowerCase().includes(searchLower)) ||
-          (sample.case_number && sample.case_number.toLowerCase().includes(searchLower))
+      if (startDate) {
+        filteredSamples = filteredSamples.filter(s => 
+          s.collection_date && new Date(s.collection_date) >= startDate
         );
       }
-      
-      if (period) {
-        const now = new Date();
-        let startDate;
-        
-        switch (period) {
-          case 'today':
-            startDate = new Date(now.setHours(0, 0, 0, 0));
-            break;
-          case 'week':
-            startDate = new Date(now.setDate(now.getDate() - 7));
-            break;
-          case 'month':
-            startDate = new Date(now.setMonth(now.getMonth() - 1));
-            break;
-        }
-        
-        if (startDate) {
-          allSamples = allSamples.filter(sample => 
-            sample.collection_date && new Date(sample.collection_date) >= startDate
-          );
-        }
-      }
-      
-      // Calculate pagination
-      const total = allSamples.length;
-      const totalPages = Math.ceil(total / limit);
-      const hasNext = page < totalPages;
-      const hasPrev = page > 1;
-      
-      // Apply pagination
-      const offset = (page - 1) * limit;
-      const samples = allSamples.slice(offset, offset + limit);
-      
-      // Return in the format expected by the frontend
-      res.json({
-        success: true,
-        message: 'Data retrieved successfully',
-        data: samples, // Keep 'data' for backward compatibility
-        samples: samples, // Also provide 'samples' for newer frontend expectations
-        meta: {
-          pagination: {
-            page,
-            limit,
-            total,
-            totalPages,
-            hasNext,
-            hasPrev
-          },
-          timestamp: new Date().toISOString()
-        },
-        count: samples.length,
-        database: 'PostgreSQL'
-      });
-    } else {
-      res.status(501).json({ 
-        success: false, 
-        error: "Feature only available with PostgreSQL database" 
-      });
     }
+    
+    // Calculate pagination
+    const total = filteredSamples.length;
+    const totalPages = Math.ceil(total / limit);
+    const offset = (page - 1) * limit;
+    const paginatedSamples = filteredSamples.slice(offset, offset + limit);
+    
+    const hasNext = page < totalPages;
+    const hasPrev = page > 1;
+    
+    // Return JSON response
+    res.json({
+      success: true,
+      message: 'Data retrieved successfully',
+      data: paginatedSamples,
+      samples: paginatedSamples,
+      meta: {
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNext,
+          hasPrev
+        },
+        timestamp: new Date().toISOString()
+      },
+      count: paginatedSamples.length
+    });
   } catch (error) {
     console.error('Error fetching samples:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
@@ -416,47 +365,60 @@ router.get("/samples/search", async (req, res) => {
   try {
     const { q } = req.query;
     if (!q) {
-      return res.status(400).json({ success: false, error: "Query parameter 'q' is required" });
+      return res.status(400).json({ 
+        success: false, 
+        error: "Query parameter 'q' is required",
+        timestamp: new Date().toISOString()
+      });
     }
     
-    if (DB_MODE === 'postgres') {
-      const results = db.searchSamples(q);
-      res.json({ 
-        success: true, 
-        data: results,
-        count: results.length,
-        query: q,
-        database: 'PostgreSQL'
-      });
-    } else {
-      res.status(501).json({ 
-        success: false, 
-        error: "Search feature only available with PostgreSQL database" 
-      });
-    }
+    // For SQLite compatibility, search in memory
+    const allSamples = await db.getAllSamples();
+    const searchLower = q.toLowerCase();
+    const results = (allSamples || []).filter(s => 
+      (s.lab_number && s.lab_number.toLowerCase().includes(searchLower)) ||
+      (s.name && s.name.toLowerCase().includes(searchLower)) ||
+      (s.surname && s.surname.toLowerCase().includes(searchLower)) ||
+      (s.case_number && s.case_number.toLowerCase().includes(searchLower))
+    ).slice(0, 100);
+    
+    res.json({ 
+      success: true, 
+      data: results,
+      count: results.length,
+      query: q,
+      meta: {
+        timestamp: new Date().toISOString()
+      }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Error searching samples:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
 // Sample Queue Management endpoints
 router.get("/samples/queue-counts", async (req, res) => {
   try {
-    if (DB_MODE === 'postgres') {
-      const counts = db.getSampleQueueCounts();
-      res.json({ 
-        success: true, 
-        data: counts,
-        database: 'PostgreSQL'
-      });
-    } else {
-      res.status(501).json({ 
-        success: false, 
-        error: "Feature only available with PostgreSQL database" 
-      });
-    }
+    const counts = await db.getSampleQueueCounts();
+    res.json({ 
+      success: true, 
+      data: counts,
+      meta: {
+        timestamp: new Date().toISOString()
+      }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Error getting queue counts:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
@@ -468,27 +430,28 @@ router.get("/samples/queue/:queueType", async (req, res) => {
     if (!validQueues.includes(queueType)) {
       return res.status(400).json({ 
         success: false, 
-        error: `Invalid queue type. Must be one of: ${validQueues.join(', ')}` 
+        error: `Invalid queue type. Must be one of: ${validQueues.join(', ')}`,
+        timestamp: new Date().toISOString()
       });
     }
     
-    if (DB_MODE === 'postgres') {
-      const samples = db.getSamplesForQueue(queueType);
-      res.json({ 
-        success: true, 
-        data: samples,
-        count: samples.length,
-        queue: queueType,
-        database: 'PostgreSQL'
-      });
-    } else {
-      res.status(501).json({ 
-        success: false, 
-        error: "Feature only available with PostgreSQL database" 
-      });
-    }
+    const samples = await db.getSamplesForQueue(queueType);
+    res.json({ 
+      success: true, 
+      data: samples,
+      count: samples.length,
+      queue: queueType,
+      meta: {
+        timestamp: new Date().toISOString()
+      }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Error getting samples for queue:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
@@ -499,14 +462,16 @@ router.put("/samples/workflow-status", async (req, res) => {
     if (!sampleIds || !Array.isArray(sampleIds) || sampleIds.length === 0) {
       return res.status(400).json({ 
         success: false, 
-        error: "sampleIds array is required" 
+        error: "sampleIds array is required",
+        timestamp: new Date().toISOString()
       });
     }
     
     if (!workflowStatus) {
       return res.status(400).json({ 
         success: false, 
-        error: "workflowStatus is required" 
+        error: "workflowStatus is required",
+        timestamp: new Date().toISOString()
       });
     }
     
@@ -515,25 +480,28 @@ router.put("/samples/workflow-status", async (req, res) => {
     if (!validStatuses.includes(workflowStatus)) {
       return res.status(400).json({ 
         success: false, 
-        error: `Invalid workflow status. Must be one of: ${validStatuses.join(', ')}` 
+        error: `Invalid workflow status. Must be one of: ${validStatuses.join(', ')}`,
+        timestamp: new Date().toISOString()
       });
     }
     
-    if (DB_MODE === 'postgres') {
-      db.batchUpdateSampleWorkflowStatus(sampleIds, workflowStatus);
-      res.json({ 
-        success: true, 
-        message: `Updated ${sampleIds.length} samples to ${workflowStatus}`,
-        database: 'PostgreSQL'
-      });
-    } else {
-      res.status(501).json({ 
-        success: false, 
-        error: "Feature only available with PostgreSQL database" 
-      });
-    }
+    await db.batchUpdateSampleWorkflowStatus(sampleIds, workflowStatus);
+    res.json({ 
+      success: true, 
+      message: `Updated ${sampleIds.length} samples to ${workflowStatus}`,
+      meta: {
+        timestamp: new Date().toISOString(),
+        samplesUpdated: sampleIds.length,
+        newStatus: workflowStatus
+      }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Error updating workflow status:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
@@ -542,369 +510,357 @@ router.put("/samples/workflow-status", async (req, res) => {
 // Generate batch
 router.post("/generate-batch", async (req, res) => {
   try {
-    if (DB_MODE === 'postgres') {
-      const { batchNumber, operator, wells, template, date, sampleCount } = req.body;
+    const { batchNumber, operator, wells, template, date, sampleCount } = req.body;
 
-      // Store complete plate layout for visualization
-      const completePlateLayout = {};
-      
-      // Initialize all wells first
-      const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-      const cols = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0'));
-      rows.forEach(row => {
-        cols.forEach(col => {
-          const wellId = `${row}${col}`;
-          completePlateLayout[wellId] = { type: 'empty', samples: [] };
-        });
+    // Store complete plate layout for visualization
+    const completePlateLayout = {};
+    
+    // Initialize all wells first
+    const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    const cols = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0'));
+    rows.forEach(row => {
+      cols.forEach(col => {
+        const wellId = `${row}${col}`;
+        completePlateLayout[wellId] = { type: 'empty', samples: [] };
       });
-      
-      // Add the actual well data
-      if (wells && typeof wells === 'object') {
-        Object.entries(wells).forEach(([wellId, wellData]) => {
-          completePlateLayout[wellId] = {
-            type: wellData.type || 'sample',
-            samples: wellData.samples || []
+    });
+    
+    // Add the actual well data
+    if (wells && typeof wells === 'object') {
+      Object.entries(wells).forEach(([wellId, wellData]) => {
+        completePlateLayout[wellId] = {
+          type: wellData.type || 'sample',
+          samples: wellData.samples || []
+        };
+      });
+    }
+
+    const batchData = {
+      batch_number: batchNumber,
+      operator: operator,
+      pcr_date: date || null,
+      electro_date: null,
+      settings: '27cycles30minExt',
+      total_samples: sampleCount || 0,
+      plate_layout: completePlateLayout
+    };
+
+    const batchResult = await db.createBatch(batchData);
+    const batchId = await batchResult.lastInsertRowid;
+
+    // Create well assignments and update sample workflow status
+    const batchedSampleIds = [];
+    if (wells && typeof wells === 'object') {
+      for (const [wellPosition, wellData] of Object.entries(wells)) {
+        // Normalize well type to match database constraints
+        let wellType = 'Blank';
+        if (wellData.type) {
+          const typeMap = {
+            'sample': 'Sample',
+            'control': 'Positive Control', 
+            'negative': 'Negative Control',
+            'positive': 'Positive Control',
+            'ladder': 'Allelic Ladder',
+            'blank': 'Blank'
           };
-        });
-      }
+          wellType = typeMap[wellData.type.toLowerCase()] || 'Sample';
+        }
 
-      const batchData = {
-        batch_number: batchNumber,
-        operator: operator,
-        pcr_date: date || null,
-        electro_date: null,
-        settings: '27cycles30minExt',
-        total_samples: sampleCount || 0,
-        plate_layout: completePlateLayout
-      };
+        const wellAssignment = {
+          batch_id: batchId,
+          well_position: wellPosition,
+          sample_id: null, // Don't link to sample_id to avoid foreign key issues
+          well_type: wellType,
+          kit_number: wellData.kit_number || null,
+          sample_name: wellData.label || wellData.sampleName || null,
+          comment: wellData.comment || ''
+        };
 
-      const batchResult = db.createBatch(batchData);
-      const batchId = batchResult.lastInsertRowid;
+        await db.createWellAssignment(wellAssignment);
 
-      // Create well assignments and update sample workflow status
-      const batchedSampleIds = [];
-      if (wells && typeof wells === 'object') {
-        Object.entries(wells).forEach(([wellPosition, wellData]) => {
-          // Normalize well type to match database constraints
-          let wellType = 'Blank';
-          if (wellData.type) {
-            const typeMap = {
-              'sample': 'Sample',
-              'control': 'Positive Control', 
-              'negative': 'Negative Control',
-              'positive': 'Positive Control',
-              'ladder': 'Allelic Ladder',
-              'blank': 'Blank'
-            };
-            wellType = typeMap[wellData.type.toLowerCase()] || 'Sample';
-          }
-
-          const wellAssignment = {
-            batch_id: batchId,
-            well_position: wellPosition,
-            sample_id: null, // Don't link to sample_id to avoid foreign key issues
-            well_type: wellType,
-            kit_number: wellData.kit_number || null,
-            sample_name: wellData.label || wellData.sampleName || null,
-            comment: wellData.comment || ''
-          };
-
-          db.createWellAssignment(wellAssignment);
-
-          // Collect sample IDs from the wells for workflow status update
-          if (wellData.samples && Array.isArray(wellData.samples)) {
-            wellData.samples.forEach(sample => {
-              if (sample.id) {
-                batchedSampleIds.push(sample.id);
-              }
-            });
-          }
-        });
-      }
-
-      // Update workflow status for all samples in the batch to 'pcr_batched'
-      if (batchedSampleIds.length > 0) {
-        try {
-          db.batchUpdateSampleWorkflowStatus(batchedSampleIds, 'pcr_batched');
-          console.log(`Updated ${batchedSampleIds.length} samples to pcr_batched status`);
-        } catch (workflowError) {
-          console.warn('Failed to update sample workflow status:', workflowError);
-          // Don't fail the batch creation if workflow update fails
+        // Collect sample IDs from the wells for workflow status update
+        if (wellData.samples && Array.isArray(wellData.samples)) {
+          wellData.samples.forEach(sample => {
+            if (sample.id) {
+              batchedSampleIds.push(sample.id);
+            }
+          });
         }
       }
-
-      res.json({ 
-        success: true, 
-        message: "Batch generated successfully",
-        data: {
-          batch_id: batchId,
-          batch_number: batchNumber,
-          operator: operator,
-          wells_created: wells ? Object.keys(wells).length : 0
-        },
-        database: 'PostgreSQL'
-      });
-    } else {
-      // Google Sheets fallback
-      res.json({ success: true, data: req.body, database: 'Google Sheets' });
     }
+
+    // Update workflow status for all samples in the batch to 'pcr_batched'
+    if (batchedSampleIds.length > 0) {
+      try {
+        await db.batchUpdateSampleWorkflowStatus(batchedSampleIds, 'pcr_batched');
+        console.log(`Updated ${batchedSampleIds.length} samples to pcr_batched status`);
+      } catch (workflowError) {
+        console.warn('Failed to update sample workflow status:', workflowError);
+        // Don't fail the batch creation if workflow update fails
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      message: "Batch generated successfully",
+      data: {
+        batch_id: batchId,
+        batch_number: batchNumber,
+        operator: operator,
+        wells_created: wells ? Object.keys(wells).length : 0
+      },
+      meta: {
+        timestamp: new Date().toISOString()
+      }
+    });
   } catch (error) {
     console.error('Generate batch error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
 // Get all batches
 router.get("/batches", async (req, res) => {
   try {
-    if (DB_MODE === 'postgres') {
-      const batches = db.getAllBatches();
-      res.json({ 
-        success: true, 
-        data: batches,
-        count: batches.length,
-        database: 'PostgreSQL'
-      });
-    } else {
-      // Mock data for Google Sheets
-      res.json({
-        success: true,
-        data: [
-          { id: 1, batch_number: 'LDS_1', operator: 'Test Operator', created_at: '2024-06-28' }
-        ],
-        count: 1,
-        database: 'Google Sheets'
-      });
-    }
+    const batches = await db.getAllBatches();
+    res.json({ 
+      success: true, 
+      data: batches,
+      count: batches.length,
+      meta: {
+        timestamp: new Date().toISOString()
+      }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Error fetching batches:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
 // Get samples for a specific batch
 router.get("/batches/:batchNumber/samples", async (req, res) => {
   try {
-    if (DB_MODE === 'postgres') {
-      const { batchNumber } = req.params;
-      const samples = db.getSamplesByBatchNumber(batchNumber);
-      res.json({ 
-        success: true, 
-        data: samples,
-        count: samples.length,
-        batchNumber: batchNumber,
-        database: 'PostgreSQL'
-      });
-    } else {
-      res.status(501).json({ 
-        success: false, 
-        error: "Feature only available with PostgreSQL database" 
-      });
-    }
+    const { batchNumber } = req.params;
+    const samples = await db.getSamplesByBatchNumber(batchNumber);
+    res.json({ 
+      success: true, 
+      data: samples,
+      count: samples.length,
+      batchNumber: batchNumber,
+      meta: {
+        timestamp: new Date().toISOString()
+      }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Error getting samples for batch:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
 // Get well assignments for a specific batch
 router.get("/well-assignments/:batchId", async (req, res) => {
   try {
-    if (DB_MODE === 'postgres') {
-      const { batchId } = req.params;
-      const wellAssignments = db.getWellAssignments(batchId);
-      res.json({ 
-        success: true, 
-        data: wellAssignments,
-        count: wellAssignments.length,
-        database: 'PostgreSQL'
-      });
-    } else {
-      res.status(501).json({ 
-        success: false, 
-        error: "Feature only available with PostgreSQL database" 
-      });
-    }
+    const { batchId } = req.params;
+    const wellAssignments = await db.getWellAssignments(batchId);
+    res.json({ 
+      success: true, 
+      data: wellAssignments,
+      count: wellAssignments.length,
+      meta: {
+        timestamp: new Date().toISOString()
+      }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Error getting well assignments:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
 // Save batch
 router.post("/save-batch", authenticateToken, requireStaff, async (req, res) => {
   try {
-    if (DB_MODE === 'postgres') {
-      const { batchNumber, operator, wells, template, date } = req.body;
+    const { batchNumber, operator, wells, template, date } = req.body;
 
-      const existingBatch = db.getBatch(batchNumber);
-      
-      if (existingBatch) {
-        return res.json({ 
-          success: true, 
-          message: "Batch already exists",
-          data: existingBatch,
-          database: 'PostgreSQL'
-        });
-      }
-
-      const batchData = {
-        batch_number: batchNumber,
-        operator: operator,
-        pcr_date: date,
-        electro_date: null,
-        settings: '27cycles30minExt',
-        total_samples: wells ? Object.keys(wells).filter(k => wells[k].type === 'Sample').length : 0,
-        plate_layout: wells
-      };
-
-      const batchResult = db.createBatch(batchData);
-
-      res.json({ 
+    const existingBatch = await db.getBatch(batchNumber);
+    
+    if (existingBatch) {
+      return res.json({ 
         success: true, 
-        message: "Batch saved successfully",
-        data: {
-          batch_id: batchResult.lastInsertRowid,
-          batch_number: batchNumber
-        },
-        database: 'PostgreSQL'
+        message: "Batch already exists",
+        data: existingBatch,
+        meta: {
+          timestamp: new Date().toISOString()
+        }
       });
-    } else {
-      // Google Sheets fallback
-      res.json({ success: true, data: req.body, database: 'Google Sheets' });
     }
+
+    const batchData = {
+      batch_number: batchNumber,
+      operator: operator,
+      pcr_date: date,
+      electro_date: null,
+      settings: '27cycles30minExt',
+      total_samples: wells ? Object.keys(wells).filter(k => wells[k].type === 'Sample').length : 0,
+      plate_layout: wells
+    };
+
+    const batchResult = await db.createBatch(batchData);
+
+    res.json({ 
+      success: true, 
+      message: "Batch saved successfully",
+      data: {
+        batch_id: await batchResult.lastInsertRowid,
+        batch_number: batchNumber
+      },
+      meta: {
+        timestamp: new Date().toISOString()
+      }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Save batch error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
 // Statistics endpoint
 router.get("/statistics", async (req, res) => {
   try {
-    if (DB_MODE === 'postgres') {
-      const { period = 'daily' } = req.query;
-      const stats = db.getStatistics(period);
-      const counts = db.getSampleCounts();
+    const { period = 'daily' } = req.query;
+    const [stats, counts] = await Promise.all([
+      db.getStatistics(period),
+      db.getSampleCounts()
+    ]);
 
-      res.json({ 
-        success: true, 
-        data: {
-          period_stats: stats,
-          total_counts: counts,
-          period: period
-        },
-        database: 'PostgreSQL'
-      });
-    } else {
-      // Mock data for Google Sheets
-      res.json({
-        success: true,
-        data: {
-          period_stats: [{ status: 'pending', count: 5 }],
-          total_counts: { total: 10, pending: 5, processing: 2, completed: 3 },
-          period: req.query.period || 'daily'
-        },
-        database: 'Google Sheets'
-      });
-    }
+    res.json({ 
+      success: true, 
+      data: {
+        period_stats: stats,
+        total_counts: counts,
+        period: period
+      },
+      meta: {
+        timestamp: new Date().toISOString()
+      }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Error getting statistics:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
 // Quality Control endpoints
 router.post("/quality-control", authenticateToken, requireStaff, async (req, res) => {
   try {
-    if (DB_MODE === 'postgres') {
-      const { batch_id, date, control_type, result, operator, comments } = req.body;
+    const { batch_id, date, control_type, result, operator, comments } = req.body;
 
-      const qcData = {
-        batch_id,
-        date,
-        control_type,
-        result,
-        operator,
-        comments
-      };
+    const qcData = {
+      batch_id,
+      date,
+      control_type,
+      result,
+      operator,
+      comments
+    };
 
-      const qcResult = db.createQualityControl(qcData);
+    const qcResult = await db.createQualityControl(qcData);
 
-      res.json({ 
-        success: true, 
-        message: "Quality control record created",
-        data: {
-          qc_id: qcResult.lastInsertRowid
-        },
-        database: 'PostgreSQL'
-      });
-    } else {
-      res.json({ success: true, message: "QC record created", database: 'Google Sheets' });
-    }
+    res.json({ 
+      success: true, 
+      message: "Quality control record created",
+      data: {
+        qc_id: await qcResult.lastInsertRowid
+      },
+      meta: {
+        timestamp: new Date().toISOString()
+      }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Error creating QC record:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
 router.get("/quality-control", async (req, res) => {
   try {
-    if (DB_MODE === 'postgres') {
-      const { batch_id } = req.query;
-      const qcRecords = db.getQualityControlRecords(batch_id);
-      
-      res.json({ 
-        success: true, 
-        data: qcRecords,
-        count: qcRecords.length,
-        database: 'PostgreSQL'
-      });
-    } else {
-      // Mock data for Google Sheets
-      res.json({
-        success: true,
-        data: [
-          { id: 1, batch_id: 1, date: '2024-06-28', control_type: 'Positive Control', result: 'Passed', operator: 'Test Operator' }
-        ],
-        count: 1,
-        database: 'Google Sheets'
-      });
-    }
+    const { batch_id } = req.query;
+    const qcRecords = await db.getQualityControlRecords(batch_id);
+    
+    res.json({ 
+      success: true, 
+      data: qcRecords,
+      count: qcRecords.length,
+      meta: {
+        timestamp: new Date().toISOString()
+      }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Error getting QC records:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
 // Get client test results (authenticated clients can access their own data)
 router.get("/client/tests", authenticateToken, async (req, res) => {
   try {
-    if (DB_MODE === 'postgres') {
-      const samples = db.getAllSamples().slice(0, 10);
-      
-      const tests = samples.map(sample => ({
-        id: sample.id,
-        testType: 'Paternity DNA Test',
-        status: sample.status,
-        referenceNumber: sample.lab_number,
-        submissionDate: sample.submission_date,
-        resultDate: sample.status === 'completed' ? sample.updated_at : null,
-        downloadUrl: sample.status === 'completed' ? `/api/client/test/${sample.id}/download` : null
-      }));
-      
-      res.json({ success: true, tests, database: 'PostgreSQL' });
-    } else {
-      // Mock data for Google Sheets
-      const tests = [
-        {
-          id: 1,
-          testType: 'Paternity DNA Test',
-          status: 'Completed',
-          referenceNumber: 'REF2024001',
-          submissionDate: '2024-01-15',
-          resultDate: '2024-01-22',
-          downloadUrl: '/api/client/test/1/download'
-        }
-      ];
-      
-      res.json({ success: true, tests, database: 'Google Sheets' });
-    }
+    const samples = (await db.getAllSamples()).slice(0, 10);
+    
+    const tests = samples.map(sample => ({
+      id: sample.id,
+      testType: 'Paternity DNA Test',
+      status: sample.status,
+      referenceNumber: sample.lab_number,
+      submissionDate: sample.submission_date,
+      resultDate: sample.status === 'completed' ? sample.updated_at : null,
+      downloadUrl: sample.status === 'completed' ? `/api/client/test/${sample.id}/download` : null
+    }));
+    
+    res.json({ 
+      success: true, 
+      tests,
+      meta: {
+        timestamp: new Date().toISOString()
+      }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Error getting client tests:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
@@ -913,209 +869,248 @@ router.get("/client/test/:id/download", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     
-    if (DB_MODE === 'postgres') {
-      const sample = db.getSample(id);
-      
-      if (!sample) {
-        return res.status(404).json({ success: false, error: "Test not found" });
-      }
-      
-      res.json({ 
-        success: true, 
-        message: `Test result for ${sample.lab_number} download would be provided here`,
-        downloadUrl: `https://example.com/results/${sample.lab_number}.pdf`,
-        sample_info: {
-          lab_number: sample.lab_number,
-          name: sample.name,
-          surname: sample.surname,
-          status: sample.status
-        },
-        database: 'PostgreSQL'
-      });
-    } else {
-      res.json({ 
-        success: true, 
-        message: `Test result ${id} download would be provided here`,
-        downloadUrl: `https://example.com/results/${id}.pdf`,
-        database: 'Google Sheets'
+    const sample = await db.getSample(id);
+    
+    if (!sample) {
+      return res.status(404).json({ 
+        success: false, 
+        error: "Test not found",
+        timestamp: new Date().toISOString()
       });
     }
+    
+    res.json({ 
+      success: true, 
+      message: `Test result for ${sample.lab_number} download would be provided here`,
+      downloadUrl: `https://example.com/results/${sample.lab_number}.pdf`,
+      sample_info: {
+        lab_number: sample.lab_number,
+        name: sample.name,
+        surname: sample.surname,
+        status: sample.status
+      },
+      meta: {
+        timestamp: new Date().toISOString()
+      }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Error downloading test result:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
 // Workflow statistics endpoint
 router.get("/workflow-stats", async (req, res) => {
   try {
-    if (DB_MODE === 'postgres') {
-      let samples;
-      try {
-        // Initialize database service first
-        db.ensureInitialized();
-        samples = db.getAllSamples() || [];
-        console.log(`Database service returned ${samples.length} samples for workflow stats`);
-      } catch (serviceError) {
-        console.error('Database service failed for workflow stats:', serviceError.message);
-        throw new Error('Failed to retrieve samples for workflow statistics');
+    const samples = await db.getAllSamples();
+    
+    // Count samples by workflow status
+    const stats = {
+      registered: samples.filter(s => s.workflow_status === 'sample_collected' || s.workflow_status === 'registered').length,
+      inExtraction: samples.filter(s => 
+        s.workflow_status === 'extraction_ready' || 
+        s.workflow_status === 'extraction_in_progress' || 
+        s.workflow_status === 'extraction_completed'
+      ).length,
+      inPCR: samples.filter(s => 
+        s.workflow_status === 'pcr_ready' || 
+        s.workflow_status === 'pcr_batched' || 
+        s.workflow_status === 'pcr_completed'
+      ).length,
+      inElectrophoresis: samples.filter(s => 
+        s.workflow_status === 'electro_ready' || 
+        s.workflow_status === 'electro_batched' || 
+        s.workflow_status === 'electro_completed'
+      ).length,
+      reruns: samples.filter(s => s.workflow_status === 'rerun' || s.workflow_status === 'reanalysis').length,
+      completed: samples.filter(s => s.workflow_status === 'report_sent' || s.workflow_status === 'completed').length,
+      total: samples.length
+    };
+    
+    res.json({
+      success: true,
+      message: 'Workflow statistics retrieved successfully',
+      data: stats,
+      meta: {
+        timestamp: new Date().toISOString()
       }
-      
-      // Count samples by workflow status
-      const stats = {
-        registered: samples.filter(s => s.workflow_status === 'sample_collected' || s.workflow_status === 'registered').length,
-        inExtraction: samples.filter(s => 
-          s.workflow_status === 'extraction_ready' || 
-          s.workflow_status === 'extraction_in_progress' || 
-          s.workflow_status === 'extraction_completed'
-        ).length,
-        inPCR: samples.filter(s => 
-          s.workflow_status === 'pcr_ready' || 
-          s.workflow_status === 'pcr_batched' || 
-          s.workflow_status === 'pcr_completed'
-        ).length,
-        inElectrophoresis: samples.filter(s => 
-          s.workflow_status === 'electro_ready' || 
-          s.workflow_status === 'electro_batched' || 
-          s.workflow_status === 'electro_completed'
-        ).length,
-        reruns: samples.filter(s => s.workflow_status === 'rerun' || s.workflow_status === 'reanalysis').length,
-        completed: samples.filter(s => s.workflow_status === 'report_sent' || s.workflow_status === 'completed').length,
-        total: samples.length
-      };
-      
-      res.json({
-        success: true,
-        message: 'Success',
-        data: stats,
-        meta: {
-          timestamp: new Date().toISOString()
-        }
-      });
-    } else {
-      res.status(501).json({ 
-        success: false, 
-        error: "Feature only available with PostgreSQL database" 
-      });
-    }
+    });
   } catch (error) {
     console.error('Error fetching workflow stats:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
 // Sample counts endpoint
 router.get("/samples/counts", async (req, res) => {
   try {
-    if (DB_MODE === 'postgres') {
-      let samples;
-      try {
-        // Initialize database service first
-        db.ensureInitialized();
-        samples = db.getAllSamples() || [];
-        console.log(`Database service returned ${samples.length} samples for counts`);
-      } catch (serviceError) {
-        console.error('Database service failed for counts:', serviceError.message);
-        throw new Error('Failed to retrieve samples for counts');
+    const counts = await db.getSampleCounts();
+    
+    res.json({
+      success: true,
+      message: 'Sample counts retrieved successfully',
+      data: counts,
+      meta: {
+        timestamp: new Date().toISOString()
       }
-      
-      // Calculate comprehensive counts
-      const counts = {
-        total: samples.length,
-        active: samples.filter(s => 
-          s.workflow_status !== 'report_sent' && 
-          s.workflow_status !== 'completed' && 
-          s.workflow_status !== 'cancelled'
-        ).length,
-        pending: samples.filter(s => s.workflow_status === 'sample_collected' || s.workflow_status === 'registered').length,
-        pcrBatched: samples.filter(s => s.workflow_status === 'pcr_batched').length,
-        electroBatched: samples.filter(s => s.workflow_status === 'electro_batched').length,
-        rerunBatched: samples.filter(s => s.workflow_status === 'rerun' || s.workflow_status === 'reanalysis').length,
-        completed: samples.filter(s => s.workflow_status === 'report_sent' || s.workflow_status === 'completed').length,
-        processing: samples.filter(s => 
-          s.workflow_status === 'extraction_in_progress' ||
-          s.workflow_status === 'pcr_in_progress' ||
-          s.workflow_status === 'electro_in_progress' ||
-          s.workflow_status === 'analysis_in_progress'
-        ).length
-      };
-      
-      res.json({
-        success: true,
-        message: 'Success',
-        data: counts,
-        meta: {
-          timestamp: new Date().toISOString()
-        }
-      });
-    } else {
-      res.status(501).json({ 
-        success: false, 
-        error: "Feature only available with PostgreSQL database" 
-      });
-    }
+    });
   } catch (error) {
     console.error('Error fetching sample counts:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Live workflow monitor endpoint - shows samples cycling through stages
+router.get("/live-workflow", async (req, res) => {
+  try {
+    const samples = await db.getAllSamples();
+    const autoSamples = samples.filter(s => s.lab_number && s.lab_number.startsWith('AUTO-'));
+    
+    // Group samples by workflow status
+    const stageGroups = {};
+    const workflowStages = [
+      'sample_collected',
+      'extraction_ready',
+      'extraction_in_progress', 
+      'extraction_completed',
+      'quantification_ready',
+      'quantification_completed',
+      'pcr_ready',
+      'pcr_batched',
+      'pcr_in_progress',
+      'pcr_completed',
+      'electro_ready',
+      'electro_batched',
+      'electro_in_progress',
+      'electro_completed',
+      'analysis_ready',
+      'analysis_in_progress',
+      'analysis_completed',
+      'review_pending',
+      'report_generation',
+      'report_sent'
+    ];
+    
+    // Initialize all stages
+    workflowStages.forEach(stage => {
+      stageGroups[stage] = [];
+    });
+    
+    // Group samples by their current stage
+    autoSamples.forEach(sample => {
+      const stage = sample.workflow_status || 'sample_collected';
+      if (stageGroups[stage]) {
+        stageGroups[stage].push({
+          lab_number: sample.lab_number,
+          name: `${sample.name} ${sample.surname}`,
+          case_number: sample.case_number,
+          relation: sample.relation,
+          updated_at: sample.updated_at
+        });
+      }
+    });
+    
+    // Calculate statistics
+    const stats = {
+      total_samples: autoSamples.length,
+      in_progress: autoSamples.filter(s => 
+        s.workflow_status && 
+        !['sample_collected', 'report_sent'].includes(s.workflow_status)
+      ).length,
+      completed: autoSamples.filter(s => s.workflow_status === 'report_sent').length,
+      stages: workflowStages.map(stage => ({
+        stage,
+        count: stageGroups[stage].length,
+        samples: stageGroups[stage]
+      }))
+    };
+    
+    res.json({
+      success: true,
+      message: 'Live workflow data retrieved',
+      data: stats,
+      meta: {
+        timestamp: new Date().toISOString(),
+        auto_refresh: true,
+        refresh_interval: 5000
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching live workflow:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
 // Simulated stages endpoint for live cycling demo
 router.get("/simulated-stages", async (req, res) => {
   try {
-    if (DB_MODE === 'postgres') {
-      const samples = db.getAllSamples() || [];
+    const samples = await db.getAllSamples();
+    
+    // Filter for AUTO- prefixed samples and simulate stages
+    const autoSamples = samples.filter(s => s.lab_number && s.lab_number.startsWith('AUTO-'));
+    
+    // Create simulated cycling statuses for better demo visualization
+    const simulatedSamples = autoSamples.map(sample => {
+      // Use a hash of the lab_number to create consistent but varied simulated stages
+      const hash = sample.lab_number.split('').reduce((a, b) => {
+        a = ((a << 5) - a) + b.charCodeAt(0);
+        return a & a;
+      }, 0);
       
-      // Filter for AUTO- prefixed samples and simulate stages
-      const autoSamples = samples.filter(s => s.lab_number && s.lab_number.startsWith('AUTO-'));
+      const cycleStages = [
+        'sample_collected',
+        'extraction_in_progress', 
+        'quantification_completed',
+        'pcr_ready',
+        'pcr_completed',
+        'electro_completed',
+        'analysis_completed',
+        'report_sent'
+      ];
       
-      // Create simulated cycling statuses for better demo visualization
-      const simulatedSamples = autoSamples.map(sample => {
-        // Use a hash of the lab_number to create consistent but varied simulated stages
-        const hash = sample.lab_number.split('').reduce((a, b) => {
-          a = ((a << 5) - a) + b.charCodeAt(0);
-          return a & a;
-        }, 0);
-        
-        const cycleStages = [
-          'sample_collected',
-          'extraction_in_progress', 
-          'quantification_completed',
-          'pcr_ready',
-          'pcr_completed',
-          'electro_completed',
-          'analysis_completed',
-          'report_sent'
-        ];
-        
-        // Use time and hash to create cycling effect
-        const timeIndex = Math.floor(Date.now() / 15000) % cycleStages.length;
-        const stageIndex = (Math.abs(hash) + timeIndex) % cycleStages.length;
-        
-        return {
-          lab_number: sample.lab_number,
-          actual_status: sample.workflow_status,
-          simulated_status: cycleStages[stageIndex]
-        };
-      });
+      // Use time and hash to create cycling effect
+      const timeIndex = Math.floor(Date.now() / 15000) % cycleStages.length;
+      const stageIndex = (Math.abs(hash) + timeIndex) % cycleStages.length;
       
-      res.json({
-        success: true,
-        message: 'Simulated stages for live demo',
-        samples: simulatedSamples,
-        meta: {
-          timestamp: new Date().toISOString(),
-          total_auto_samples: autoSamples.length
-        }
-      });
-    } else {
-      res.status(501).json({ 
-        success: false, 
-        error: "Feature only available with PostgreSQL database" 
-      });
-    }
+      return {
+        lab_number: sample.lab_number,
+        actual_status: sample.workflow_status,
+        simulated_status: cycleStages[stageIndex]
+      };
+    });
+    
+    res.json({
+      success: true,
+      message: 'Simulated stages for live demo',
+      samples: simulatedSamples,
+      meta: {
+        timestamp: new Date().toISOString(),
+        total_auto_samples: autoSamples.length
+      }
+    });
   } catch (error) {
     console.error('Error fetching simulated stages:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
