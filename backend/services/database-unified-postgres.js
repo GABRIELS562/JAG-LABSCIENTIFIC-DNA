@@ -5,7 +5,7 @@
  */
 
 const { Pool } = require('pg');
-const deasync = require('deasync');
+// deasync removed - using async/await instead
 const path = require('path');
 const fs = require('fs');
 
@@ -209,91 +209,40 @@ class UnifiedPostgreSQLService {
     const self = this;
     const postgresqlSql = this.convertSqlToPostgreSQL(sql);
     return {
-      // SQLite-compatible get method (returns single row) - SYNCHRONOUS
-      get(...params) {
-        let result;
-        let error;
-        let done = false;
-
-        (async () => {
-          try {
-            const client = await self.pool.connect();
-            try {
-              const queryResult = await client.query(postgresqlSql, params);
-              result = queryResult.rows[0] || null;
-            } finally {
-              client.release();
-            }
-          } catch (err) {
-            error = err;
-          } finally {
-            done = true;
-          }
-        })();
-
-        deasync.loopWhile(() => !done);
-        
-        if (error) throw error;
-        return result;
+      // SQLite-compatible get method (returns single row) - NOW ASYNC
+      async get(...params) {
+        const client = await self.pool.connect();
+        try {
+          const queryResult = await client.query(postgresqlSql, params);
+          return queryResult.rows[0] || null;
+        } finally {
+          client.release();
+        }
       },
 
-      // SQLite-compatible all method (returns all rows) - SYNCHRONOUS
-      all(...params) {
-        let result;
-        let error;
-        let done = false;
-
-        (async () => {
-          try {
-            const client = await self.pool.connect();
-            try {
-              const queryResult = await client.query(postgresqlSql, params);
-              result = queryResult.rows;
-            } finally {
-              client.release();
-            }
-          } catch (err) {
-            error = err;
-          } finally {
-            done = true;
-          }
-        })();
-
-        deasync.loopWhile(() => !done);
-        
-        if (error) throw error;
-        return result;
+      // SQLite-compatible all method (returns all rows) - NOW ASYNC
+      async all(...params) {
+        const client = await self.pool.connect();
+        try {
+          const queryResult = await client.query(postgresqlSql, params);
+          return queryResult.rows;
+        } finally {
+          client.release();
+        }
       },
 
-      // SQLite-compatible run method (for INSERT/UPDATE/DELETE) - SYNCHRONOUS
-      run(...params) {
-        let result;
-        let error;
-        let done = false;
-
-        (async () => {
-          try {
-            const client = await self.pool.connect();
-            try {
-              const queryResult = await client.query(postgresqlSql, params);
-              result = {
-                lastInsertRowid: queryResult.rows[0]?.id || queryResult.insertId || null,
-                changes: queryResult.rowCount
-              };
-            } finally {
-              client.release();
-            }
-          } catch (err) {
-            error = err;
-          } finally {
-            done = true;
-          }
-        })();
-
-        deasync.loopWhile(() => !done);
-        
-        if (error) throw error;
-        return result;
+      // SQLite-compatible run method (for INSERT/UPDATE/DELETE) - NOW ASYNC
+      async run(...params) {
+        const client = await self.pool.connect();
+        try {
+          const queryResult = await client.query(postgresqlSql, params);
+          return {
+            lastInsertRowid: queryResult.rows[0]?.id || queryResult.insertId || null,
+            changes: queryResult.rowCount
+          };
+        } finally {
+          client.release();
+        }
       }
     };
   }
@@ -312,73 +261,22 @@ class UnifiedPostgreSQLService {
   }
 
   // Synchronous methods for direct SQL calls (used in server.js)
-  get(sql, params = []) {
-    let result;
-    let error;
-    let done = false;
-
-    (async () => {
-      try {
-        const queryResult = await this.query(sql, params);
-        result = queryResult.rows[0] || null;
-      } catch (err) {
-        error = err;
-      } finally {
-        done = true;
-      }
-    })();
-
-    deasync.loopWhile(() => !done);
-    
-    if (error) throw error;
-    return result;
+  async get(sql, params = []) {
+    const queryResult = await this.query(sql, params);
+    return queryResult.rows[0] || null;
   }
 
-  all(sql, params = []) {
-    let result;
-    let error;
-    let done = false;
-
-    (async () => {
-      try {
-        const queryResult = await this.query(sql, params);
-        result = queryResult.rows;
-      } catch (err) {
-        error = err;
-      } finally {
-        done = true;
-      }
-    })();
-
-    deasync.loopWhile(() => !done);
-    
-    if (error) throw error;
-    return result;
+  async all(sql, params = []) {
+    const queryResult = await this.query(sql, params);
+    return queryResult.rows;
   }
 
-  run(sql, params = []) {
-    let result;
-    let error;
-    let done = false;
-
-    (async () => {
-      try {
-        const queryResult = await this.query(sql, params);
-        result = {
-          lastInsertRowid: queryResult.rows[0]?.id || queryResult.insertId || null,
-          changes: queryResult.rowCount
-        };
-      } catch (err) {
-        error = err;
-      } finally {
-        done = true;
-      }
-    })();
-
-    deasync.loopWhile(() => !done);
-    
-    if (error) throw error;
-    return result;
+  async run(sql, params = []) {
+    const queryResult = await this.query(sql, params);
+    return {
+      lastInsertRowid: queryResult.rows[0]?.id || queryResult.insertId || null,
+      changes: queryResult.rowCount
+    };
   }
 
   // Transaction support (simplified for compatibility)
