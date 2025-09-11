@@ -1,0 +1,55 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install build dependencies including Python for node-gyp
+RUN apk add --no-cache python3 make g++ bash postgresql-client curl
+
+# Copy root package.json and backend package.json
+COPY package*.json ./
+COPY backend/package*.json ./backend/
+
+# Install root dependencies first (includes frontend dependencies)
+RUN npm install --legacy-peer-deps || npm install --force
+
+# Install backend dependencies separately
+RUN cd backend && npm install --legacy-peer-deps || npm install --force
+
+# Copy all source code
+COPY . .
+
+# Build frontend if needed
+RUN npm run build || echo "No build script or build failed, continuing..."
+
+# Create necessary directories
+RUN mkdir -p /app/backend/logs /app/backend/database /app/temp
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S lims -u 1001 -G nodejs
+
+# Change ownership to lims user
+RUN chown -R lims:nodejs /app
+
+# Switch to non-root user
+USER lims
+
+# Expose both frontend (5173) and backend (3001) ports
+EXPOSE 5173 3001
+
+# Create start script that runs both services
+RUN echo '#!/bin/bash' > start.sh && \
+    echo 'echo "Starting JAG DNA Scientific LIMS..."' >> start.sh && \
+    echo 'echo "Backend starting on port 3001..."' >> start.sh && \
+    echo 'node backend/server.js &' >> start.sh && \
+    echo 'echo "Frontend dev server starting on port 5173..."' >> start.sh && \
+    echo 'npm run dev -- --host 0.0.0.0 --port 5173 &' >> start.sh && \
+    echo 'echo "Both services started. Waiting..."' >> start.sh && \
+    echo 'wait' >> start.sh && \
+    chmod +x start.sh
+
+# Health check for both services
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:3001/health && curl -f http://localhost:5173/ || exit 1
+
+CMD ["./start.sh"]

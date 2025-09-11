@@ -56,8 +56,6 @@
     "size-check": "npm run build:prod && ls -lah dist/assets/*.js | awk '{print $5, $9}' | sort -hr",
     "bundle-monitor": "node scripts/bundle-monitor.js",
     "bundle-report": "npm run build:prod && npm run bundle-monitor",
-    "postinstall": "npm run postinstall:backend",
-    "postinstall:backend": "cd backend && npm install",
     "audit:prod": "npm audit --audit-level moderate",
     "security:check": "npm audit && npm run audit:prod",
     "load-test": "node backend/scripts/runLoadTest.js",

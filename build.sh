@@ -5,7 +5,7 @@
 set -e  # Exit on error
 
 # Configuration
-IMAGE_NAME="lims-complete"
+IMAGE_NAME="lims-full"
 TAG="latest"
 REGISTRY="localhost:5000"
 FULL_IMAGE_NAME="${REGISTRY}/${IMAGE_NAME}:${TAG}"
@@ -15,9 +15,9 @@ echo "Building LIMS Docker Image"
 echo "========================================="
 echo ""
 
-# Step 1: Build the Docker image
-echo "Step 1: Building Docker image..."
-docker build -t ${IMAGE_NAME}:${TAG} .
+# Step 1: Build the unified Docker image
+echo "Step 1: Building unified Docker image..."
+docker build -f Dockerfile.unified -t ${IMAGE_NAME}:${TAG} .
 if [ $? -eq 0 ]; then
     echo "✓ Docker image built successfully"
 else
@@ -57,9 +57,14 @@ echo "Image available as:"
 echo "  - ${IMAGE_NAME}:${TAG}"
 echo "  - ${FULL_IMAGE_NAME}"
 echo ""
-echo "To run the container:"
-echo "  docker run -p 3000:3000 -p 3001:3001 ${IMAGE_NAME}:${TAG}"
+echo "To run the unified container (frontend + backend):"
+echo "  docker run -p 5173:5173 -p 3001:3001 ${IMAGE_NAME}:${TAG}"
 echo ""
 echo "To run with environment variables:"
-echo "  docker run -p 3000:3000 -p 3001:3001 -e NODE_ENV=production ${IMAGE_NAME}:${TAG}"
+echo "  docker run -p 5173:5173 -p 3001:3001 -e NODE_ENV=production ${IMAGE_NAME}:${TAG}"
+echo ""
+echo "Access points:"
+echo "  - Frontend: http://localhost:5173"
+echo "  - Backend API: http://localhost:3001"
+echo "  - Health check: http://localhost:3001/health"
 echo ""
