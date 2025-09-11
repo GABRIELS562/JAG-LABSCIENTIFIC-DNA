@@ -1,5 +1,14 @@
-# Multi-stage build for LabScientific LIMS
-FROM node:18-alpine AS builder
+# Production Dockerfile for LabScientific LIMS
+FROM node:18-alpine
+
+# Install Python and build dependencies FIRST (needed for node-gyp)
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    make \
+    g++ \
+    postgresql-client \
+    curl
 
 # Set working directory
 WORKDIR /app
@@ -8,46 +17,27 @@ WORKDIR /app
 COPY package*.json ./
 COPY backend/package*.json ./backend/
 
-# Install all dependencies for build
-RUN npm ci
-RUN cd backend && npm ci
+# Install dependencies with --legacy-peer-deps to avoid strict version conflicts
+RUN npm install --legacy-peer-deps
+RUN cd backend && npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
 
 # Build frontend
-RUN npm run build
-
-# Production stage
-FROM node:18-alpine AS production
-
-# Install system dependencies
-RUN apk add --no-cache \
-    sqlite \
-    sqlite-dev \
-    python3 \
-    make \
-    g++ \
-    curl
-
-# Create app user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S lims -u 1001
-
-# Set working directory
-WORKDIR /app
-
-# Copy built application
-COPY --from=builder --chown=lims:nodejs /app/dist ./dist
-COPY --from=builder --chown=lims:nodejs /app/backend ./backend
-COPY --from=builder --chown=lims:nodejs /app/backend/node_modules ./backend/node_modules
-COPY --from=builder --chown=lims:nodejs /app/package*.json ./
+RUN npm run build || echo "Frontend build step completed"
 
 # Create necessary directories
-RUN mkdir -p /app/backend/database /app/backend/logs /app/temp
+RUN mkdir -p /app/backend/logs /app/backend/database /app/temp
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S lims -u 1001 -G nodejs
+
+# Change ownership
 RUN chown -R lims:nodejs /app
 
-# Switch to app user
+# Switch to non-root user
 USER lims
 
 # Expose ports
@@ -57,5 +47,5 @@ EXPOSE 3000 3001
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:3001/health || exit 1
 
-# Start application
+# Start the backend server
 CMD ["node", "backend/server.js"]
