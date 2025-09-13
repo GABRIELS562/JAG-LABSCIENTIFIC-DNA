@@ -6,6 +6,7 @@
 const config = require('../config/workflow-config');
 const { logger } = require('../utils/logger');
 const databaseService = require('./database');
+const forensicMetrics = require('./forensicMetricsService');
 
 class EnhancedSampleCycler {
   constructor(db = null) {
@@ -18,9 +19,22 @@ class EnhancedSampleCycler {
       samplesCompleted: 0,
       samplesArchived: 0,
       currentActive: 0,
-      averageThroughput: 0
+      averageThroughput: 0,
+      forensicSamples: 0,
+      integrityVerifications: 0,
+      contaminationEvents: 0
     };
     this.lastStatsUpdate = Date.now();
+    this.initializeForensicTracking();
+  }
+
+  async initializeForensicTracking() {
+    try {
+      await forensicMetrics.initialize();
+      logger.info('Forensic tracking initialized in sample cycler');
+    } catch (error) {
+      logger.error('Failed to initialize forensic tracking', { error: error.message });
+    }
   }
 
   start() {
@@ -90,15 +104,17 @@ class EnhancedSampleCycler {
     const lastName = config.sampleNames.lastNames[Math.floor(Math.random() * config.sampleNames.lastNames.length)];
     const sampleType = this.selectByProbability(config.sampleTypes);
     const caseType = this.selectByProbability(config.caseTypes);
-    
+
+    // Use FOR- prefix for forensic cases
+    const casePrefix = caseType === 'Forensic' ? 'FOR' : 'CASE';
+
     const sample = {
       lab_number: `LAB-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
-      case_number: `CASE-${new Date().getFullYear()}-${Math.floor(Math.random() * 9999).toString().padStart(4, '0')}`,
+      case_number: `${casePrefix}-${new Date().getFullYear()}-${Math.floor(Math.random() * 9999).toString().padStart(4, '0')}`,
       name: firstName,
       surname: lastName,
       relation: this.getRelation(caseType),
       sample_type: sampleType,
-      // case_type: caseType, // Not in PostgreSQL table schema
       collection_date: new Date().toISOString().split('T')[0],
       workflow_status: 'sample_collected',
       status: 'active',
@@ -107,7 +123,9 @@ class EnhancedSampleCycler {
         barcode: `BC${Math.random().toString(36).substr(2, 10).toUpperCase()}`,
         volume: Math.floor(Math.random() * 5 + 1) + 'ml',
         concentration: Math.floor(Math.random() * 100 + 20) + 'ng/ul',
-        quality: Math.random() > 0.1 ? 'good' : 'degraded'
+        quality: Math.random() > 0.1 ? 'good' : 'degraded',
+        case_type: caseType,
+        forensic_priority: caseType === 'Forensic' ? 'high' : 'normal'
       })
     };
 
@@ -132,6 +150,29 @@ class EnhancedSampleCycler {
 
       this.stats.samplesGenerated++;
       this.stats.currentActive++;
+
+      // Track forensic samples and establish chain of custody
+      if (caseType === 'Forensic') {
+        this.stats.forensicSamples++;
+
+        // Record initial chain of custody
+        forensicMetrics.recordCustodyEvent(
+          result.lastID || sample.lab_number,
+          sample.lab_number,
+          'EVIDENCE_COLLECTED',
+          {
+            location: 'Crime Scene / Collection Point',
+            performed_by: 'Evidence Technician',
+            temperature: 4,
+            notes: `${sampleType} sample collected, sealed and labeled`
+          }
+        );
+
+        // Calculate initial integrity hash
+        forensicMetrics.calculateEvidenceIntegrity(result.lastID || sample.lab_number, sample);
+
+        logger.info(`🔬 Forensic sample ${sample.lab_number} created with chain of custody`);
+      }
     } catch (error) {
       logger.error('Failed to insert sample:', error);
     }
@@ -183,30 +224,99 @@ class EnhancedSampleCycler {
 
   progressSample(sampleId, labNumber, nextStage) {
     try {
+      // Check if this is a forensic sample
+      const sample = this.db.prepare(`
+        SELECT metadata, case_number FROM samples WHERE id = ?
+      `).get(sampleId);
+
+      const isForensic = sample?.case_number?.startsWith('FOR-') ||
+                        sample?.metadata?.includes('"case_type":"Forensic"');
+
       // Simulate quality control failures
       if (config.qualityControl.enabled && Math.random() < config.qualityControl.failureRate) {
         const stmt = this.db.prepare(`
-          UPDATE samples 
-          SET status = 'failed', 
+          UPDATE samples
+          SET status = 'failed',
               updated_at = NOW(),
               notes = 'Quality control failure'
           WHERE id = ?
         `);
         stmt.run(sampleId);
+
+        // Record contamination event for forensic samples
+        if (isForensic) {
+          this.stats.contaminationEvents++;
+          forensicMetrics.recordContaminationEvent(
+            sampleId,
+            labNumber,
+            'QC_FAILURE',
+            'medium',
+            {
+              detected_at: nextStage,
+              source: 'Processing error or contamination',
+              remediation: 'Sample marked for reprocessing'
+            }
+          );
+        }
+
         logger.warn(`⚠️ Sample ${labNumber} failed QC at ${nextStage}`);
         return;
       }
 
       const stmt = this.db.prepare(`
-        UPDATE samples 
-        SET workflow_status = ?, 
+        UPDATE samples
+        SET workflow_status = ?,
             updated_at = NOW()
         WHERE id = ?
       `);
-      
+
       stmt.run(nextStage, sampleId);
       this.stats.samplesProgressed++;
-      
+
+      // Record chain of custody for forensic samples
+      if (isForensic) {
+        const stageActions = {
+          'dna_extraction': 'DNA_EXTRACTION',
+          'pcr_ready': 'PCR_PREPARATION',
+          'pcr_batched': 'PCR_BATCHED',
+          'pcr_completed': 'PCR_AMPLIFICATION_COMPLETE',
+          'electro_ready': 'ELECTROPHORESIS_PREPARATION',
+          'electro_completed': 'ELECTROPHORESIS_COMPLETE',
+          'analysis_ready': 'STR_ANALYSIS_INITIATED',
+          'analysis_completed': 'STR_ANALYSIS_COMPLETE',
+          'report_ready': 'REPORT_GENERATION',
+          'report_sent': 'REPORT_FINALIZED'
+        };
+
+        if (stageActions[nextStage]) {
+          forensicMetrics.recordCustodyEvent(
+            sampleId,
+            labNumber,
+            stageActions[nextStage],
+            {
+              location: `Lab Station ${nextStage}`,
+              performed_by: 'Automated System',
+              temperature: nextStage.includes('pcr') ? 95 : 20,
+              notes: `Sample progressed to ${nextStage}`
+            }
+          );
+        }
+
+        // Verify integrity at key stages
+        if (['pcr_completed', 'analysis_completed', 'report_sent'].includes(nextStage)) {
+          this.stats.integrityVerifications++;
+          const verification = forensicMetrics.verifyIntegrity(sampleId, {
+            lab_number: labNumber,
+            workflow_status: nextStage,
+            timestamp: new Date().toISOString()
+          });
+
+          if (!verification.verified) {
+            logger.error(`❌ Integrity verification failed for ${labNumber} at ${nextStage}`);
+          }
+        }
+      }
+
       if (nextStage === 'report_sent') {
         this.stats.samplesCompleted++;
         this.stats.currentActive--;
@@ -332,7 +442,15 @@ class EnhancedSampleCycler {
   }
 
   getStats() {
-    return this.stats;
+    return {
+      ...this.stats,
+      forensicMetrics: {
+        forensicSamples: this.stats.forensicSamples,
+        integrityVerifications: this.stats.integrityVerifications,
+        contaminationEvents: this.stats.contaminationEvents,
+        forensicPercentage: ((this.stats.forensicSamples / Math.max(1, this.stats.samplesGenerated)) * 100).toFixed(1)
+      }
+    };
   }
 }
 
