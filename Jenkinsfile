@@ -10,31 +10,16 @@ pipeline {
         stage('Build & Push') {
             steps {
                 sh '''
-                    docker build -t ${REGISTRY}/${IMAGE}:${BUILD_NUMBER} -f Dockerfile.complete .
-                    docker push ${REGISTRY}/${IMAGE}:${BUILD_NUMBER}
-                    docker tag ${REGISTRY}/${IMAGE}:${BUILD_NUMBER} ${REGISTRY}/${IMAGE}:latest
-                    docker push ${REGISTRY}/${IMAGE}:latest
+                    ssh jaime@192.168.50.100 "cd /home/jaime/JAG-LABSCIENTIFIC-DNA && docker build -t ${REGISTRY}/${IMAGE}:${BUILD_NUMBER} -f Dockerfile.complete . && docker push ${REGISTRY}/${IMAGE}:${BUILD_NUMBER}"
                 '''
             }
         }
         
-        stage('Update Manifest') {
+        stage('Deploy') {
             steps {
                 sh '''
-                    sed -i "s|image: .*|image: ${REGISTRY}/${IMAGE}:${BUILD_NUMBER}|g" k8s-lims-full.yaml
-                    git config user.name "Jenkins"
-                    git config user.email "jenkins@localhost"
-                    git add k8s-lims-full.yaml
-                    git commit -m "Update image to ${BUILD_NUMBER}" || true
-                    git push || true
-                '''
-            }
-        }
-        
-        stage('Sync ArgoCD') {
-            steps {
-                sh '''
-                    kubectl patch application lims-app -n argocd --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
+                    kubectl set image deployment/lims-complete lims-complete=${REGISTRY}/${IMAGE}:${BUILD_NUMBER} -n production || true
+                    kubectl rollout status deployment/lims-complete -n production --timeout=60s || true
                 '''
             }
         }
