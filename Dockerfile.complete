@@ -3,7 +3,10 @@ WORKDIR /app
 RUN apk add --no-cache python3 make g++
 COPY package*.json ./
 RUN npm install --force
+# Install serve globally for production static file serving
+RUN npm install -g serve
 COPY . .
 COPY start-full-app.sh .
+RUN chmod +x start-full-app.sh
 EXPOSE 5173 3001
 CMD ["./start-full-app.sh"]

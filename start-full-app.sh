@@ -1,7 +1,8 @@
 #!/bin/sh
+# Build frontend for production
+npm run build
 # Start backend
 node backend/server.js &
-# Start frontend
-npm run dev -- --host 0.0.0.0 --port 5173 &
-# Keep container running
+# Serve frontend production build
+npx serve -s dist -l 5173 &
 wait

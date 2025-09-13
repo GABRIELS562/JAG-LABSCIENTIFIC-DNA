@@ -15,11 +15,14 @@ RUN npm install --legacy-peer-deps || npm install --force
 # Install backend dependencies separately
 RUN cd backend && npm install --legacy-peer-deps || npm install --force
 
+# Install serve globally for production static file serving
+RUN npm install -g serve
+
 # Copy all source code
 COPY . .
 
-# Build frontend if needed
-RUN npm run build || echo "No build script or build failed, continuing..."
+# Build frontend for production
+RUN npm run build
 
 # Create necessary directories
 RUN mkdir -p /app/backend/logs /app/backend/database /app/temp
@@ -37,13 +40,13 @@ USER lims
 # Expose both frontend (5173) and backend (3001) ports
 EXPOSE 5173 3001
 
-# Create start script that runs both services
+# Create start script that runs both services in production mode
 RUN echo '#!/bin/bash' > start.sh && \
     echo 'echo "Starting JAG DNA Scientific LIMS..."' >> start.sh && \
     echo 'echo "Backend starting on port 3001..."' >> start.sh && \
     echo 'node backend/server.js &' >> start.sh && \
-    echo 'echo "Frontend dev server starting on port 5173..."' >> start.sh && \
-    echo 'npm run dev -- --host 0.0.0.0 --port 5173 &' >> start.sh && \
+    echo 'echo "Frontend production server starting on port 5173..."' >> start.sh && \
+    echo 'npx serve -s dist -l 5173 &' >> start.sh && \
     echo 'echo "Both services started. Waiting..."' >> start.sh && \
     echo 'wait' >> start.sh && \
     chmod +x start.sh
