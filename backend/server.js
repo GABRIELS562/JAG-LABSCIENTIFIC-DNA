@@ -21,6 +21,8 @@ const performanceRoutes = require('./routes/performance');
 const SampleGenerator = require('./services/sample-generator');
 const prometheusMetrics = require('./middleware/prometheus');
 const EnhancedSampleCycler = require('./services/enhanced-sample-cycler');
+const forensicMetricsService = require('./services/forensicMetricsService');
+const devopsMetricsService = require('./services/devopsMetricsService');
 
 // Import routes
 const apiRoutes = require("./routes/api");
@@ -1220,6 +1222,63 @@ placeholderEndpoints.forEach(endpoint => {
 });
 
 // DevOps endpoints
+
+// Forensic metrics endpoint
+app.get('/api/forensic-metrics', async (req, res) => {
+  try {
+    // Initialize forensic metrics service if needed
+    await forensicMetricsService.initialize();
+
+    const metrics = await forensicMetricsService.getForensicMetrics();
+    ResponseHandler.success(res, metrics, 'Forensic metrics retrieved successfully');
+  } catch (error) {
+    logger.error('Failed to get forensic metrics', { error: error.message });
+    ResponseHandler.error(res, 'Failed to get forensic metrics', error);
+  }
+});
+
+// DevOps metrics endpoint
+app.get('/api/devops-metrics', async (req, res) => {
+  try {
+    // Initialize DevOps metrics service if needed
+    await devopsMetricsService.initialize();
+
+    const metrics = await devopsMetricsService.getDevOpsMetrics();
+    ResponseHandler.success(res, metrics, 'DevOps metrics retrieved successfully');
+  } catch (error) {
+    logger.error('Failed to get DevOps metrics', { error: error.message });
+    ResponseHandler.error(res, 'Failed to get DevOps metrics', error);
+  }
+});
+
+// Historical DevOps metrics endpoint
+app.get('/api/devops-metrics/history/:hours', async (req, res) => {
+  try {
+    const hours = parseInt(req.params.hours) || 24;
+    const history = await devopsMetricsService.getHistoricalMetrics(hours);
+    ResponseHandler.success(res, history, `Historical metrics for last ${hours} hours`);
+  } catch (error) {
+    logger.error('Failed to get historical metrics', { error: error.message });
+    ResponseHandler.error(res, 'Failed to get historical metrics', error);
+  }
+});
+
+// Forensic sample metrics endpoint
+app.get('/api/forensic-metrics/sample/:sampleId', async (req, res) => {
+  try {
+    const { sampleId } = req.params;
+    const metrics = await forensicMetricsService.getSampleForensicMetrics(sampleId);
+
+    if (!metrics) {
+      return ResponseHandler.error(res, 'Sample not found or no forensic data available', null, 404);
+    }
+
+    ResponseHandler.success(res, metrics, `Forensic metrics for sample ${sampleId}`);
+  } catch (error) {
+    logger.error('Failed to get sample forensic metrics', { error: error.message });
+    ResponseHandler.error(res, 'Failed to get sample forensic metrics', error);
+  }
+});
 
 // Prometheus metrics endpoint
 app.get('/metrics', async (req, res) => {
