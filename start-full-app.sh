@@ -1,6 +1,4 @@
 #!/bin/sh
-# Build frontend for production
-npm run build
 # Start backend
 node backend/server.js &
 # Serve frontend production build
