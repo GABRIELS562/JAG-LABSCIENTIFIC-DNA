@@ -6,6 +6,8 @@ RUN npm install --force
 # Install serve globally for production static file serving
 RUN npm install -g serve
 COPY . .
+# Build frontend for production
+RUN npm run build
 COPY start-full-app.sh .
 RUN chmod +x start-full-app.sh
 EXPOSE 5173 3001
