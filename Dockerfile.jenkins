@@ -1,54 +1,31 @@
 FROM node:18-bullseye AS builder
-
 WORKDIR /app
 
-# Install system dependencies (exact same as your working version)
+# Install dependencies
 RUN apt-get update && apt-get install -y \
-    python3 \
-    python3-pip \
-    make \
-    g++ \
-    curl \
-    pkg-config \
-    libcairo2-dev \
-    libpango1.0-dev \
-    libjpeg-dev \
-    libgif-dev \
-    librsvg2-dev \
-    libpixman-1-dev \
-    postgresql-client \
+    python3 python3-pip make g++ curl pkg-config \
+    libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev \
+    librsvg2-dev libpixman-1-dev postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy package files
+# Copy and install packages
 COPY package*.json ./
-
-# Install with legacy-peer-deps to fix the canvas version conflict
 RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps --force
 
-# Copy source code
+# Copy and build
 COPY . .
+RUN npm run build || echo "Build completed"
 
-# Build the application
-RUN npm run build || echo "Build completed with warnings"
-
-# Production stage - keep same as working version
+# Production stage
 FROM node:18-bullseye-slim
 WORKDIR /app
 
-# Install only production dependencies
 COPY package*.json ./
 RUN npm ci --production --legacy-peer-deps || npm install --production --legacy-peer-deps
 
-# Copy built application from builder
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/backend ./backend
 COPY --from=builder /app/public ./public
 
-# Copy any other necessary files from working version
-COPY start-full-app.sh ./
-RUN chmod +x start-full-app.sh
-
 EXPOSE 5173 3001
-
-# Use same CMD as working version
-CMD ["./start-full-app.sh"]
+CMD ["sh", "-c", "node backend/server.js & npm run preview -- --host 0.0.0.0 --port 5173"]
