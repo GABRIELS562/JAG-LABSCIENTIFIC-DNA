@@ -5,8 +5,8 @@ COPY package*.json ./
 RUN npm install --force
 COPY . .
 # Copy production environment configuration
-COPY .env.production .env.production
-COPY .env.production .env
+# Use the example file and rename it to .env for production
+COPY .env.production.example .env
 # Build frontend for production with empty VITE_API_URL for relative paths
 RUN VITE_API_URL="" npm run build
 # Verify build output
