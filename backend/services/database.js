@@ -1,8 +1,13 @@
-// Complete LIMS database service with PostgreSQL/SQLite fallback
+// Complete LIMS database service with PostgreSQL connection pooling
+const logger = require('../utils/logger');
+
 let pool = null;
 let Database = null;
 let db = null;
 let databaseType = 'postgresql';
+let isConnected = false;
+let connectionRetries = 0;
+const MAX_RETRIES = 5;
 
 // Try to load PostgreSQL, fallback to SQLite
 try {
@@ -19,7 +24,7 @@ try {
   console.log('SQLite not available');
 }
 
-// Database configuration
+// Database configuration with environment variables
 function getDbHost() {
   // In Kubernetes, use the service name
   if (process.env.KUBERNETES_SERVICE_HOST) {
@@ -31,98 +36,143 @@ function getDbHost() {
 
 const config = {
   host: getDbHost(),
-  port: process.env.DB_PORT || process.env.POSTGRES_PORT || 5432,
+  port: parseInt(process.env.DB_PORT || process.env.POSTGRES_PORT || 5432),
   database: process.env.DB_NAME || process.env.POSTGRES_DB || 'limsdb',
   user: process.env.DB_USER || process.env.POSTGRES_USER || 'lims_user',
   password: process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD || 'lims2024secure',
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  max: 20, // connection pool size
+  idleTimeoutMillis: 30000, // close idle connections after 30 seconds
+  connectionTimeoutMillis: 5000, // 5 second connection timeout
+  acquireTimeoutMillis: 10000, // 10 second acquire timeout
+  createTimeoutMillis: 5000, // 5 second create timeout
+  destroyTimeoutMillis: 5000, // 5 second destroy timeout
+  reapIntervalMillis: 1000, // cleanup interval
+  createRetryIntervalMillis: 200, // retry interval
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000
 };
 
 // Global lab number counter
 let labNumberCounter = 1000;
 
-// Initialize database connection
-function initializeConnection() {
+// Exponential backoff for retries
+function getBackoffDelay(attempt) {
+  return Math.min(1000 * Math.pow(2, attempt), 30000); // Cap at 30 seconds
+}
+
+// Initialize database connection with retry logic
+async function initializeConnection() {
   // Try PostgreSQL first
   if (module.exports.Pool) {
-    try {
-      pool = new module.exports.Pool(config);
-      databaseType = 'postgresql';
-      return pool;
-    } catch (error) {
-      console.warn('PostgreSQL failed, falling back to SQLite:', error.message);
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        pool = new module.exports.Pool(config);
+
+        // Set up connection error handlers
+        pool.on('error', (err) => {
+          logger.error('PostgreSQL pool error', { error: err.message, code: err.code });
+          isConnected = false;
+        });
+
+        pool.on('connect', () => {
+          logger.info('PostgreSQL client connected');
+          isConnected = true;
+          connectionRetries = 0;
+        });
+
+        pool.on('remove', () => {
+          logger.info('PostgreSQL client removed from pool');
+        });
+
+        // Test the connection
+        const client = await pool.connect();
+        await client.query('SELECT 1');
+        client.release();
+
+        databaseType = 'postgresql';
+        isConnected = true;
+        logger.info('PostgreSQL connection pool initialized successfully');
+        return pool;
+      } catch (error) {
+        connectionRetries = attempt + 1;
+        logger.warn(`PostgreSQL connection attempt ${attempt + 1} failed`, {
+          error: error.message,
+          code: error.code,
+          host: config.host,
+          port: config.port,
+          database: config.database
+        });
+
+        if (attempt < MAX_RETRIES - 1) {
+          const delay = getBackoffDelay(attempt);
+          logger.info(`Retrying PostgreSQL connection in ${delay}ms`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        } else {
+          logger.error('PostgreSQL connection failed after all retries, falling back to SQLite');
+        }
+      }
     }
   }
-  
+
   // Fallback to SQLite
   if (Database) {
     try {
       const dbPath = require('path').join(__dirname, '../database.db');
       db = new Database(dbPath);
       databaseType = 'sqlite';
-      console.log('Using SQLite database:', dbPath);
+      isConnected = true;
+      logger.info('Using SQLite database fallback', { path: dbPath });
       return db;
     } catch (error) {
-      console.error('SQLite also failed:', error.message);
+      logger.error('SQLite fallback also failed', { error: error.message });
     }
   }
-  
+
   throw new Error('No database available (neither PostgreSQL nor SQLite)');
 }
 
 // Initialize connection and tables
 async function initialize() {
   try {
-    initializeConnection();
-    
+    await initializeConnection();
+
     if (databaseType === 'postgresql') {
-      // Test PostgreSQL connection
-      const client = await pool.connect();
-      await client.query('SELECT 1');
-      client.release();
-      console.log(`✅ PostgreSQL connected to ${config.host}:${config.port}/${config.database}`);
+      logger.info(`PostgreSQL connected successfully`, {
+        host: config.host,
+        port: config.port,
+        database: config.database,
+        ssl: !!config.ssl
+      });
 
       // Ensure database schema is correct on every startup
       try {
         const { initializeDatabase } = require('../utils/ensureDatabase');
         await initializeDatabase(pool);
       } catch (schemaError) {
-        console.warn('⚠️  Schema initialization warning:', schemaError.message);
+        logger.warn('Schema initialization warning', { error: schemaError.message });
         // Continue even if schema initialization has issues
       }
     } else {
       // Test SQLite connection
       db.prepare('SELECT 1').get();
-      console.log('✅ SQLite database connected');
+      logger.info('SQLite database connected successfully');
     }
-    
+
     // Initialize tables
     await initializeTables();
-    
+
     return true;
   } catch (error) {
-    console.error('Database initialization error:', error);
-    
-    // Try fallback if PostgreSQL failed
-    if (databaseType === 'postgresql') {
-      console.log('Attempting SQLite fallback...');
-      try {
-        if (Database) {
-          const dbPath = require('path').join(__dirname, '../database.db');
-          db = new Database(dbPath);
-          databaseType = 'sqlite';
-          console.log('✅ Fallback to SQLite successful');
-          await initializeTables();
-          return true;
-        }
-      } catch (fallbackError) {
-        console.error('SQLite fallback also failed:', fallbackError);
-      }
-    }
-    
-    throw error;
+    logger.error('Database initialization failed', {
+      error: error.message,
+      databaseType,
+      retries: connectionRetries
+    });
+
+    // Don't throw error - allow app to start with limited functionality
+    isConnected = false;
+    return false;
   }
 }
 
@@ -612,9 +662,23 @@ function convertSqlToPostgreSQL(sql) {
 
 // Helper methods that work with both PostgreSQL and SQLite
 async function query(text, params = []) {
+  if (!isConnected) {
+    throw new Error('Database not connected');
+  }
+
   if (databaseType === 'postgresql') {
-    const pgSql = convertSqlToPostgreSQL(text);
-    return await pool.query(pgSql, params);
+    try {
+      const pgSql = convertSqlToPostgreSQL(text);
+      return await pool.query(pgSql, params);
+    } catch (error) {
+      // Handle connection errors gracefully
+      if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || error.code === 'ENOTFOUND') {
+        isConnected = false;
+        logger.error('Database connection lost', { error: error.message, code: error.code });
+        throw new Error('Database connection unavailable');
+      }
+      throw error;
+    }
   } else {
     // Convert PostgreSQL placeholders to SQLite
     let sqliteQuery = text;
@@ -628,30 +692,50 @@ async function query(text, params = []) {
 }
 
 async function get(text, params = []) {
-  if (databaseType === 'postgresql') {
-    const result = await query(text, params);
-    return result.rows[0] || null;
-  } else {
-    let sqliteQuery = text;
-    params.forEach((param, index) => {
-      sqliteQuery = sqliteQuery.replace(`$${index + 1}`, '?');
-    });
-    const stmt = db.prepare(sqliteQuery);
-    return stmt.get(...params) || null;
+  if (!isConnected) {
+    logger.warn('Database not connected, returning null');
+    return null;
+  }
+
+  try {
+    if (databaseType === 'postgresql') {
+      const result = await query(text, params);
+      return result.rows[0] || null;
+    } else {
+      let sqliteQuery = text;
+      params.forEach((param, index) => {
+        sqliteQuery = sqliteQuery.replace(`$${index + 1}`, '?');
+      });
+      const stmt = db.prepare(sqliteQuery);
+      return stmt.get(...params) || null;
+    }
+  } catch (error) {
+    logger.error('Database get error', { error: error.message, query: text.substring(0, 100) });
+    return null;
   }
 }
 
 async function all(text, params = []) {
-  if (databaseType === 'postgresql') {
-    const result = await query(text, params);
-    return result.rows;
-  } else {
-    let sqliteQuery = text;
-    params.forEach((param, index) => {
-      sqliteQuery = sqliteQuery.replace(`$${index + 1}`, '?');
-    });
-    const stmt = db.prepare(sqliteQuery);
-    return stmt.all(...params);
+  if (!isConnected) {
+    logger.warn('Database not connected, returning empty array');
+    return [];
+  }
+
+  try {
+    if (databaseType === 'postgresql') {
+      const result = await query(text, params);
+      return result.rows;
+    } else {
+      let sqliteQuery = text;
+      params.forEach((param, index) => {
+        sqliteQuery = sqliteQuery.replace(`$${index + 1}`, '?');
+      });
+      const stmt = db.prepare(sqliteQuery);
+      return stmt.all(...params);
+    }
+  } catch (error) {
+    logger.error('Database all error', { error: error.message, query: text.substring(0, 100) });
+    return [];
   }
 }
 
@@ -798,31 +882,48 @@ function prepare(sql) {
   };
 }
 
-// Health check
+// Health check - basic health without database dependency
 async function getHealthCheck() {
+  return {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  };
+}
+
+// Ready check - includes database connectivity
+async function getReadyCheck() {
   try {
     if (databaseType === 'postgresql') {
+      if (!pool) {
+        throw new Error('Connection pool not initialized');
+      }
       await pool.query('SELECT 1');
       return {
-        status: 'healthy',
+        status: 'ready',
         connected: true,
         database: 'postgresql',
-        host: getDbHost()
+        host: getDbHost(),
+        poolSize: pool.totalCount,
+        idleConnections: pool.idleCount
       };
-    } else {
+    } else if (db) {
       db.prepare('SELECT 1').get();
       return {
-        status: 'healthy',
+        status: 'ready',
         connected: true,
         database: 'sqlite',
         path: require('path').join(__dirname, '../database.db')
       };
+    } else {
+      throw new Error('No database connection available');
     }
   } catch (error) {
     return {
-      status: 'unhealthy',
+      status: 'not_ready',
       connected: false,
-      error: error.message
+      error: error.message,
+      database: databaseType
     };
   }
 }
@@ -1294,14 +1395,19 @@ async function getStatistics() {
   }
 }
 
-// Close connection
+// Close connection gracefully
 async function close() {
-  if (databaseType === 'postgresql' && pool) {
-    await pool.end();
-    console.log('PostgreSQL connection closed');
-  } else if (databaseType === 'sqlite' && db) {
-    db.close();
-    console.log('SQLite connection closed');
+  try {
+    if (databaseType === 'postgresql' && pool) {
+      await pool.end();
+      logger.info('PostgreSQL connection pool closed');
+    } else if (databaseType === 'sqlite' && db) {
+      db.close();
+      logger.info('SQLite connection closed');
+    }
+    isConnected = false;
+  } catch (error) {
+    logger.error('Error closing database connection', { error: error.message });
   }
 }
 
@@ -1323,9 +1429,13 @@ module.exports = {
   rollback,
   transaction,
   getHealthCheck,
+  getReadyCheck,
   getStatistics,
   close,
   initialize: () => initPromise,
+  isConnected: () => isConnected,
+  getDatabaseType: () => databaseType,
+  getConnectionInfo: () => ({ type: databaseType, connected: isConnected, config: { host: config.host, port: config.port, database: config.database } }),
   
   // LIMS-specific methods
   generateLabNumber,

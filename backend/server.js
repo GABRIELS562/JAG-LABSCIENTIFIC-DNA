@@ -51,24 +51,31 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
 
-// Initialize PostgreSQL database connection
+// Initialize PostgreSQL database connection with graceful error handling
 let db = null;
 let dbPool = null;
 const databaseService = require('./services/database');
 
-// Wait for database to initialize
+// Database initialization with graceful degradation
 (async () => {
   try {
-    await databaseService.initialize();
-    db = databaseService;
-    dbPool = databaseService.pool;
-    
-    logger.info('PostgreSQL database initialized successfully');
-    console.log(`✅ PostgreSQL database connected successfully`);
+    const initialized = await databaseService.initialize();
+    if (initialized) {
+      db = databaseService;
+      dbPool = databaseService.pool;
+      logger.info('Database initialized successfully', {
+        type: databaseService.getDatabaseType(),
+        connected: databaseService.isConnected()
+      });
+      console.log(`✅ Database connected successfully (${databaseService.getDatabaseType()})`);
+    } else {
+      logger.warn('Database initialization failed, running with limited functionality');
+      console.log('⚠️  Database not available, running with limited functionality');
+    }
   } catch (error) {
-    logger.error('Database initialization failed', { error: error.message });
-    console.error('❌ Database initialization failed:', error);
-    // Don't exit immediately, allow app to start with limited functionality
+    logger.error('Database initialization error', { error: error.message });
+    console.error('❌ Database initialization error:', error.message);
+    // Continue without database - app will serve static files and return 503 for API calls
   }
 })();
 
@@ -88,15 +95,42 @@ memoryManager.initialize({
 // Trust proxy for accurate client IP
 app.set('trust proxy', 1);
 
-// Configure CORS
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? process.env.FRONTEND_URL
-    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
+// Configure CORS for production
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, postman, etc.)
+    if (!origin) return callback(null, true);
+
+    const allowedOrigins = process.env.NODE_ENV === 'production'
+      ? [
+          process.env.FRONTEND_URL || 'https://lims.jagdevops.co.za',
+          'https://lims.jagdevops.co.za',
+          'http://localhost:3000', // For local testing
+        ]
+      : [
+          'http://localhost:5173',
+          'http://localhost:5174',
+          'http://localhost:3000',
+          'http://127.0.0.1:5173',
+          'http://127.0.0.1:5174',
+          'https://lims.jagdevops.co.za'
+        ];
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      logger.warn('CORS origin not allowed', { origin, allowed: allowedOrigins });
+      callback(null, true); // Allow in development, log warning
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-API-Key'],
+  exposedHeaders: ['X-Total-Count'],
+  maxAge: 86400 // Cache preflight response for 24 hours
+};
+
+app.use(cors(corsOptions));
 
 // Serve static files from the dist directory in production
 if (process.env.NODE_ENV === 'production' || process.env.SERVE_STATIC === 'true') {
@@ -131,8 +165,14 @@ const { memoryMonitor } = require('./middleware/memoryMonitor');
 app.use(metricsMiddleware);
 // app.use(sanitizeInput); // TODO: Fix sanitizeInput middleware
 
-// Database helper functions
+// Database helper functions with connection checking
 async function getSamplesWithPagination(page = 1, limit = 50, filters = {}) {
+  // Check database connection before proceeding
+  if (!databaseService.isConnected()) {
+    logger.warn('Database not connected, returning empty results');
+    return { data: [], pagination: { page: 1, limit, total: 0, pages: 0 } };
+  }
+
   try {
     // Validate and sanitize inputs
     page = Math.max(1, parseInt(page) || 1);
@@ -229,6 +269,11 @@ const sampleCountsCache = new LRUCache({
 });
 
 async function getSampleCounts() {
+  // Check database connection
+  if (!databaseService.isConnected()) {
+    return { total: 0, active: 0, pending: 0, pcrBatched: 0, electroBatched: 0, rerunBatched: 0, completed: 0, processing: 0 };
+  }
+
   try {
     const cacheKey = 'sample_counts';
 
@@ -270,6 +315,11 @@ async function getSampleCounts() {
 }
 
 async function createSample(sampleData) {
+  // Check database connection
+  if (!databaseService.isConnected()) {
+    throw new Error('Database not available - cannot create sample');
+  }
+
   try {
     // Validate required fields
     if (!sampleData.lab_number || !sampleData.name || !sampleData.surname) {
@@ -333,17 +383,64 @@ try {
   logger.warn('Some routes not available, using fallback endpoints', { error: error.message });
 }
 
+// Health endpoint - always returns 200 OK without database check
+app.get('/health', (req, res) => {
+  const healthCheck = databaseService.getHealthCheck();
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    version: process.env.npm_package_version || '3.0.0',
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Ready endpoint - returns 200 only if database is connected
+app.get('/ready', async (req, res) => {
+  try {
+    const readyCheck = await databaseService.getReadyCheck();
+    if (readyCheck.status === 'ready') {
+      res.status(200).json(readyCheck);
+    } else {
+      res.status(503).json({
+        status: 'not_ready',
+        error: 'Database not available',
+        details: readyCheck
+      });
+    }
+  } catch (error) {
+    res.status(503).json({
+      status: 'not_ready',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Core API endpoints with database integration
 app.get("/api/test", (req, res) => {
   ResponseHandler.success(res, {
     message: "Backend server is running",
     timestamp: new Date().toISOString(),
-    database: db ? 'connected' : 'disconnected'
+    database: databaseService.isConnected() ? 'connected' : 'disconnected',
+    databaseType: databaseService.getDatabaseType()
   });
 });
 
+// Middleware to check database connection for API endpoints
+function requireDatabase(req, res, next) {
+  if (!databaseService.isConnected()) {
+    return res.status(503).json({
+      error: 'Service Unavailable',
+      message: 'Database connection not available',
+      timestamp: new Date().toISOString()
+    });
+  }
+  next();
+}
+
 // Samples endpoints with streaming support
-app.get("/api/samples", async (req, res) => {
+app.get("/api/samples", requireDatabase, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(100, parseInt(req.query.limit) || 50); // Cap limit
@@ -378,7 +475,7 @@ app.get("/api/samples", async (req, res) => {
   }
 });
 
-app.get("/api/samples/all", async (req, res) => {
+app.get("/api/samples/all", requireDatabase, async (req, res) => {
   try {
     const query = `
       SELECT
@@ -395,7 +492,7 @@ app.get("/api/samples/all", async (req, res) => {
   }
 });
 
-app.post("/api/samples", async (req, res) => {
+app.post("/api/samples", requireDatabase, async (req, res) => {
   try {
     const newSample = await createSample(req.body);
     ResponseHandler.success(res, newSample, 'Sample created successfully', 201);
@@ -405,7 +502,7 @@ app.post("/api/samples", async (req, res) => {
   }
 });
 
-app.get("/api/samples/counts", async (req, res) => {
+app.get("/api/samples/counts", requireDatabase, async (req, res) => {
   try {
     const counts = await getSampleCounts();
     ResponseHandler.success(res, counts);
@@ -414,7 +511,7 @@ app.get("/api/samples/counts", async (req, res) => {
   }
 });
 
-app.get("/api/samples/queue-counts", async (req, res) => {
+app.get("/api/samples/queue-counts", requireDatabase, async (req, res) => {
   try {
     const counts = await getSampleCounts();
     ResponseHandler.success(res, counts);
@@ -423,7 +520,7 @@ app.get("/api/samples/queue-counts", async (req, res) => {
   }
 });
 
-app.get("/api/samples/queue/:queueType", async (req, res) => {
+app.get("/api/samples/queue/:queueType", requireDatabase, async (req, res) => {
   try {
     const { queueType } = req.params;
     const validQueues = ['extraction_ready', 'extraction_batched', 'extraction_completed', 'pcr_ready', 'pcr_batched', 'electro_ready', 'electro_batched', 'analysis_ready', 'completed'];
@@ -484,7 +581,7 @@ app.get("/api/samples/queue/:queueType", async (req, res) => {
   }
 });
 
-app.get("/api/samples/search", async (req, res) => {
+app.get("/api/samples/search", requireDatabase, async (req, res) => {
   try {
     const query = req.query.q;
     if (!query) {
@@ -511,7 +608,7 @@ app.get("/api/samples/search", async (req, res) => {
 });
 
 // Batch endpoints
-app.post("/api/generate-batch", async (req, res) => {
+app.post("/api/generate-batch", requireDatabase, async (req, res) => {
   try {
     const { batchNumber, operator, wells, sampleCount, date, batchType } = req.body;
 
@@ -631,7 +728,7 @@ app.post("/api/generate-batch", async (req, res) => {
   }
 });
 
-app.get("/api/batches", async (req, res) => {
+app.get("/api/batches", requireDatabase, async (req, res) => {
   try {
     const batches = await databaseService.getAllBatches();
 
@@ -649,7 +746,7 @@ app.get("/api/batches", async (req, res) => {
   }
 });
 
-app.get("/api/batches/:id", async (req, res) => {
+app.get("/api/batches/:id", requireDatabase, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -677,7 +774,7 @@ app.get("/api/batches/:id", async (req, res) => {
 });
 
 // Statistics endpoint for optimized data loading
-app.get("/api/statistics", async (req, res) => {
+app.get("/api/statistics", requireDatabase, async (req, res) => {
   try {
     const { period = 'all' } = req.query;
 
@@ -762,7 +859,7 @@ app.get("/api/statistics", async (req, res) => {
 });
 
 // Legacy API endpoints for compatibility
-app.get("/api/get-last-lab-number", async (req, res) => {
+app.get("/api/get-last-lab-number", requireDatabase, async (req, res) => {
   try {
     const query = 'SELECT lab_number FROM samples ORDER BY id DESC LIMIT 1';
     const result = await databaseService.get(query, []);
@@ -772,7 +869,7 @@ app.get("/api/get-last-lab-number", async (req, res) => {
   }
 });
 
-app.get("/api/test-cases", async (req, res) => {
+app.get("/api/test-cases", requireDatabase, async (req, res) => {
   try {
     const query = 'SELECT * FROM test_cases ORDER BY id DESC LIMIT 100';
     const testCases = await databaseService.all(query, []);
@@ -782,7 +879,7 @@ app.get("/api/test-cases", async (req, res) => {
   }
 });
 
-app.post("/api/test-cases", async (req, res) => {
+app.post("/api/test-cases", requireDatabase, async (req, res) => {
   try {
     const {
       case_number,
@@ -831,7 +928,7 @@ app.post("/api/test-cases", async (req, res) => {
   }
 });
 
-app.post("/api/refresh-database", async (req, res) => {
+app.post("/api/refresh-database", requireDatabase, async (req, res) => {
   try {
     const counts = await getSampleCounts();
     ResponseHandler.success(res, {
@@ -852,7 +949,7 @@ app.post("/api/refresh-database", async (req, res) => {
 });
 
 // Electrophoresis batches endpoint
-app.get("/api/electrophoresis-batches", async (req, res) => {
+app.get("/api/electrophoresis-batches", requireDatabase, async (req, res) => {
   try {
     const query = `
       SELECT
@@ -876,7 +973,7 @@ app.get("/api/electrophoresis-batches", async (req, res) => {
 });
 
 // Workflow stats endpoint
-app.get("/api/workflow-stats", async (req, res) => {
+app.get("/api/workflow-stats", requireDatabase, async (req, res) => {
   try {
     const counts = await getSampleCounts();
     ResponseHandler.success(res, {
@@ -901,7 +998,7 @@ app.get("/api/workflow-stats", async (req, res) => {
 });
 
 // General workflow status endpoint - for dashboard compatibility
-app.get("/api/workflow-status", async (req, res) => {
+app.get("/api/workflow-status", requireDatabase, async (req, res) => {
   try {
     const counts = await getSampleCounts();
     ResponseHandler.success(res, {
@@ -929,7 +1026,7 @@ app.get("/api/workflow-status", async (req, res) => {
 // DNA Extraction API Endpoints
 
 // Get DNA extraction batches
-app.get("/api/extraction/batches", async (req, res) => {
+app.get("/api/extraction/batches", requireDatabase, async (req, res) => {
   try {
     const query = `
       SELECT
@@ -956,7 +1053,7 @@ app.get("/api/extraction/batches", async (req, res) => {
 });
 
 // Get specific extraction batch
-app.get("/api/extraction/batches/:id", async (req, res) => {
+app.get("/api/extraction/batches/:id", requireDatabase, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -986,7 +1083,7 @@ app.get("/api/extraction/batches/:id", async (req, res) => {
 });
 
 // Create new extraction batch
-app.post("/api/extraction/create-batch", async (req, res) => {
+app.post("/api/extraction/create-batch", requireDatabase, async (req, res) => {
   try {
     const {
       batchNumber, operator, extractionDate, extractionMethod,
@@ -1089,7 +1186,7 @@ app.post("/api/extraction/create-batch", async (req, res) => {
 });
 
 // Add quantification results
-app.post("/api/extraction/quantification", async (req, res) => {
+app.post("/api/extraction/quantification", requireDatabase, async (req, res) => {
   try {
     const {
       extractionBatchId, sampleId, wellPosition,
@@ -1138,7 +1235,7 @@ app.post("/api/extraction/quantification", async (req, res) => {
 });
 
 // Complete extraction batch
-app.put("/api/extraction/complete-batch", async (req, res) => {
+app.put("/api/extraction/complete-batch", requireDatabase, async (req, res) => {
   try {
     const { batchId, qualityControlPassed, notes } = req.body;
 
@@ -1173,7 +1270,7 @@ app.put("/api/extraction/complete-batch", async (req, res) => {
 });
 
 // Get extraction results for a batch
-app.get("/api/extraction/:batchId/results", async (req, res) => {
+app.get("/api/extraction/:batchId/results", requireDatabase, async (req, res) => {
   try {
     const { batchId } = req.params;
 
@@ -1194,7 +1291,7 @@ app.get("/api/extraction/:batchId/results", async (req, res) => {
 });
 
 // Get samples ready for extraction
-app.get("/api/extraction/samples-ready", async (req, res) => {
+app.get("/api/extraction/samples-ready", requireDatabase, async (req, res) => {
   try {
     const query = `
       SELECT
@@ -1302,10 +1399,35 @@ app.get('/metrics', async (req, res) => {
   }
 });
 
-// Kubernetes health probes
-app.get('/health', healthCheckService.healthMiddleware());
-app.get('/health/live', healthCheckService.livenessMiddleware());
-app.get('/health/ready', healthCheckService.readinessMiddleware());
+// Additional Kubernetes health probes
+app.get('/health/live', (req, res) => {
+  res.status(200).json({
+    status: 'alive',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+app.get('/health/ready', async (req, res) => {
+  try {
+    const readyCheck = await databaseService.getReadyCheck();
+    if (readyCheck.status === 'ready') {
+      res.status(200).json(readyCheck);
+    } else {
+      res.status(503).json({
+        status: 'not_ready',
+        error: 'Database not available',
+        details: readyCheck
+      });
+    }
+  } catch (error) {
+    res.status(503).json({
+      status: 'not_ready',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 
 // Performance and load testing routes
 app.use('/performance', performanceRoutes);
@@ -1941,7 +2063,7 @@ app.get("/", (req, res) => {
 });
 
 // Workflow stages endpoint for dashboard
-app.get('/api/workflow-stages', async (req, res) => {
+app.get('/api/workflow-stages', requireDatabase, async (req, res) => {
   try {
     const query = `
       SELECT
@@ -1962,7 +2084,7 @@ app.get('/api/workflow-stages', async (req, res) => {
     const samples = await databaseService.all(query, []);
     res.json(samples);
   } catch (error) {
-    console.error('Error fetching workflow stages:', error);
+    logger.error('Error fetching workflow stages', { error: error.message });
     res.status(500).json({ error: 'Failed to fetch workflow stages' });
   }
 });
@@ -1982,12 +2104,21 @@ app.get('/api/simulated-stages', (req, res) => {
       res.json({ timestamp: new Date().toISOString(), samples: [] });
     }
   } catch (error) {
-    console.error('Error reading simulated stages:', error);
+    logger.error('Error reading simulated stages', { error: error.message });
     res.json({ timestamp: new Date().toISOString(), samples: [] });
   }
 });
 
-// Handle 404 errors
+// Global 404 handler for API routes
+app.use('/api/*', (req, res) => {
+  logger.warn('API route not found', { url: req.originalUrl, method: req.method });
+  res.status(404).json({
+    error: 'Not Found',
+    message: `API endpoint ${req.originalUrl} not found`,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Catch-all route to serve index.html for client-side routing in production
 app.use('*', (req, res) => {
   if (process.env.NODE_ENV === 'production' || process.env.SERVE_STATIC === 'true') {
@@ -1995,42 +2126,65 @@ app.use('*', (req, res) => {
     if (fs.existsSync(indexPath)) {
       res.sendFile(indexPath);
     } else {
-      ResponseHandler.notFound(res, `Route ${req.originalUrl} not found - production build not found`);
+      logger.warn('Production build not found', { path: indexPath });
+      res.status(404).json({
+        error: 'Not Found',
+        message: 'Frontend build not available',
+        timestamp: new Date().toISOString()
+      });
     }
   } else {
-    ResponseHandler.notFound(res, `Route ${req.originalUrl} not found`);
+    logger.warn('Route not found', { url: req.originalUrl });
+    res.status(404).json({
+      error: 'Not Found',
+      message: `Route ${req.originalUrl} not found`,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
-// Removed error monitoring middleware
+// Removed duplicate catch-all route
 
-// Catch-all route for client-side routing (must be before error handler)
-// This serves the React app for any routes not handled by the API
-if (process.env.NODE_ENV === 'production' || process.env.SERVE_STATIC === 'true') {
-  app.get('*', (req, res) => {
-    // Don't serve index.html for API routes
-    if (req.path.startsWith('/api')) {
-      return res.status(404).json({ error: 'API endpoint not found' });
-    }
-    res.sendFile(path.join(__dirname, '../dist/index.html'));
-  });
-}
+// Custom error middleware for database errors
+app.use((err, req, res, next) => {
+  // Database connection errors
+  if (err.message && err.message.includes('Database connection unavailable')) {
+    logger.error('Database connection error in middleware', {
+      error: err.message,
+      url: req.url,
+      method: req.method
+    });
+    return res.status(503).json({
+      error: 'Service Unavailable',
+      message: 'Database temporarily unavailable',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // PostgreSQL specific errors
+  if (err.code === 'ECONNREFUSED' || err.code === 'ETIMEDOUT' || err.code === 'ENOTFOUND') {
+    logger.error('PostgreSQL connection error', {
+      error: err.message,
+      code: err.code,
+      url: req.url
+    });
+    return res.status(503).json({
+      error: 'Service Unavailable',
+      message: 'Database connection failed',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Pass to global error handler
+  next(err);
+});
 
 // Global error handler (must be last)
 app.use(globalErrorHandler);
 
 const port = process.env.PORT || 3001;
 
-// Database service initialization
-(async () => {
-  try {
-    await databaseService.initialize();
-    logger.info('Database service initialized successfully');
-  } catch (error) {
-    logger.error('Failed to initialize database service', { error: error.message });
-    // Continue anyway - the service will try to initialize on first use
-  }
-})();
+// Database service initialization moved earlier in the file
 
 const server = app
   .listen(port, '0.0.0.0', () => {
@@ -2089,11 +2243,13 @@ const server = app
     
     console.log(`✅ JAG DNA Scientific LIMS Backend running on http://localhost:${port}`);
     console.log(`📊 Health check: http://localhost:${port}/health`);
+    console.log(`🔍 Readiness check: http://localhost:${port}/ready`);
     console.log(`📈 Metrics: http://localhost:${port}/metrics`);
     console.log(`🔗 API endpoints: http://localhost:${port}/`);
     console.log(`⚡ Performance testing: http://localhost:${port}/performance`);
     console.log(`🎛️  Admin panel: http://localhost:${port}/admin`);
     console.log(`🌟 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`💾 Database: ${databaseService.getDatabaseType()} (${databaseService.isConnected() ? 'connected' : 'disconnected'})`);
     
     if (process.env.ENABLE_DEVOPS_FEATURES === 'true') {
       console.log('\n🚀 DevOps Features Active:');
@@ -2119,15 +2275,15 @@ const server = app
     }
   });
 
-// Graceful shutdown with memory cleanup
+// Graceful shutdown with proper database connection cleanup
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully');
   console.log('🛑 SIGTERM received, shutting down gracefully');
-  
-  server.close(() => {
+
+  server.close(async () => {
     logger.info('Server closed');
     console.log('✅ Server closed');
-    
+
     // Cleanup DevOps services
     try {
       backgroundJobService.stop();
@@ -2135,7 +2291,7 @@ process.on('SIGTERM', async () => {
     } catch (error) {
       logger.error('Error stopping background jobs', { error: error.message });
     }
-    
+
     // Stop Enhanced Sample Cycler
     try {
       if (global.sampleCycler) {
@@ -2145,7 +2301,7 @@ process.on('SIGTERM', async () => {
     } catch (error) {
       logger.error('Error stopping Enhanced Sample Cycler', { error: error.message });
     }
-    
+
     // Cleanup memory management
     try {
       memoryManager.shutdown();
@@ -2154,30 +2310,28 @@ process.on('SIGTERM', async () => {
     } catch (error) {
       logger.error('Error cleaning up memory management', { error: error.message });
     }
-    
+
     if (currentLoadGenerator) {
       currentLoadGenerator.stop();
     }
-    
-    // Close database connections
-    if (dbPool) {
-      dbPool.end();
+
+    // Close database connections gracefully
+    try {
+      await databaseService.close();
+      logger.info('Database connections closed');
+    } catch (error) {
+      logger.error('Error closing database connections', { error: error.message });
     }
-    if (databaseService && databaseService.close) {
-      databaseService.close();
-    } else if (db) {
-      db.close();
-    }
-    
+
     // Final garbage collection
     if (global.gc) {
       global.gc();
       logger.info('Final garbage collection performed');
     }
-    
+
     process.exit(0);
   });
-  
+
   // Force close after 10 seconds
   setTimeout(() => {
     logger.error('Forced shutdown after timeout');
@@ -2189,25 +2343,27 @@ process.on('SIGTERM', async () => {
 process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down gracefully');
   console.log('🛑 SIGINT received, shutting down gracefully');
-  
-  server.close(() => {
+
+  server.close(async () => {
     logger.info('Server closed');
     console.log('✅ Server closed');
-    
+
     // Cleanup memory management
-    memoryManager.shutdown();
-    memoryMonitor.cleanup();
-    
-    // Close database connections
-    if (dbPool) {
-      dbPool.end();
+    try {
+      memoryManager.shutdown();
+      memoryMonitor.cleanup();
+    } catch (error) {
+      logger.error('Error cleaning up memory management', { error: error.message });
     }
-    if (databaseService && databaseService.close) {
-      databaseService.close();
-    } else if (db) {
-      db.close();
+
+    // Close database connections gracefully
+    try {
+      await databaseService.close();
+      logger.info('Database connections closed');
+    } catch (error) {
+      logger.error('Error closing database connections', { error: error.message });
     }
-    
+
     process.exit(0);
   });
 });
