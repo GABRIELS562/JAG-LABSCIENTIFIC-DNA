@@ -1,56 +1,89 @@
-FROM node:18-alpine
+FROM node:18-bullseye AS builder
 
 WORKDIR /app
 
-# Install build dependencies and curl for health checks
-# Also install canvas dependencies for chartjs-node-canvas
-RUN apk add --no-cache \
+# Install system dependencies including PostgreSQL client
+# Use bullseye for better compatibility with native modules
+RUN apt-get update && apt-get install -y \
     python3 \
+    python3-pip \
     make \
     g++ \
     curl \
-    pkgconfig \
-    cairo-dev \
-    pango-dev \
-    jpeg-dev \
-    giflib-dev \
-    librsvg-dev \
-    pixman-dev
+    pkg-config \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libjpeg-dev \
+    libgif-dev \
+    librsvg2-dev \
+    libpixman-1-dev \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy package files
+# Copy package files first for better caching
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install --force
+# Install dependencies with clean npm cache
+RUN npm ci --only=production --no-audit --no-fund
 
-# Copy application files
+# Copy source code
 COPY . .
 
-# Create production environment file
-RUN echo 'VITE_API_URL=' > .env && \
-    echo 'NODE_ENV=production' >> .env && \
-    echo 'PORT=3001' >> .env && \
-    echo 'SERVE_STATIC=true' >> .env
-
-# Build frontend during image build (not at runtime!)
-RUN VITE_API_URL="" npm run build && \
+# Build frontend at build time with production optimizations
+RUN VITE_API_URL="" NODE_ENV=production npm run build && \
+    echo "Frontend build completed successfully" && \
     ls -la dist/ && \
-    echo "Frontend build completed successfully"
+    du -sh dist/
 
-# Make start script executable
-RUN chmod +x start-full-app.sh
+# Production stage
+FROM node:18-bullseye-slim AS production
 
-# Create a simple production start script that doesn't rebuild
-RUN echo '#!/bin/sh' > start-production.sh && \
-    echo 'echo "Starting production server..."' >> start-production.sh && \
-    echo 'echo "Frontend already built in /app/dist"' >> start-production.sh && \
-    echo 'ls -la dist/ | head -10' >> start-production.sh && \
-    echo 'echo "Starting backend on port 3001..."' >> start-production.sh && \
-    echo 'SERVE_STATIC=true NODE_ENV=production PORT=3001 node backend/server.js' >> start-production.sh && \
+WORKDIR /app
+
+# Install runtime dependencies and PostgreSQL client
+RUN apt-get update && apt-get install -y \
+    curl \
+    postgresql-client \
+    dumb-init \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create non-root user for security
+RUN groupadd -r lims && useradd -r -g lims -s /bin/bash lims
+
+# Copy built application from builder stage
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/backend ./backend
+COPY --from=builder /app/.env.production .env
+
+# Create optimized production start script
+RUN echo '#!/bin/bash' > start-production.sh && \
+    echo 'set -e' >> start-production.sh && \
+    echo 'echo "🚀 Starting JAG DNA LIMS Production Server..."' >> start-production.sh && \
+    echo 'echo "📁 Frontend build: $(du -sh dist/ | cut -f1)"' >> start-production.sh && \
+    echo 'echo "🔗 Connecting to PostgreSQL at $DB_HOST:$DB_PORT"' >> start-production.sh && \
+    echo 'echo "📊 Database: $DB_NAME as user $DB_USER"' >> start-production.sh && \
+    echo 'echo "⚙️  Node environment: $NODE_ENV"' >> start-production.sh && \
+    echo 'echo "🌐 Server will start on port $PORT"' >> start-production.sh && \
+    echo 'exec node backend/server.js' >> start-production.sh && \
     chmod +x start-production.sh
 
-# Expose production port
+# Set ownership and create required directories
+RUN mkdir -p /app/backend/logs /app/temp && \
+    chown -R lims:lims /app
+
+# Switch to non-root user
+USER lims
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:3001/health || exit 1
+
+# Expose port
 EXPOSE 3001
 
-# Use the production script that doesn't rebuild
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["./start-production.sh"]

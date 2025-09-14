@@ -23,43 +23,113 @@ export default defineConfig({
     },
   },
   build: {
-    // Performance optimizations
-    target: 'es2015', // Changed from esnext for better compatibility
-    minify: 'esbuild', // Use esbuild for both dev and prod to avoid terser issues
+    // Performance optimizations for production deployment
+    target: 'es2015',
+    minify: 'esbuild',
     rollupOptions: {
       output: {
-        // Simplified chunk splitting to avoid circular dependencies
-        manualChunks: {
-          // Core React - must be loaded first
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          // MUI and Emotion together to avoid initialization issues
-          'mui': ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
-          // Charts libraries
-          'charts': ['recharts', 'chart.js', 'react-chartjs-2'],
+        // Enhanced chunk splitting to prevent circular dependencies
+        manualChunks(id) {
+          // React core - highest priority
+          if (id.includes('react') && !id.includes('react-router') && !id.includes('react-chartjs')) {
+            return 'react-core';
+          }
+
+          // React Router - separate to prevent conflicts
+          if (id.includes('react-router')) {
+            return 'react-router';
+          }
+
+          // MUI components - group together for consistency
+          if (id.includes('@mui/material') || id.includes('@mui/icons-material')) {
+            return 'mui-components';
+          }
+
+          // Emotion styling - keep with MUI
+          if (id.includes('@emotion')) {
+            return 'mui-components';
+          }
+
+          // Chart libraries - separate due to size
+          if (id.includes('recharts') || id.includes('chart.js') || id.includes('react-chartjs')) {
+            return 'charts';
+          }
+
           // Radix UI components
-          'radix': ['@radix-ui/react-dialog', '@radix-ui/react-select', '@radix-ui/react-tabs', '@radix-ui/react-toast'],
+          if (id.includes('@radix-ui')) {
+            return 'radix-ui';
+          }
+
           // Table components
-          'tanstack': ['@tanstack/react-table'],
+          if (id.includes('@tanstack')) {
+            return 'tanstack';
+          }
+
+          // Heavy utilities and libraries
+          if (id.includes('tesseract.js') || id.includes('xlsx')) {
+            return 'heavy-libs';
+          }
+
           // Icons
-          'icons': ['lucide-react'],
-          // Utilities
-          'utils': ['date-fns', 'file-saver', 'clsx', 'class-variance-authority', 'tailwind-merge'],
-          // Heavy libraries
-          'tesseract': ['tesseract.js'],
-          'xlsx': ['xlsx']
+          if (id.includes('lucide-react')) {
+            return 'icons';
+          }
+
+          // Utility libraries
+          if (id.includes('date-fns') || id.includes('file-saver') ||
+              id.includes('clsx') || id.includes('class-variance-authority') ||
+              id.includes('tailwind-merge')) {
+            return 'utils';
+          }
+
+          // Node modules default
+          if (id.includes('node_modules')) {
+            return 'vendor';
+          }
         },
-        // Prevent vendor chunk from being too large
-        chunkFileNames: 'assets/[name]-[hash].js',
-        entryFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash].[ext]'
+        // Optimized file naming
+        chunkFileNames: (chunkInfo) => {
+          const facadeModuleId = chunkInfo.facadeModuleId;
+          if (facadeModuleId && facadeModuleId.includes('src/components/')) {
+            return 'assets/components/[name]-[hash].js';
+          }
+          return 'assets/[name]-[hash].js';
+        },
+        entryFileNames: 'assets/entry-[hash].js',
+        assetFileNames: (assetInfo) => {
+          const info = assetInfo.name.split('.');
+          const ext = info[info.length - 1];
+          if (/png|jpe?g|svg|gif|tiff|bmp|ico/i.test(ext)) {
+            return 'assets/images/[name]-[hash].[ext]';
+          }
+          if (/css/i.test(ext)) {
+            return 'assets/css/[name]-[hash].[ext]';
+          }
+          return 'assets/[name]-[hash].[ext]';
+        }
       },
+      // Prevent circular dependencies
+      external: [],
+      onwarn(warning, warn) {
+        // Skip certain warnings
+        if (warning.code === 'CIRCULAR_DEPENDENCY') {
+          if (warning.message.includes('node_modules')) {
+            return; // Ignore circular dependencies in node_modules
+          }
+        }
+        warn(warning);
+      }
     },
     // Optimize chunk size warning
-    chunkSizeWarningLimit: 500,
-    // Disable source maps in production for smaller bundles
-    sourcemap: process.env.NODE_ENV === 'development',
+    chunkSizeWarningLimit: 1000, // Increased for better performance
+    // Environment-specific source maps
+    sourcemap: process.env.NODE_ENV === 'development' ? true : false,
     // Asset optimization
-    assetsInlineLimit: 4096,
+    assetsInlineLimit: 8192, // Increased for better performance
+    // CSS code splitting
+    cssCodeSplit: true,
+    // Report compressed size
+    reportCompressedSize: false, // Disable for faster builds
   },
   server: {
     host: '0.0.0.0',

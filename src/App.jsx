@@ -8,6 +8,9 @@ import ThemeToggle from './components/ui/ThemeToggle';
 import Sidebar from './components/layout/Sidebar';
 import LoginPage from './components/auth/LoginPage';
 import ErrorBoundary from './components/ErrorBoundary';
+import ConnectionStatus from './components/ui/ConnectionStatus';
+import ErrorNotification from './components/ui/ErrorNotification';
+import { FullPageSkeleton } from './components/ui/SkeletonLoaders';
 
 // Lazy load large feature components
 const PaternityLabDashboard = lazy(() => import('./components/PaternityLabDashboard'));
@@ -35,13 +38,10 @@ const ForensicReports = lazy(() => import('./components/ForensicReports'));
 const WorkflowSettings = lazy(() => import('./components/features/WorkflowSettings'));
 const CaseManagement = lazy(() => import('./components/CaseManagement'));
 
-// Loading component for Suspense fallback
-const LoadingSpinner = ({ minHeight = 'min-h-screen' }) => (
-  <div className={`${minHeight} flex items-center justify-center`}>
-    <div className="flex flex-col items-center space-y-4">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      <p className="text-sm text-gray-600 dark:text-gray-400">Loading...</p>
-    </div>
+// Enhanced loading component for Suspense fallback
+const LoadingSpinner = ({ minHeight = 'min-h-screen', type = 'dashboard' }) => (
+  <div className={`${minHeight} w-full`}>
+    <FullPageSkeleton type={type} />
   </div>
 );
 
@@ -103,6 +103,8 @@ function AppContent() {
         
         <main className={`flex-1 overflow-y-auto w-full ${isMobile ? 'pt-16' : ''}`}>
           <ThemeToggle onToggle={toggleTheme} isDarkMode={isDarkMode} />
+          <ConnectionStatus />
+          <ErrorNotification />
           <Routes>
             {/* Authentication pages - accessible separately */}
             <Route 
