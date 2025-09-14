@@ -1,6 +1,18 @@
 FROM node:18-alpine
 WORKDIR /app
-RUN apk add --no-cache python3 make g++
+# Install build dependencies including canvas dependencies for chartjs-node-canvas
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    curl \
+    pkgconfig \
+    cairo-dev \
+    pango-dev \
+    jpeg-dev \
+    giflib-dev \
+    librsvg-dev \
+    pixman-dev
 COPY package*.json ./
 RUN npm install --force
 COPY . .
