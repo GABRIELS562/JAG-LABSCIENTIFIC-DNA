@@ -220,9 +220,9 @@ const PaternityLabDashboard = () => {
           allSamples = generateMockSamplesForDemo();
         }
         
-        // Filter for AUTO- prefixed cycling samples for the DevOps portfolio
-        samples = allSamples.filter(s => s.lab_number && s.lab_number.startsWith('AUTO-'));
-        console.log('Filtered AUTO samples:', samples.length);
+        // Filter for live cycling samples - include both AUTO- and LAB- prefixes for live data
+        samples = allSamples.filter(s => s.lab_number && (s.lab_number.startsWith('AUTO-') || s.lab_number.startsWith('LAB-')));
+        console.log('Filtered live samples (AUTO- and LAB-):', samples.length);
       } catch (error) {
         console.warn('Failed to fetch samples:', error);
         // Continue with empty samples array
@@ -356,8 +356,8 @@ const PaternityLabDashboard = () => {
       // Get ALL samples including manual ones - bypass cache for live data
       const allSamplesRes = await api.getSamples({ limit: 500, _t: timestamp });
       const allSamples = allSamplesRes?.samples || allSamplesRes?.data || [];
-      // Filter out AUTO- prefixed samples to get only manual samples
-      const manualSamples = allSamples.filter(s => s.lab_number && !s.lab_number.startsWith('AUTO-'));
+      // Filter for manual samples - exclude both AUTO- and LAB- prefixes (system generated)
+      const manualSamples = allSamples.filter(s => s.lab_number && !s.lab_number.startsWith('AUTO-') && !s.lab_number.startsWith('LAB-'));
       
       // Count manual samples in each stage
       const manualStageCounts = {};
