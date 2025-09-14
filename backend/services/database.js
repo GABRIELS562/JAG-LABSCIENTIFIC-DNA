@@ -175,6 +175,9 @@ async function initializePostgreSQLTables() {
       workflow_status VARCHAR(100) DEFAULT 'sample_collected',
       status VARCHAR(50) DEFAULT 'pending',
       batch_id INTEGER,
+      extraction_id INTEGER,
+      lab_batch_number VARCHAR(255),
+      is_real_data BOOLEAN DEFAULT true,
       case_number VARCHAR(255),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -244,6 +247,82 @@ async function initializePostgreSQLTables() {
       password VARCHAR(255) NOT NULL,
       role VARCHAR(50) DEFAULT 'user',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS extraction_batches (
+      id SERIAL PRIMARY KEY,
+      batch_number VARCHAR(255) UNIQUE NOT NULL,
+      operator VARCHAR(255),
+      extraction_date DATE,
+      extraction_method VARCHAR(255),
+      kit_lot_number VARCHAR(255),
+      kit_expiry_date DATE,
+      total_samples INTEGER DEFAULT 0,
+      status VARCHAR(50) DEFAULT 'active',
+      lysis_time INTEGER,
+      lysis_temperature DECIMAL(5,2),
+      incubation_time INTEGER,
+      centrifuge_speed INTEGER,
+      centrifuge_time INTEGER,
+      elution_volume INTEGER,
+      quality_control_passed BOOLEAN,
+      plate_layout JSONB,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS extraction_results (
+      id SERIAL PRIMARY KEY,
+      extraction_batch_id INTEGER REFERENCES extraction_batches(id),
+      sample_id INTEGER REFERENCES samples(id),
+      well_position VARCHAR(10),
+      dna_concentration DECIMAL(10,3),
+      purity_260_280 DECIMAL(5,3),
+      purity_260_230 DECIMAL(5,3),
+      volume_recovered INTEGER,
+      quality_assessment VARCHAR(50),
+      quantification_method VARCHAR(100),
+      extraction_efficiency DECIMAL(5,2),
+      inhibition_detected BOOLEAN DEFAULT false,
+      reextraction_required BOOLEAN DEFAULT false,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(extraction_batch_id, sample_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS osiris_analyses (
+      id SERIAL PRIMARY KEY,
+      case_id VARCHAR(255),
+      input_directory VARCHAR(500),
+      output_directory VARCHAR(500),
+      status VARCHAR(50) DEFAULT 'pending',
+      kit_name VARCHAR(255),
+      started_at TIMESTAMP,
+      completed_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS workflow_stage_configs (
+      id SERIAL PRIMARY KEY,
+      stage_name VARCHAR(100) UNIQUE NOT NULL,
+      duration_minutes INTEGER DEFAULT 3,
+      is_active BOOLEAN DEFAULT true,
+      description TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS sample_workflow_timing (
+      id SERIAL PRIMARY KEY,
+      sample_id INTEGER REFERENCES samples(id),
+      stage_name VARCHAR(100),
+      entry_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      exit_time TIMESTAMP,
+      duration_seconds INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS workflow_cycles (
+      id SERIAL PRIMARY KEY,
+      cycle_number INTEGER,
+      samples_processed INTEGER,
+      stage_transitions INTEGER,
+      completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   ];
 
@@ -257,9 +336,16 @@ async function initializePostgreSQLTables() {
     'CREATE INDEX IF NOT EXISTS idx_samples_lab_number ON samples(lab_number)',
     'CREATE INDEX IF NOT EXISTS idx_samples_workflow_status ON samples(workflow_status)',
     'CREATE INDEX IF NOT EXISTS idx_samples_case_id ON samples(case_id)',
+    'CREATE INDEX IF NOT EXISTS idx_samples_extraction_id ON samples(extraction_id)',
     'CREATE INDEX IF NOT EXISTS idx_test_cases_case_number ON test_cases(case_number)',
     'CREATE INDEX IF NOT EXISTS idx_batches_batch_number ON batches(batch_number)',
-    'CREATE INDEX IF NOT EXISTS idx_well_assignments_batch_id ON well_assignments(batch_id)'
+    'CREATE INDEX IF NOT EXISTS idx_well_assignments_batch_id ON well_assignments(batch_id)',
+    'CREATE INDEX IF NOT EXISTS idx_extraction_batches_batch_number ON extraction_batches(batch_number)',
+    'CREATE INDEX IF NOT EXISTS idx_extraction_results_batch_id ON extraction_results(extraction_batch_id)',
+    'CREATE INDEX IF NOT EXISTS idx_extraction_results_sample_id ON extraction_results(sample_id)',
+    'CREATE INDEX IF NOT EXISTS idx_osiris_analyses_case_id ON osiris_analyses(case_id)',
+    'CREATE INDEX IF NOT EXISTS idx_workflow_timing_sample_id ON sample_workflow_timing(sample_id)',
+    'CREATE INDEX IF NOT EXISTS idx_workflow_timing_stage ON sample_workflow_timing(stage_name)'
   ];
 
   for (const sql of indexes) {
@@ -320,6 +406,9 @@ function initializeSQLiteTables() {
       workflow_status TEXT DEFAULT 'sample_collected',
       status TEXT DEFAULT 'pending',
       batch_id INTEGER,
+      extraction_id INTEGER,
+      lab_batch_number TEXT,
+      is_real_data INTEGER DEFAULT 1,
       case_number TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -385,6 +474,85 @@ function initializeSQLiteTables() {
       next_maintenance TEXT,
       metadata TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS extraction_batches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      batch_number TEXT UNIQUE NOT NULL,
+      operator TEXT,
+      extraction_date TEXT,
+      extraction_method TEXT,
+      kit_lot_number TEXT,
+      kit_expiry_date TEXT,
+      total_samples INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'active',
+      lysis_time INTEGER,
+      lysis_temperature REAL,
+      incubation_time INTEGER,
+      centrifuge_speed INTEGER,
+      centrifuge_time INTEGER,
+      elution_volume INTEGER,
+      quality_control_passed INTEGER,
+      plate_layout TEXT,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS extraction_results (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      extraction_batch_id INTEGER,
+      sample_id INTEGER,
+      well_position TEXT,
+      dna_concentration REAL,
+      purity_260_280 REAL,
+      purity_260_230 REAL,
+      volume_recovered INTEGER,
+      quality_assessment TEXT,
+      quantification_method TEXT,
+      extraction_efficiency REAL,
+      inhibition_detected INTEGER DEFAULT 0,
+      reextraction_required INTEGER DEFAULT 0,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(extraction_batch_id, sample_id),
+      FOREIGN KEY (extraction_batch_id) REFERENCES extraction_batches(id),
+      FOREIGN KEY (sample_id) REFERENCES samples(id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS osiris_analyses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      case_id TEXT,
+      input_directory TEXT,
+      output_directory TEXT,
+      status TEXT DEFAULT 'pending',
+      kit_name TEXT,
+      started_at DATETIME,
+      completed_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS workflow_stage_configs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      stage_name TEXT UNIQUE NOT NULL,
+      duration_minutes INTEGER DEFAULT 3,
+      is_active INTEGER DEFAULT 1,
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS sample_workflow_timing (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sample_id INTEGER,
+      stage_name TEXT,
+      entry_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+      exit_time DATETIME,
+      duration_seconds INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (sample_id) REFERENCES samples(id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS workflow_cycles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      cycle_number INTEGER,
+      samples_processed INTEGER,
+      stage_transitions INTEGER,
+      completed_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`
   ];
 
@@ -398,9 +566,16 @@ function initializeSQLiteTables() {
     'CREATE INDEX IF NOT EXISTS idx_samples_lab_number ON samples(lab_number)',
     'CREATE INDEX IF NOT EXISTS idx_samples_workflow_status ON samples(workflow_status)',
     'CREATE INDEX IF NOT EXISTS idx_samples_case_id ON samples(case_id)',
+    'CREATE INDEX IF NOT EXISTS idx_samples_extraction_id ON samples(extraction_id)',
     'CREATE INDEX IF NOT EXISTS idx_test_cases_case_number ON test_cases(case_number)',
     'CREATE INDEX IF NOT EXISTS idx_batches_batch_number ON batches(batch_number)',
-    'CREATE INDEX IF NOT EXISTS idx_well_assignments_batch_id ON well_assignments(batch_id)'
+    'CREATE INDEX IF NOT EXISTS idx_well_assignments_batch_id ON well_assignments(batch_id)',
+    'CREATE INDEX IF NOT EXISTS idx_extraction_batches_batch_number ON extraction_batches(batch_number)',
+    'CREATE INDEX IF NOT EXISTS idx_extraction_results_batch_id ON extraction_results(extraction_batch_id)',
+    'CREATE INDEX IF NOT EXISTS idx_extraction_results_sample_id ON extraction_results(sample_id)',
+    'CREATE INDEX IF NOT EXISTS idx_osiris_analyses_case_id ON osiris_analyses(case_id)',
+    'CREATE INDEX IF NOT EXISTS idx_workflow_timing_sample_id ON sample_workflow_timing(sample_id)',
+    'CREATE INDEX IF NOT EXISTS idx_workflow_timing_stage ON sample_workflow_timing(stage_name)'
   ];
 
   for (const sql of indexes) {

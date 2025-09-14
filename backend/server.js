@@ -90,13 +90,20 @@ app.set('trust proxy', 1);
 
 // Configure CORS
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? process.env.FRONTEND_URL 
+  origin: process.env.NODE_ENV === 'production'
+    ? process.env.FRONTEND_URL
     : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
+
+// Serve static files from the dist directory in production
+if (process.env.NODE_ENV === 'production' || process.env.SERVE_STATIC === 'true') {
+  const distPath = path.join(__dirname, '../dist');
+  console.log(`📁 Serving static files from: ${distPath}`);
+  app.use(express.static(distPath));
+}
 
 // Reduced payload limits for memory optimization
 app.use(express.json({ 
@@ -125,13 +132,13 @@ app.use(metricsMiddleware);
 // app.use(sanitizeInput); // TODO: Fix sanitizeInput middleware
 
 // Database helper functions
-function getSamplesWithPagination(page = 1, limit = 50, filters = {}) {
+async function getSamplesWithPagination(page = 1, limit = 50, filters = {}) {
   try {
     // Validate and sanitize inputs
     page = Math.max(1, parseInt(page) || 1);
     limit = Math.min(100, Math.max(1, parseInt(limit) || 50));
     const offset = (page - 1) * limit;
-    
+
     let whereClause = '';
     let params = [];
     const conditions = [];
@@ -162,41 +169,40 @@ function getSamplesWithPagination(page = 1, limit = 50, filters = {}) {
           conditions.push("workflow_status IN ('pcr_batched', 'pcr_completed')");
           break;
         default:
-          conditions.push('workflow_status = ?');
+          conditions.push('workflow_status = $' + (params.length + 1));
           params.push(filters.status);
       }
     }
     if (filters.search) {
-      conditions.push('(lab_number LIKE ? OR name LIKE ? OR surname LIKE ?)');
+      conditions.push('(lab_number LIKE $' + (params.length + 1) + ' OR name LIKE $' + (params.length + 2) + ' OR surname LIKE $' + (params.length + 3) + ')');
       const searchTerm = `%${filters.search}%`;
       params.push(searchTerm, searchTerm, searchTerm);
     }
-    
+
     if (conditions.length > 0) {
       whereClause = 'WHERE ' + conditions.join(' AND ');
     }
-    
-    // Use prepared statements for better performance
+
+    // Use database service for compatibility
     const countQuery = `SELECT COUNT(*) as total FROM samples ${whereClause}`;
-    const countStmt = db.prepare(countQuery);
-    const total = countStmt.get(...params).total;
-    
+    const countResult = await databaseService.get(countQuery, params);
+    const total = countResult ? countResult.total : 0;
+
     const dataQuery = `
-      SELECT 
-        id, lab_number, name, surname, relation, workflow_status, 
+      SELECT
+        id, lab_number, name, surname, relation, workflow_status,
         collection_date, case_number
-      FROM samples 
+      FROM samples
       ${whereClause}
-      ORDER BY lab_number ASC 
-      LIMIT ? OFFSET ?
+      ORDER BY lab_number ASC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `;
-    
+
     params.push(limit, offset);
-    const dataStmt = db.prepare(dataQuery);
-    const samples = dataStmt.all(...params);
-    
+    const samples = await databaseService.all(dataQuery, params);
+
     return {
-      data: samples,
+      data: samples || [],
       pagination: {
         page,
         limit,
@@ -222,19 +228,19 @@ const sampleCountsCache = new LRUCache({
   allowStale: false
 });
 
-function getSampleCounts() {
+async function getSampleCounts() {
   try {
     const cacheKey = 'sample_counts';
-    
+
     // Return cached result if available
     const cached = sampleCountsCache.get(cacheKey);
     if (cached) {
       return cached;
     }
-    
+
     // Use a single optimized query based on actual database schema
-    const stmt = db.prepare(`
-      SELECT 
+    const query = `
+      SELECT
         COUNT(*) as total,
         COUNT(CASE WHEN workflow_status = 'sample_collected' THEN 1 END) as active,
         COUNT(CASE WHEN workflow_status = 'sample_collected' THEN 1 END) as pending,
@@ -246,66 +252,65 @@ function getSampleCounts() {
         COUNT(CASE WHEN workflow_status IN ('analysis_completed', 'report_sent') THEN 1 END) as completed,
         COUNT(CASE WHEN workflow_status IN ('pcr_batched', 'pcr_completed') THEN 1 END) as processing
       FROM samples
-    `);
-    
-    const result = stmt.get();
-    
+    `;
+
+    const result = await databaseService.get(query, []);
+
     // Cache the result
-    sampleCountsCache.set(cacheKey, result);
-    
-    return result;
+    if (result) {
+      sampleCountsCache.set(cacheKey, result);
+      return result;
+    }
+
+    return { total: 0, active: 0, pending: 0, pcrBatched: 0, electroBatched: 0, rerunBatched: 0, completed: 0, processing: 0 };
   } catch (error) {
     logger.error('Error getting sample counts', { error: error.message });
     return { total: 0, active: 0, pending: 0, pcrBatched: 0, electroBatched: 0, rerunBatched: 0, completed: 0, processing: 0 };
   }
 }
 
-function createSample(sampleData) {
-  const transaction = db.transaction(() => {
-    try {
-      // Validate required fields
-      if (!sampleData.lab_number || !sampleData.name || !sampleData.surname) {
-        throw new Error('Missing required fields: lab_number, name, or surname');
-      }
-      
-      // Check for duplicate lab_number
-      const duplicateCheck = db.prepare('SELECT id FROM samples WHERE lab_number = ?');
-      const existing = duplicateCheck.get(sampleData.lab_number);
-      
-      if (existing) {
-        throw new Error(`Sample with lab number ${sampleData.lab_number} already exists`);
-      }
-      
-      const stmt = db.prepare(`
-        INSERT INTO samples (
-          lab_number, name, surname, relation, status, phone_number,
-          created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-      `);
-      
-      const result = stmt.run(
-        sampleData.lab_number,
-        sampleData.name.trim(),
-        sampleData.surname.trim(),
-        sampleData.relation || 'Child',
-        sampleData.status || 'pending',
-        sampleData.phone_number
-      );
-      
-      // Clear sample counts cache since we added a new sample
-      sampleCountsCache.clear();
-      
-      // Track sample creation metrics
-      trackSampleProcessed('created', 'registration');
-      
-      return { id: result.lastInsertRowid, ...sampleData };
-    } catch (error) {
-      logger.error('Error creating sample', { error: error.message, sampleData });
-      throw error;
+async function createSample(sampleData) {
+  try {
+    // Validate required fields
+    if (!sampleData.lab_number || !sampleData.name || !sampleData.surname) {
+      throw new Error('Missing required fields: lab_number, name, or surname');
     }
-  });
-  
-  return transaction();
+
+    // Check for duplicate lab_number
+    const existing = await databaseService.get('SELECT id FROM samples WHERE lab_number = $1', [sampleData.lab_number]);
+
+    if (existing) {
+      throw new Error(`Sample with lab number ${sampleData.lab_number} already exists`);
+    }
+
+    const query = `
+      INSERT INTO samples (
+        lab_number, name, surname, relation, status, phone_number,
+        created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      RETURNING id
+    `;
+
+    const result = await databaseService.run(query, [
+      sampleData.lab_number,
+      sampleData.name.trim(),
+      sampleData.surname.trim(),
+      sampleData.relation || 'Child',
+      sampleData.status || 'pending',
+      sampleData.phone_number
+    ]);
+
+    // Clear sample counts cache since we added a new sample
+    sampleCountsCache.clear();
+
+    // Track sample creation metrics
+    trackSampleProcessed('created', 'registration');
+
+    return { id: result.lastInsertRowid, ...sampleData };
+  } catch (error) {
+    logger.error('Error creating sample', { error: error.message, sampleData });
+    throw error;
+  }
 }
 
 // Use routes with fallback handling
@@ -338,7 +343,7 @@ app.get("/api/test", (req, res) => {
 });
 
 // Samples endpoints with streaming support
-app.get("/api/samples", (req, res) => {
+app.get("/api/samples", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(100, parseInt(req.query.limit) || 50); // Cap limit
@@ -347,25 +352,25 @@ app.get("/api/samples", (req, res) => {
       status: req.query.status,
       search: req.query.search
     };
-    
+
     if (useStreaming && limit > 50) {
       // Use streaming for large responses
       const query = `
-        SELECT 
-          id, lab_number, name, surname, relation, workflow_status, 
+        SELECT
+          id, lab_number, name, surname, relation, workflow_status,
           collection_date, workflow_status AS status, case_number
-        FROM samples 
-        ${filters.status ? 'WHERE workflow_status = ?' : ''}
+        FROM samples
+        ${filters.status ? 'WHERE workflow_status = $1' : ''}
         ORDER BY lab_number ASC
       `;
       const params = filters.status ? [filters.status] : [];
-      
+
       streamingResponse.streamDatabaseResults(res, query, params, {
-        dbPool: databaseService.getPool(),
+        dbPool: databaseService.pool,
         chunkSize: 100
       });
     } else {
-      const result = getSamplesWithPagination(page, limit, filters);
+      const result = await getSamplesWithPagination(page, limit, filters);
       ResponseHandler.paginated(res, result.data, result.pagination);
     }
   } catch (error) {
@@ -373,26 +378,26 @@ app.get("/api/samples", (req, res) => {
   }
 });
 
-app.get("/api/samples/all", (req, res) => {
+app.get("/api/samples/all", async (req, res) => {
   try {
-    const stmt = db.prepare(`
-      SELECT 
-        id, lab_number, name, surname, relation, workflow_status, 
+    const query = `
+      SELECT
+        id, lab_number, name, surname, relation, workflow_status,
         collection_date, case_number, sample_type, ethnicity as gender,
         created_at, updated_at
-      FROM samples 
+      FROM samples
       ORDER BY id DESC
-    `);
-    const samples = stmt.all();
+    `;
+    const samples = await databaseService.all(query, []);
     ResponseHandler.success(res, samples);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to fetch all samples', error);
   }
 });
 
-app.post("/api/samples", (req, res) => {
+app.post("/api/samples", async (req, res) => {
   try {
-    const newSample = createSample(req.body);
+    const newSample = await createSample(req.body);
     ResponseHandler.success(res, newSample, 'Sample created successfully', 201);
   } catch (error) {
     logger.error('Sample creation failed', { error: error.message, body: req.body });
@@ -400,36 +405,36 @@ app.post("/api/samples", (req, res) => {
   }
 });
 
-app.get("/api/samples/counts", (req, res) => {
+app.get("/api/samples/counts", async (req, res) => {
   try {
-    const counts = getSampleCounts();
+    const counts = await getSampleCounts();
     ResponseHandler.success(res, counts);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to get sample counts', error);
   }
 });
 
-app.get("/api/samples/queue-counts", (req, res) => {
+app.get("/api/samples/queue-counts", async (req, res) => {
   try {
-    const counts = getSampleCounts();
+    const counts = await getSampleCounts();
     ResponseHandler.success(res, counts);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to get queue counts', error);
   }
 });
 
-app.get("/api/samples/queue/:queueType", (req, res) => {
+app.get("/api/samples/queue/:queueType", async (req, res) => {
   try {
     const { queueType } = req.params;
     const validQueues = ['extraction_ready', 'extraction_batched', 'extraction_completed', 'pcr_ready', 'pcr_batched', 'electro_ready', 'electro_batched', 'analysis_ready', 'completed'];
-    
+
     if (!validQueues.includes(queueType)) {
       return ResponseHandler.error(res, `Invalid queue type. Must be one of: ${validQueues.join(', ')}`, 400);
     }
-    
+
     let samples = [];
     let whereClause = '';
-    
+
     switch (queueType) {
       case 'pcr_ready':
         whereClause = "WHERE workflow_status IN ('extraction_completed', 'pcr_ready') AND batch_id IS NULL";
@@ -461,44 +466,44 @@ app.get("/api/samples/queue/:queueType", (req, res) => {
       default:
         whereClause = "WHERE 1=1";
     }
-    
-    const stmt = db.prepare(`
-      SELECT 
-        id, lab_number, name, surname, relation, workflow_status, 
+
+    const query = `
+      SELECT
+        id, lab_number, name, surname, relation, workflow_status,
         collection_date, workflow_status AS status, case_number
-      FROM samples 
+      FROM samples
       ${whereClause}
-      ORDER BY lab_number ASC 
+      ORDER BY lab_number ASC
       LIMIT 100
-    `);
-    
-    samples = stmt.all();
+    `;
+
+    samples = await databaseService.all(query, []);
     ResponseHandler.success(res, samples);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to get samples for queue', error);
   }
 });
 
-app.get("/api/samples/search", (req, res) => {
+app.get("/api/samples/search", async (req, res) => {
   try {
     const query = req.query.q;
     if (!query) {
       return ResponseHandler.success(res, []);
     }
-    
-    const stmt = db.prepare(`
-      SELECT 
-        id, lab_number, name, surname, relation, status, 
+
+    const searchQuery = `
+      SELECT
+        id, lab_number, name, surname, relation, status,
         collection_date, workflow_status, case_number
-      FROM samples 
-      WHERE lab_number LIKE ? OR name LIKE ? OR surname LIKE ?
-      ORDER BY id DESC 
+      FROM samples
+      WHERE lab_number LIKE $1 OR name LIKE $2 OR surname LIKE $3
+      ORDER BY id DESC
       LIMIT 50
-    `);
-    
+    `;
+
     const searchTerm = `%${query}%`;
-    const samples = stmt.all(searchTerm, searchTerm, searchTerm);
-    
+    const samples = await databaseService.all(searchQuery, [searchTerm, searchTerm, searchTerm]);
+
     ResponseHandler.success(res, samples);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to search samples', error);
@@ -506,10 +511,10 @@ app.get("/api/samples/search", (req, res) => {
 });
 
 // Batch endpoints
-app.post("/api/generate-batch", (req, res) => {
-  const transaction = db.transaction(() => {
+app.post("/api/generate-batch", async (req, res) => {
+  try {
     const { batchNumber, operator, wells, sampleCount, date, batchType } = req.body;
-    
+
     if (!operator) {
       throw new Error('Operator is required');
     }
@@ -518,10 +523,10 @@ app.post("/api/generate-batch", (req, res) => {
     if (!batchNumber) {
       finalBatchNumber = 'JDS_1';
     }
-    
+
     let batchPrefix = 'JDS_';
     let isRerunBatch = false;
-    
+
     if (finalBatchNumber.startsWith('ELEC_')) {
       batchPrefix = 'ELEC_';
     } else if (finalBatchNumber.includes('_RR')) {
@@ -530,12 +535,11 @@ app.post("/api/generate-batch", (req, res) => {
     } else if (finalBatchNumber.startsWith('JDS_')) {
       batchPrefix = 'JDS_';
     }
-    
+
     if (!batchNumber || finalBatchNumber === 'JDS_1' || finalBatchNumber === 'ELEC_1') {
       if (isRerunBatch) {
-        const lastRerunStmt = db.prepare(`SELECT batch_number FROM batches WHERE batch_number LIKE 'JDS_%_RR' ORDER BY id DESC LIMIT 1`);
-        const lastRerunBatch = lastRerunStmt.get();
-        
+        const lastRerunBatch = await databaseService.get(`SELECT batch_number FROM batches WHERE batch_number LIKE 'JDS_%_RR' ORDER BY id DESC LIMIT 1`, []);
+
         let nextNumber = 1;
         if (lastRerunBatch) {
           const match = lastRerunBatch.batch_number.match(/JDS_(\d+)_RR/);
@@ -548,9 +552,8 @@ app.post("/api/generate-batch", (req, res) => {
         }
         finalBatchNumber = `JDS_${nextNumber}_RR`;
       } else {
-        const lastBatchStmt = db.prepare(`SELECT batch_number FROM batches WHERE batch_number LIKE ? ORDER BY id DESC LIMIT 1`);
-        const lastBatch = lastBatchStmt.get(`${batchPrefix}%`);
-        
+        const lastBatch = await databaseService.get(`SELECT batch_number FROM batches WHERE batch_number LIKE $1 ORDER BY id DESC LIMIT 1`, [`${batchPrefix}%`]);
+
         let nextNumber = 1;
         if (lastBatch) {
           const lastNumber = parseInt(lastBatch.batch_number.replace(batchPrefix, ''));
@@ -562,20 +565,21 @@ app.post("/api/generate-batch", (req, res) => {
       }
     }
 
-    const insertBatchStmt = db.prepare(`
+    const insertBatchQuery = `
       INSERT INTO batches (batch_number, operator, pcr_date, total_samples, plate_layout, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `);
-    
+      VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+      RETURNING id
+    `;
+
     const plateLayoutJson = JSON.stringify(wells || {});
-    const result = insertBatchStmt.run(
+    const result = await databaseService.run(insertBatchQuery, [
       finalBatchNumber,
       operator,
       date || new Date().toISOString().split('T')[0],
       sampleCount || 0,
       plateLayoutJson,
       'active'
-    );
+    ]);
 
     let updatedSamples = 0;
     if (wells) {
@@ -585,28 +589,28 @@ app.post("/api/generate-batch", (req, res) => {
       } else if (batchType === 'rerun') {
         workflowStatus = 'rerun_batched';
       }
-      
-      const updateSampleStmt = db.prepare(`
-        UPDATE samples 
-        SET batch_id = ?, workflow_status = ?, lab_batch_number = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `);
-      
-      Object.values(wells).forEach(well => {
+
+      const updateSampleQuery = `
+        UPDATE samples
+        SET batch_id = $1, workflow_status = $2, lab_batch_number = $3, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $4
+      `;
+
+      for (const well of Object.values(wells)) {
         if (well.samples) {
-          well.samples.forEach(sample => {
+          for (const sample of well.samples) {
             if (sample.id) {
-              const updateResult = updateSampleStmt.run(result.lastInsertRowid, workflowStatus, finalBatchNumber, sample.id);
+              const updateResult = await databaseService.run(updateSampleQuery, [result.lastInsertRowid, workflowStatus, finalBatchNumber, sample.id]);
               if (updateResult.changes > 0) {
                 updatedSamples++;
               }
             }
-          });
+          }
         }
-      });
+      }
     }
 
-    return {
+    const batchResult = {
       batchId: result.lastInsertRowid,
       batchNumber: finalBatchNumber,
       operator,
@@ -615,65 +619,57 @@ app.post("/api/generate-batch", (req, res) => {
       status: 'active',
       plate_layout: wells || {}
     };
-  });
 
-  try {
-    const result = transaction();
-    
     // Track batch creation metrics
-    const batchType = result.batchNumber.startsWith('ELEC_') ? 'electrophoresis' :
-                     result.batchNumber.includes('_RR') ? 'rerun' : 'pcr';
-    trackBatchCreated(batchType);
-    
-    ResponseHandler.success(res, result, 'Batch created successfully');
+    const batchTypeMetric = batchResult.batchNumber.startsWith('ELEC_') ? 'electrophoresis' :
+                           batchResult.batchNumber.includes('_RR') ? 'rerun' : 'pcr';
+    trackBatchCreated(batchTypeMetric);
+
+    ResponseHandler.success(res, batchResult, 'Batch created successfully');
   } catch (error) {
     ResponseHandler.error(res, 'Failed to create batch', error);
   }
 });
 
-app.get("/api/batches", (req, res) => {
+app.get("/api/batches", async (req, res) => {
   try {
-    const stmt = db.prepare(`
-      SELECT 
-        id, batch_number, operator, pcr_date, electro_date, 
-        total_samples, status, created_at, updated_at,
-        plate_layout
-      FROM batches 
-      ORDER BY created_at DESC
-    `);
-    
-    const batches = stmt.all().map(batch => ({
+    const batches = await databaseService.getAllBatches();
+
+    // Parse plate_layout JSON if needed
+    const formattedBatches = batches.map(batch => ({
       ...batch,
-      plate_layout: batch.plate_layout ? JSON.parse(batch.plate_layout) : {}
+      plate_layout: typeof batch.plate_layout === 'string'
+        ? JSON.parse(batch.plate_layout)
+        : batch.plate_layout || {}
     }));
-    
-    ResponseHandler.success(res, batches);
+
+    ResponseHandler.success(res, formattedBatches);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to fetch batches', error);
   }
 });
 
-app.get("/api/batches/:id", (req, res) => {
+app.get("/api/batches/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    
-    const stmt = db.prepare(`
-      SELECT 
-        id, batch_number, operator, pcr_date, electro_date, 
+
+    const query = `
+      SELECT
+        id, batch_number, operator, pcr_date, electro_date,
         total_samples, status, created_at, updated_at,
         plate_layout
-      FROM batches 
-      WHERE id = ?
-    `);
-    
-    const batch = stmt.get(id);
-    
+      FROM batches
+      WHERE id = $1
+    `;
+
+    const batch = await databaseService.get(query, [id]);
+
     if (!batch) {
       return ResponseHandler.notFound(res, 'Batch not found');
     }
 
     batch.plate_layout = batch.plate_layout ? JSON.parse(batch.plate_layout) : {};
-    
+
     ResponseHandler.success(res, batch);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to fetch batch', error);
@@ -681,16 +677,17 @@ app.get("/api/batches/:id", (req, res) => {
 });
 
 // Statistics endpoint for optimized data loading
-app.get("/api/statistics", (req, res) => {
+app.get("/api/statistics", async (req, res) => {
   try {
     const { period = 'all' } = req.query;
-    
+
     // Calculate date filter
     let dateFilter = '';
+    let dateParams = [];
     if (period !== 'all') {
       const now = new Date();
       let startDate = new Date();
-      
+
       switch (period) {
         case 'today':
           startDate.setHours(0, 0, 0, 0);
@@ -705,46 +702,52 @@ app.get("/api/statistics", (req, res) => {
           startDate.setFullYear(now.getFullYear() - 1);
           break;
       }
-      
-      dateFilter = ` WHERE created_at >= '${startDate.toISOString()}'`;
+
+      dateFilter = ` WHERE created_at >= $1`;
+      dateParams = [startDate.toISOString()];
     }
-    
+
     // Get comprehensive statistics
-    const totalSamplesStmt = db.prepare(`SELECT COUNT(*) as count FROM samples${dateFilter}`);
-    const totalSamples = totalSamplesStmt.get().count;
-    
-    const workflowStatsStmt = db.prepare(`
-      SELECT workflow_status, COUNT(*) as count 
+    const totalSamplesQuery = `SELECT COUNT(*) as count FROM samples${dateFilter}`;
+    const totalSamplesResult = await databaseService.get(totalSamplesQuery, dateParams);
+    const totalSamples = totalSamplesResult ? totalSamplesResult.count : 0;
+
+    const workflowStatsQuery = `
+      SELECT workflow_status, COUNT(*) as count
       FROM samples${dateFilter}
       GROUP BY workflow_status
-    `);
-    const workflowStats = workflowStatsStmt.all();
-    
-    const demographicsStmt = db.prepare(`
-      SELECT relation, ethnicity as gender, COUNT(*) as count 
+    `;
+    const workflowStats = await databaseService.all(workflowStatsQuery, dateParams);
+
+    const demographicsQuery = `
+      SELECT relation, ethnicity as gender, COUNT(*) as count
       FROM samples${dateFilter}
       GROUP BY relation, ethnicity
-    `);
-    const demographics = demographicsStmt.all();
-    
-    const recentSamplesStmt = db.prepare(`
-      SELECT * FROM samples 
-      WHERE created_at >= datetime('now', '-30 days')
+    `;
+    const demographics = await databaseService.all(demographicsQuery, dateParams);
+
+    const recentSamplesQuery = `
+      SELECT * FROM samples
+      WHERE created_at >= $1
       ORDER BY created_at DESC LIMIT 50
-    `);
-    const recentSamples = recentSamplesStmt.all();
-    
-    const processingTimesStmt = db.prepare(`
-      SELECT 
+    `;
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const recentSamples = await databaseService.all(recentSamplesQuery, [thirtyDaysAgo.toISOString()]);
+
+    const processingTimesQuery = `
+      SELECT
         lab_number,
-        julianday(updated_at) - julianday(collection_date) as processing_days,
+        EXTRACT(EPOCH FROM (updated_at - collection_date))/86400 as processing_days,
         workflow_status
-      FROM samples 
-      WHERE collection_date IS NOT NULL AND updated_at IS NOT NULL${dateFilter.replace('WHERE', ' AND ')}
+      FROM samples
+      WHERE collection_date IS NOT NULL AND updated_at IS NOT NULL${dateFilter ? ` AND created_at >= $${dateParams.length + 1}` : ''}
       ORDER BY processing_days DESC
-    `);
-    const processingTimes = processingTimesStmt.all();
-    
+    `;
+    const processingTimesParams = dateFilter ? [...dateParams] : [];
+    if (dateFilter) processingTimesParams.push(dateParams[0]);
+    const processingTimes = await databaseService.all(processingTimesQuery, processingTimesParams);
+
     ResponseHandler.success(res, {
       totalSamples,
       workflowStats,
@@ -759,27 +762,27 @@ app.get("/api/statistics", (req, res) => {
 });
 
 // Legacy API endpoints for compatibility
-app.get("/api/get-last-lab-number", (req, res) => {
+app.get("/api/get-last-lab-number", async (req, res) => {
   try {
-    const stmt = db.prepare('SELECT lab_number FROM samples ORDER BY id DESC LIMIT 1');
-    const result = stmt.get();
+    const query = 'SELECT lab_number FROM samples ORDER BY id DESC LIMIT 1';
+    const result = await databaseService.get(query, []);
     ResponseHandler.success(res, result ? result.lab_number : '001/2025');
   } catch (error) {
     ResponseHandler.success(res, '001/2025');
   }
 });
 
-app.get("/api/test-cases", (req, res) => {
+app.get("/api/test-cases", async (req, res) => {
   try {
-    const stmt = db.prepare('SELECT * FROM test_cases ORDER BY id DESC LIMIT 100');
-    const testCases = stmt.all();
+    const query = 'SELECT * FROM test_cases ORDER BY id DESC LIMIT 100';
+    const testCases = await databaseService.all(query, []);
     ResponseHandler.success(res, testCases);
   } catch (error) {
     ResponseHandler.success(res, []);
   }
 });
 
-app.post("/api/test-cases", (req, res) => {
+app.post("/api/test-cases", async (req, res) => {
   try {
     const {
       case_number,
@@ -789,27 +792,28 @@ app.post("/api/test-cases", (req, res) => {
       test_purpose,
       sample_type
     } = req.body;
-    
+
     // Generate case number if not provided
     const finalCaseNumber = case_number || `CASE_${new Date().getFullYear()}_${Date.now().toString().slice(-6)}`;
     const finalKitNumber = ref_kit_number || `KIT_${Date.now()}`;
-    
-    const stmt = db.prepare(`
+
+    const query = `
       INSERT INTO test_cases (
         case_number, ref_kit_number, submission_date, client_type,
         test_purpose, sample_type, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-    `);
-    
-    const result = stmt.run(
+      ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+      RETURNING id
+    `;
+
+    const result = await databaseService.run(query, [
       finalCaseNumber,
       finalKitNumber,
       submission_date || new Date().toISOString(),
       client_type || 'private',
       test_purpose || 'paternity',
       sample_type || 'buccal_swab'
-    );
-    
+    ]);
+
     const newTestCase = {
       id: result.lastInsertRowid,
       case_number: finalCaseNumber,
@@ -819,7 +823,7 @@ app.post("/api/test-cases", (req, res) => {
       test_purpose: test_purpose || 'paternity',
       sample_type: sample_type || 'buccal_swab'
     };
-    
+
     ResponseHandler.success(res, newTestCase, 'Test case created successfully', 201);
   } catch (error) {
     logger.error('Test case creation failed', { error: error.message, body: req.body });
@@ -827,9 +831,9 @@ app.post("/api/test-cases", (req, res) => {
   }
 });
 
-app.post("/api/refresh-database", (req, res) => {
+app.post("/api/refresh-database", async (req, res) => {
   try {
-    const counts = getSampleCounts();
+    const counts = await getSampleCounts();
     ResponseHandler.success(res, {
       message: "Database refreshed",
       statistics: {
@@ -848,23 +852,22 @@ app.post("/api/refresh-database", (req, res) => {
 });
 
 // Electrophoresis batches endpoint
-app.get("/api/electrophoresis-batches", (req, res) => {
+app.get("/api/electrophoresis-batches", async (req, res) => {
   try {
     const query = `
-      SELECT 
+      SELECT
         id,
         batch_number,
         created_at,
         status,
         operator,
-        COUNT(DISTINCT sample_id) as sample_count
+        0 as sample_count
       FROM batches
       WHERE batch_number LIKE 'ELEC_%'
-      GROUP BY id
       ORDER BY created_at DESC
       LIMIT 50
     `;
-    const batches = db.prepare(query).all();
+    const batches = await databaseService.all(query, []);
     ResponseHandler.success(res, batches);
   } catch (error) {
     logger.error('Error fetching electrophoresis batches:', error);
@@ -873,15 +876,15 @@ app.get("/api/electrophoresis-batches", (req, res) => {
 });
 
 // Workflow stats endpoint
-app.get("/api/workflow-stats", (req, res) => {
+app.get("/api/workflow-stats", async (req, res) => {
   try {
-    const counts = getSampleCounts();
+    const counts = await getSampleCounts();
     ResponseHandler.success(res, {
       registered: counts.pending || 0,
       inExtraction: counts.extraction_batched || 0,
-      inPCR: counts.pcr_batched || 0,
-      inElectrophoresis: counts.electro_batched || 0,
-      reruns: counts.rerun_batched || 0,
+      inPCR: counts.pcrBatched || 0,
+      inElectrophoresis: counts.electroBatched || 0,
+      reruns: counts.rerunBatched || 0,
       completed: counts.completed || 0,
       total: counts.total || 0
     });
@@ -898,9 +901,9 @@ app.get("/api/workflow-stats", (req, res) => {
 });
 
 // General workflow status endpoint - for dashboard compatibility
-app.get("/api/workflow-status", (req, res) => {
+app.get("/api/workflow-status", async (req, res) => {
   try {
-    const counts = getSampleCounts();
+    const counts = await getSampleCounts();
     ResponseHandler.success(res, {
       totalSamples: counts.total || 0,
       pending: counts.pending || 0,
@@ -926,25 +929,26 @@ app.get("/api/workflow-status", (req, res) => {
 // DNA Extraction API Endpoints
 
 // Get DNA extraction batches
-app.get("/api/extraction/batches", (req, res) => {
+app.get("/api/extraction/batches", async (req, res) => {
   try {
-    const stmt = db.prepare(`
-      SELECT 
+    const query = `
+      SELECT
         id, batch_number, operator, extraction_date, extraction_method,
         kit_lot_number, kit_expiry_date, total_samples, status,
         lysis_time, lysis_temperature, incubation_time, centrifuge_speed,
         centrifuge_time, elution_volume, quality_control_passed,
         plate_layout, notes, created_at, updated_at
-      FROM extraction_batches 
+      FROM extraction_batches
       ORDER BY created_at DESC
-    `);
-    
-    const batches = stmt.all().map(batch => ({
+    `;
+
+    const batches = await databaseService.all(query, []);
+    const formattedBatches = batches.map(batch => ({
       ...batch,
       plate_layout: batch.plate_layout ? JSON.parse(batch.plate_layout) : {}
     }));
-    
-    ResponseHandler.success(res, batches);
+
+    ResponseHandler.success(res, formattedBatches);
   } catch (error) {
     logger.error('Error fetching extraction batches:', error);
     ResponseHandler.success(res, []); // Return empty array on error
@@ -952,29 +956,29 @@ app.get("/api/extraction/batches", (req, res) => {
 });
 
 // Get specific extraction batch
-app.get("/api/extraction/batches/:id", (req, res) => {
+app.get("/api/extraction/batches/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    
-    const stmt = db.prepare(`
-      SELECT 
+
+    const query = `
+      SELECT
         id, batch_number, operator, extraction_date, extraction_method,
         kit_lot_number, kit_expiry_date, total_samples, status,
         lysis_time, lysis_temperature, incubation_time, centrifuge_speed,
         centrifuge_time, elution_volume, quality_control_passed,
         plate_layout, notes, created_at, updated_at
-      FROM extraction_batches 
-      WHERE id = ?
-    `);
-    
-    const batch = stmt.get(id);
-    
+      FROM extraction_batches
+      WHERE id = $1
+    `;
+
+    const batch = await databaseService.get(query, [id]);
+
     if (!batch) {
       return ResponseHandler.notFound(res, 'Extraction batch not found');
     }
 
     batch.plate_layout = batch.plate_layout ? JSON.parse(batch.plate_layout) : {};
-    
+
     ResponseHandler.success(res, batch);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to fetch extraction batch', error);
@@ -982,25 +986,24 @@ app.get("/api/extraction/batches/:id", (req, res) => {
 });
 
 // Create new extraction batch
-app.post("/api/extraction/create-batch", (req, res) => {
-  const transaction = db.transaction(() => {
-    const { 
-      batchNumber, operator, extractionDate, extractionMethod, 
+app.post("/api/extraction/create-batch", async (req, res) => {
+  try {
+    const {
+      batchNumber, operator, extractionDate, extractionMethod,
       kitLotNumber, kitExpiryDate, wells, sampleCount,
-      lysisTime, lysisTemperature, incubationTime, 
+      lysisTime, lysisTemperature, incubationTime,
       centrifugeSpeed, centrifugeTime, elutionVolume,
       notes
     } = req.body;
-    
+
     if (!operator || !extractionMethod || !kitLotNumber) {
       throw new Error('Operator, extraction method, and kit lot number are required');
     }
 
     let finalBatchNumber = batchNumber;
     if (!batchNumber || batchNumber === 'EXT_1') {
-      const lastBatchStmt = db.prepare(`SELECT batch_number FROM extraction_batches WHERE batch_number LIKE 'EXT_%' ORDER BY id DESC LIMIT 1`);
-      const lastBatch = lastBatchStmt.get();
-      
+      const lastBatch = await databaseService.get(`SELECT batch_number FROM extraction_batches WHERE batch_number LIKE 'EXT_%' ORDER BY id DESC LIMIT 1`, []);
+
       let nextNumber = 1;
       if (lastBatch) {
         const lastNumber = parseInt(lastBatch.batch_number.replace('EXT_', ''));
@@ -1011,7 +1014,7 @@ app.post("/api/extraction/create-batch", (req, res) => {
       finalBatchNumber = `EXT_${nextNumber.toString().padStart(3, '0')}`;
     }
 
-    const insertBatchStmt = db.prepare(`
+    const insertBatchQuery = `
       INSERT INTO extraction_batches (
         batch_number, operator, extraction_date, extraction_method,
         kit_lot_number, kit_expiry_date, total_samples, plate_layout,
@@ -1019,11 +1022,12 @@ app.post("/api/extraction/create-batch", (req, res) => {
         centrifuge_speed, centrifuge_time, elution_volume,
         notes, status, created_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP)
-    `);
-    
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'active', CURRENT_TIMESTAMP)
+      RETURNING id
+    `;
+
     const plateLayoutJson = JSON.stringify(wells || {});
-    const result = insertBatchStmt.run(
+    const result = await databaseService.run(insertBatchQuery, [
       finalBatchNumber,
       operator,
       extractionDate || new Date().toISOString().split('T')[0],
@@ -1039,32 +1043,32 @@ app.post("/api/extraction/create-batch", (req, res) => {
       centrifugeTime || 3,
       elutionVolume || 200,
       notes
-    );
+    ]);
 
     // Update sample workflow status to extraction_batched
     let updatedSamples = 0;
     if (wells) {
-      const updateSampleStmt = db.prepare(`
-        UPDATE samples 
-        SET extraction_id = ?, workflow_status = 'extraction_batched', lab_batch_number = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `);
-      
-      Object.values(wells).forEach(well => {
+      const updateSampleQuery = `
+        UPDATE samples
+        SET extraction_id = $1, workflow_status = 'extraction_batched', lab_batch_number = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3
+      `;
+
+      for (const well of Object.values(wells)) {
         if (well.samples) {
-          well.samples.forEach(sample => {
+          for (const sample of well.samples) {
             if (sample.id) {
-              const updateResult = updateSampleStmt.run(result.lastInsertRowid, finalBatchNumber, sample.id);
+              const updateResult = await databaseService.run(updateSampleQuery, [result.lastInsertRowid, finalBatchNumber, sample.id]);
               if (updateResult.changes > 0) {
                 updatedSamples++;
               }
             }
-          });
+          }
         }
-      });
+      }
     }
 
-    return {
+    const batchResult = {
       batchId: result.lastInsertRowid,
       batchNumber: finalBatchNumber,
       operator,
@@ -1074,24 +1078,20 @@ app.post("/api/extraction/create-batch", (req, res) => {
       status: 'active',
       plate_layout: wells || {}
     };
-  });
 
-  try {
-    const result = transaction();
-    
     // Track batch creation metrics
     trackBatchCreated('extraction');
-    
-    ResponseHandler.success(res, result, 'DNA extraction batch created successfully');
+
+    ResponseHandler.success(res, batchResult, 'DNA extraction batch created successfully');
   } catch (error) {
     ResponseHandler.error(res, 'Failed to create DNA extraction batch', error);
   }
 });
 
 // Add quantification results
-app.post("/api/extraction/quantification", (req, res) => {
+app.post("/api/extraction/quantification", async (req, res) => {
   try {
-    const { 
+    const {
       extractionBatchId, sampleId, wellPosition,
       dnaConcentration, purity260280, purity260230,
       volumeRecovered, qualityAssessment, quantificationMethod,
@@ -1099,24 +1099,37 @@ app.post("/api/extraction/quantification", (req, res) => {
       notes
     } = req.body;
 
-    const insertResultStmt = db.prepare(`
-      INSERT OR REPLACE INTO extraction_results (
+    const insertResultQuery = `
+      INSERT INTO extraction_results (
         extraction_batch_id, sample_id, well_position,
         dna_concentration, purity_260_280, purity_260_230,
         volume_recovered, quality_assessment, quantification_method,
         extraction_efficiency, inhibition_detected, reextraction_required,
         notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      ON CONFLICT (extraction_batch_id, sample_id) DO UPDATE SET
+        well_position = EXCLUDED.well_position,
+        dna_concentration = EXCLUDED.dna_concentration,
+        purity_260_280 = EXCLUDED.purity_260_280,
+        purity_260_230 = EXCLUDED.purity_260_230,
+        volume_recovered = EXCLUDED.volume_recovered,
+        quality_assessment = EXCLUDED.quality_assessment,
+        quantification_method = EXCLUDED.quantification_method,
+        extraction_efficiency = EXCLUDED.extraction_efficiency,
+        inhibition_detected = EXCLUDED.inhibition_detected,
+        reextraction_required = EXCLUDED.reextraction_required,
+        notes = EXCLUDED.notes
+      RETURNING id
+    `;
 
-    const result = insertResultStmt.run(
+    const result = await databaseService.run(insertResultQuery, [
       extractionBatchId, sampleId, wellPosition,
       dnaConcentration, purity260280, purity260230,
       volumeRecovered, qualityAssessment, quantificationMethod,
       extractionEfficiency, inhibitionDetected, reextractionRequired,
       notes
-    );
+    ]);
 
     ResponseHandler.success(res, { id: result.lastInsertRowid }, 'Quantification result added successfully');
   } catch (error) {
@@ -1125,37 +1138,34 @@ app.post("/api/extraction/quantification", (req, res) => {
 });
 
 // Complete extraction batch
-app.put("/api/extraction/complete-batch", (req, res) => {
-  const transaction = db.transaction(() => {
+app.put("/api/extraction/complete-batch", async (req, res) => {
+  try {
     const { batchId, qualityControlPassed, notes } = req.body;
 
     // Update batch status
-    const updateBatchStmt = db.prepare(`
-      UPDATE extraction_batches 
-      SET status = 'completed', quality_control_passed = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `);
-    
-    updateBatchStmt.run(qualityControlPassed ? 1 : 0, notes, batchId);
+    const updateBatchQuery = `
+      UPDATE extraction_batches
+      SET status = 'completed', quality_control_passed = $1, notes = $2, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+    `;
+
+    await databaseService.run(updateBatchQuery, [qualityControlPassed ? 1 : 0, notes, batchId]);
 
     // Update samples to pcr_ready status (extraction completed)
-    const updateSamplesStmt = db.prepare(`
-      UPDATE samples 
+    const updateSamplesQuery = `
+      UPDATE samples
       SET workflow_status = 'pcr_ready', updated_at = CURRENT_TIMESTAMP
-      WHERE extraction_id = ? AND workflow_status IN ('extraction_batched', 'extraction_in_progress')
-    `);
-    
-    const samplesResult = updateSamplesStmt.run(batchId);
+      WHERE extraction_id = $1 AND workflow_status IN ('extraction_batched', 'extraction_in_progress')
+    `;
 
-    return {
+    const samplesResult = await databaseService.run(updateSamplesQuery, [batchId]);
+
+    const result = {
       batchId,
       status: 'completed',
       updatedSamples: samplesResult.changes
     };
-  });
 
-  try {
-    const result = transaction();
     ResponseHandler.success(res, result, 'Extraction batch completed successfully');
   } catch (error) {
     ResponseHandler.error(res, 'Failed to complete extraction batch', error);
@@ -1163,20 +1173,20 @@ app.put("/api/extraction/complete-batch", (req, res) => {
 });
 
 // Get extraction results for a batch
-app.get("/api/extraction/:batchId/results", (req, res) => {
+app.get("/api/extraction/:batchId/results", async (req, res) => {
   try {
     const { batchId } = req.params;
-    
-    const stmt = db.prepare(`
-      SELECT 
+
+    const query = `
+      SELECT
         er.*, s.lab_number, s.name, s.surname
       FROM extraction_results er
       LEFT JOIN samples s ON er.sample_id = s.id
-      WHERE er.extraction_batch_id = ?
+      WHERE er.extraction_batch_id = $1
       ORDER BY er.well_position
-    `);
-    
-    const results = stmt.all(batchId);
+    `;
+
+    const results = await databaseService.all(query, [batchId]);
     ResponseHandler.success(res, results);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to fetch extraction results', error);
@@ -1184,19 +1194,19 @@ app.get("/api/extraction/:batchId/results", (req, res) => {
 });
 
 // Get samples ready for extraction
-app.get("/api/extraction/samples-ready", (req, res) => {
+app.get("/api/extraction/samples-ready", async (req, res) => {
   try {
-    const stmt = db.prepare(`
-      SELECT 
-        id, lab_number, name, surname, relation, status, 
+    const query = `
+      SELECT
+        id, lab_number, name, surname, relation, status,
         collection_date, workflow_status, case_number
-      FROM samples 
+      FROM samples
       WHERE workflow_status IN ('sample_collected', 'extraction_ready') AND batch_id IS NULL
       ORDER BY collection_date ASC, lab_number ASC
       LIMIT 100
-    `);
-    
-    const samples = stmt.all();
+    `;
+
+    const samples = await databaseService.all(query, []);
     ResponseHandler.success(res, samples);
   } catch (error) {
     ResponseHandler.error(res, 'Failed to get samples ready for extraction', error);
@@ -1931,10 +1941,10 @@ app.get("/", (req, res) => {
 });
 
 // Workflow stages endpoint for dashboard
-app.get('/api/workflow-stages', (req, res) => {
+app.get('/api/workflow-stages', async (req, res) => {
   try {
-    const samples = db.prepare(`
-      SELECT 
+    const query = `
+      SELECT
         id,
         lab_number,
         case_number,
@@ -1947,8 +1957,9 @@ app.get('/api/workflow-stages', (req, res) => {
       WHERE workflow_status IS NOT NULL
       ORDER BY updated_at DESC
       LIMIT 100
-    `).all();
-    
+    `;
+
+    const samples = await databaseService.all(query, []);
     res.json(samples);
   } catch (error) {
     console.error('Error fetching workflow stages:', error);
@@ -1977,8 +1988,18 @@ app.get('/api/simulated-stages', (req, res) => {
 });
 
 // Handle 404 errors
+// Catch-all route to serve index.html for client-side routing in production
 app.use('*', (req, res) => {
-  ResponseHandler.notFound(res, `Route ${req.originalUrl} not found`);
+  if (process.env.NODE_ENV === 'production' || process.env.SERVE_STATIC === 'true') {
+    const indexPath = path.join(__dirname, '../dist/index.html');
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      ResponseHandler.notFound(res, `Route ${req.originalUrl} not found - production build not found`);
+    }
+  } else {
+    ResponseHandler.notFound(res, `Route ${req.originalUrl} not found`);
+  }
 });
 
 // Removed error monitoring middleware
