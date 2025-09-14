@@ -100,6 +100,7 @@
     "lru-cache": "^11.2.1",
     "lucide-react": "^0.522.0",
     "memory-usage": "^1.0.0",
+    "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
     "node-pty": "^1.0.0",
     "pdfkit": "^0.17.1",
