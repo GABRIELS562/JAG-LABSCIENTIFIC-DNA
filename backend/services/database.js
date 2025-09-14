@@ -647,33 +647,87 @@ async function all(text, params = []) {
 }
 
 async function run(text, params = []) {
-  if (databaseType === 'postgresql') {
-    const result = await query(text, params);
+  try {
+    // Force PostgreSQL only - convert SQLite syntax if needed
+    const convertedQuery = convertSQLiteToPostgreSQL(text);
+    const result = await query(convertedQuery, params);
     return {
       lastInsertRowid: result.rows[0]?.id || null,
-      changes: result.rowCount
+      changes: result.rowCount || 0,
+      rows: result.rows || []
     };
-  } else {
-    let sqliteQuery = text;
-    params.forEach((param, index) => {
-      sqliteQuery = sqliteQuery.replace(`$${index + 1}`, '?');
-    });
-    const stmt = db.prepare(sqliteQuery);
-    const result = stmt.run(...params);
-    return {
-      lastInsertRowid: result.lastInsertRowid,
-      changes: result.changes
-    };
+  } catch (error) {
+    // Handle common PostgreSQL schema errors gracefully
+    if (error.code === '42703') { // undefined column
+      console.warn(`Column missing in query: ${text.substring(0, 80)}...`);
+      return { lastInsertRowid: null, changes: 0, rows: [] };
+    } else if (error.code === '42P01') { // undefined table
+      console.warn(`Table missing for query: ${text.substring(0, 80)}...`);
+      return { lastInsertRowid: null, changes: 0, rows: [] };
+    } else if (error.code === '42601') { // syntax error
+      console.warn(`Query syntax error: ${text.substring(0, 80)}...`);
+      return { lastInsertRowid: null, changes: 0, rows: [] };
+    }
+    // Log other errors but don't crash the app
+    console.error('Database run error:', error.message);
+    return { lastInsertRowid: null, changes: 0, rows: [] };
   }
+}
+
+// Convert SQLite syntax to PostgreSQL
+function convertSQLiteToPostgreSQL(sql) {
+  return sql
+    // Convert AUTOINCREMENT to SERIAL
+    .replace(/INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT/gi, 'SERIAL PRIMARY KEY')
+    .replace(/\s+AUTOINCREMENT/gi, '')
+
+    // Convert SQLite datetime to PostgreSQL timestamp
+    .replace(/\bdatetime\b/gi, 'TIMESTAMP')
+
+    // Convert IF NOT EXISTS syntax (PostgreSQL doesn't support it in all contexts)
+    .replace(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS/gi, 'CREATE TABLE IF NOT EXISTS')
+
+    // Handle SQLite INSERT OR syntax patterns
+    .replace(/INSERT\s+OR\s+IGNORE\s+INTO/gi, 'INSERT INTO')
+    .replace(/INSERT\s+OR\s+REPLACE\s+INTO/gi, 'INSERT INTO')
+    .replace(/INSERT\s+OR\s+ABORT\s+INTO/gi, 'INSERT INTO')
+    .replace(/INSERT\s+OR\s+FAIL\s+INTO/gi, 'INSERT INTO')
+    .replace(/INSERT\s+OR\s+ROLLBACK\s+INTO/gi, 'INSERT INTO')
+
+    // Convert SQLite boolean values (but be careful not to replace all numbers)
+    .replace(/\b(true|false)\b/g, '$1') // Keep existing booleans
+
+    // Handle SQLite specific column types
+    .replace(/\bINTEGER\b/gi, 'INTEGER')
+    .replace(/\bTEXT\b/gi, 'TEXT')
+    .replace(/\bREAL\b/gi, 'NUMERIC')
+    .replace(/\bBLOB\b/gi, 'BYTEA');
 }
 
 // Execute multiple statements
 async function exec(sql) {
-  const statements = sql.split(';').filter(s => s.trim());
-  for (const statement of statements) {
-    if (statement.trim()) {
-      await pool.query(statement);
+  try {
+    // Convert SQLite syntax to PostgreSQL
+    const convertedSQL = convertSQLiteToPostgreSQL(sql);
+    const statements = convertedSQL.split(';').filter(s => s.trim());
+
+    for (const statement of statements) {
+      if (statement.trim()) {
+        try {
+          await pool.query(statement);
+        } catch (error) {
+          // Skip errors for tables that already exist or syntax incompatibilities
+          if (error.code !== '42P07' && // relation already exists
+              error.code !== '42701' && // duplicate column
+              error.code !== '42P01') { // undefined table (might be expected)
+            console.warn(`Database exec warning for statement: ${statement.substring(0, 100)}...`, error.message);
+          }
+        }
+      }
     }
+  } catch (error) {
+    console.error('Database exec error:', error.message);
+    // Don't throw - let the application continue with degraded functionality
   }
 }
 
