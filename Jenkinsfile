@@ -4,15 +4,18 @@ pipeline {
     environment {
         REGISTRY = 'localhost:5000'
         IMAGE = 'lims-complete'
+        WORKING_VERSION = 'final-live'
     }
     
     stages {
         stage('Build Docker Image') {
             steps {
                 sh '''
-                    echo "Building LIMS image..."
-                    docker build -t ${REGISTRY}/${IMAGE}:${BUILD_NUMBER} -f Dockerfile.production-optimized .
-                    docker tag ${REGISTRY}/${IMAGE}:${BUILD_NUMBER} ${REGISTRY}/${IMAGE}:latest
+                    echo "Building LIMS with Jenkins-compatible Dockerfile..."
+                    docker build -t ${REGISTRY}/${IMAGE}:jenkins-${BUILD_NUMBER} -f Dockerfile.jenkins .
+                    
+                    # Also tag as jenkins-latest for testing
+                    docker tag ${REGISTRY}/${IMAGE}:jenkins-${BUILD_NUMBER} ${REGISTRY}/${IMAGE}:jenkins-latest
                 '''
             }
         }
@@ -20,28 +23,35 @@ pipeline {
         stage('Push to Registry') {
             steps {
                 sh '''
-                    echo "Pushing to registry..."
-                    docker push ${REGISTRY}/${IMAGE}:${BUILD_NUMBER}
-                    docker push ${REGISTRY}/${IMAGE}:latest
+                    docker push ${REGISTRY}/${IMAGE}:jenkins-${BUILD_NUMBER}
+                    docker push ${REGISTRY}/${IMAGE}:jenkins-latest
+                    
+                    echo "========================================="
+                    echo "Build successful!"
+                    echo "New image: ${REGISTRY}/${IMAGE}:jenkins-${BUILD_NUMBER}"
+                    echo "Working production: ${REGISTRY}/${IMAGE}:${WORKING_VERSION}"
+                    echo "========================================="
                 '''
             }
         }
         
-        stage('Deploy to K3s') {
+        stage('Deployment Instructions') {
             steps {
                 sh '''
-                    echo "Deploying to Kubernetes..."
-                    kubectl set image deployment/lims-complete lims-complete=${REGISTRY}/${IMAGE}:${BUILD_NUMBER} -n production
-                    kubectl rollout status deployment/lims-complete -n production
-                '''
-            }
-        }
-        
-        stage('Trigger ArgoCD Sync') {
-            steps {
-                sh '''
-                    echo "Syncing ArgoCD..."
-                    kubectl patch application lims-app -n argocd --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}' || true
+                    echo "========================================="
+                    echo "MANUAL DEPLOYMENT REQUIRED"
+                    echo ""
+                    echo "1. TEST the new image first:"
+                    echo "   kubectl run lims-test --image=${REGISTRY}/${IMAGE}:jenkins-${BUILD_NUMBER} --port=5173 -n default"
+                    echo "   kubectl port-forward lims-test 8888:5173 -n default"
+                    echo "   Test at http://localhost:8888"
+                    echo ""
+                    echo "2. If testing passes, UPDATE production:"
+                    echo "   kubectl set image deployment/lims-complete lims-complete=${REGISTRY}/${IMAGE}:jenkins-${BUILD_NUMBER} -n production"
+                    echo ""
+                    echo "3. If issues occur, ROLLBACK immediately:"
+                    echo "   kubectl set image deployment/lims-complete lims-complete=${REGISTRY}/${IMAGE}:${WORKING_VERSION} -n production"
+                    echo "========================================="
                 '''
             }
         }
