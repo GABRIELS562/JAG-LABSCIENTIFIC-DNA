@@ -24,7 +24,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
 // Generate mock samples for DevOps demonstration when database is empty
 const generateMockSamplesForDemo = () => {
