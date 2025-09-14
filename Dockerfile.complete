@@ -4,8 +4,11 @@ RUN apk add --no-cache python3 make g++
 COPY package*.json ./
 RUN npm install --force
 COPY . .
-# Build frontend for production
-RUN npm run build
+# Copy production environment configuration
+COPY .env.production .env.production
+COPY .env.production .env
+# Build frontend for production with empty VITE_API_URL for relative paths
+RUN VITE_API_URL="" npm run build
 # Verify build output
 RUN ls -la dist/
 COPY start-full-app.sh .

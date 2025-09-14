@@ -1,7 +1,14 @@
 #!/bin/sh
-# Build frontend for production
+# Copy production environment if it exists
+if [ -f ".env.production" ]; then
+  echo "Using production environment configuration..."
+  cp .env.production .env
+fi
+
+# Build frontend for production with correct API URL
 echo "Building frontend for production..."
-npm run build
+# Set VITE_API_URL to empty for relative paths
+VITE_API_URL="" npm run build
 
 # Check if build was successful
 if [ ! -d "dist" ]; then

@@ -2004,6 +2004,18 @@ app.use('*', (req, res) => {
 
 // Removed error monitoring middleware
 
+// Catch-all route for client-side routing (must be before error handler)
+// This serves the React app for any routes not handled by the API
+if (process.env.NODE_ENV === 'production' || process.env.SERVE_STATIC === 'true') {
+  app.get('*', (req, res) => {
+    // Don't serve index.html for API routes
+    if (req.path.startsWith('/api')) {
+      return res.status(404).json({ error: 'API endpoint not found' });
+    }
+    res.sendFile(path.join(__dirname, '../dist/index.html'));
+  });
+}
+
 // Global error handler (must be last)
 app.use(globalErrorHandler);
 
