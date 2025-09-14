@@ -1,0 +1,22 @@
+FROM node:18-alpine
+WORKDIR /app
+
+# Copy and install dependencies
+COPY package*.json ./
+RUN npm install --force
+
+# Copy source code
+COPY . .
+
+# Build frontend for production
+RUN npm run build
+
+# Install serve to serve static files
+RUN npm install -g serve
+
+# Start script for production
+RUN echo '#!/bin/sh\nnode backend/server.js &\nserve -s dist -l 5173 &\nwait' > start-prod.sh
+RUN chmod +x start-prod.sh
+
+EXPOSE 3001 5173
+CMD ["./start-prod.sh"]
