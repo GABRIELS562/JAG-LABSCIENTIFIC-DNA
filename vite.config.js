@@ -24,79 +24,34 @@ export default defineConfig({
   },
   build: {
     // Performance optimizations
-    target: 'esnext',
-    minify: process.env.NODE_ENV === 'production' ? 'terser' : 'esbuild',
+    target: 'es2015', // Changed from esnext for better compatibility
+    minify: 'esbuild', // Use esbuild for both dev and prod to avoid terser issues
     rollupOptions: {
       output: {
-        // Advanced code splitting strategy
-        manualChunks(id) {
-          // Core vendor libraries
-          if (id.includes('node_modules')) {
-            // React ecosystem
-            if (id.includes('react') || id.includes('react-dom')) {
-              return 'react-vendor';
-            }
-            // Router
-            if (id.includes('react-router')) {
-              return 'router';
-            }
-            // Material-UI ecosystem
-            if (id.includes('@mui') || id.includes('@emotion')) {
-              return 'mui';
-            }
-            // Charts and visualization
-            if (id.includes('recharts') || id.includes('chart.js') || id.includes('react-chartjs-2')) {
-              return 'charts';
-            }
-            // Radix UI components
-            if (id.includes('@radix-ui')) {
-              return 'radix';
-            }
-            // TanStack ecosystem
-            if (id.includes('@tanstack')) {
-              return 'tanstack';
-            }
-            // Lucide icons
-            if (id.includes('lucide-react')) {
-              return 'icons';
-            }
-            // Utility libraries
-            if (id.includes('date-fns') || id.includes('file-saver') || id.includes('clsx') || id.includes('class-variance-authority')) {
-              return 'utils';
-            }
-            // Heavy libraries that should be separate
-            if (id.includes('tesseract.js')) {
-              return 'tesseract';
-            }
-            if (id.includes('xlsx')) {
-              return 'xlsx';
-            }
-            // Remaining vendor code
-            return 'vendor';
-          }
-          
-          // Feature-based chunking for app code
-          if (id.includes('src/components/features/')) {
-            const featurePath = id.split('src/components/features/')[1];
-            const featureName = featurePath.split('/')[0].toLowerCase();
-            return `feature-${featureName}`;
-          }
-          
-          // Forms chunking
-          if (id.includes('src/components/forms/')) {
-            return 'forms';
-          }
-          
-          // UI components chunking
-          if (id.includes('src/components/ui/')) {
-            return 'ui-components';
-          }
-          
-          // Common components
-          if (id.includes('src/components/common/')) {
-            return 'common';
-          }
+        // Simplified chunk splitting to avoid circular dependencies
+        manualChunks: {
+          // Core React - must be loaded first
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          // MUI and Emotion together to avoid initialization issues
+          'mui': ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
+          // Charts libraries
+          'charts': ['recharts', 'chart.js', 'react-chartjs-2'],
+          // Radix UI components
+          'radix': ['@radix-ui/react-dialog', '@radix-ui/react-select', '@radix-ui/react-tabs', '@radix-ui/react-toast'],
+          // Table components
+          'tanstack': ['@tanstack/react-table'],
+          // Icons
+          'icons': ['lucide-react'],
+          // Utilities
+          'utils': ['date-fns', 'file-saver', 'clsx', 'class-variance-authority', 'tailwind-merge'],
+          // Heavy libraries
+          'tesseract': ['tesseract.js'],
+          'xlsx': ['xlsx']
         },
+        // Prevent vendor chunk from being too large
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]'
       },
     },
     // Optimize chunk size warning
@@ -105,49 +60,6 @@ export default defineConfig({
     sourcemap: process.env.NODE_ENV === 'development',
     // Asset optimization
     assetsInlineLimit: 4096,
-    // Advanced Terser options for production
-    terserOptions: process.env.NODE_ENV === 'production' ? {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-        pure_funcs: ['console.log', 'console.info', 'console.debug', 'console.warn'],
-        passes: 2,
-        ecma: 2020,
-        arguments: true,
-        booleans: true,
-        collapse_vars: true,
-        comparisons: true,
-        computed_props: true,
-        conditionals: true,
-        dead_code: true,
-        evaluate: true,
-        expression: true,
-        hoist_funs: true,
-        hoist_props: true,
-        hoist_vars: false,
-        if_return: true,
-        join_vars: true,
-        loops: true,
-        negate_iife: true,
-        properties: true,
-        reduce_funcs: true,
-        reduce_vars: true,
-        sequences: true,
-        side_effects: true,
-        switches: true,
-        typeofs: true,
-        unused: true,
-      },
-      mangle: {
-        safari10: true,
-        properties: {
-          regex: /^_/,
-        },
-      },
-      format: {
-        comments: false,
-      },
-    } : {},
   },
   server: {
     host: '0.0.0.0',
