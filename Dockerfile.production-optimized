@@ -1,0 +1,44 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install build dependencies and curl for health checks
+RUN apk add --no-cache python3 make g++ curl
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install --force
+
+# Copy application files
+COPY . .
+
+# Create production environment file
+RUN echo 'VITE_API_URL=' > .env && \
+    echo 'NODE_ENV=production' >> .env && \
+    echo 'PORT=3001' >> .env && \
+    echo 'SERVE_STATIC=true' >> .env
+
+# Build frontend during image build (not at runtime!)
+RUN VITE_API_URL="" npm run build && \
+    ls -la dist/ && \
+    echo "Frontend build completed successfully"
+
+# Make start script executable
+RUN chmod +x start-full-app.sh
+
+# Create a simple production start script that doesn't rebuild
+RUN echo '#!/bin/sh' > start-production.sh && \
+    echo 'echo "Starting production server..."' >> start-production.sh && \
+    echo 'echo "Frontend already built in /app/dist"' >> start-production.sh && \
+    echo 'ls -la dist/ | head -10' >> start-production.sh && \
+    echo 'echo "Starting backend on port 3001..."' >> start-production.sh && \
+    echo 'SERVE_STATIC=true NODE_ENV=production PORT=3001 node backend/server.js' >> start-production.sh && \
+    chmod +x start-production.sh
+
+# Expose production port
+EXPOSE 3001
+
+# Use the production script that doesn't rebuild
+CMD ["./start-production.sh"]
