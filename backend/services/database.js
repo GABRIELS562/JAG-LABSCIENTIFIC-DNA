@@ -83,6 +83,15 @@ async function initialize() {
       await client.query('SELECT 1');
       client.release();
       console.log(`✅ PostgreSQL connected to ${config.host}:${config.port}/${config.database}`);
+
+      // Ensure database schema is correct on every startup
+      try {
+        const { initializeDatabase } = require('../utils/ensureDatabase');
+        await initializeDatabase(pool);
+      } catch (schemaError) {
+        console.warn('⚠️  Schema initialization warning:', schemaError.message);
+        // Continue even if schema initialization has issues
+      }
     } else {
       // Test SQLite connection
       db.prepare('SELECT 1').get();
