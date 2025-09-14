@@ -87,25 +87,32 @@ export default defineConfig({
             return 'vendor';
           }
         },
-        // Optimized file naming
+        // Enhanced cache busting with consistent hash patterns
         chunkFileNames: (chunkInfo) => {
           const facadeModuleId = chunkInfo.facadeModuleId;
+          // Use timestamp in hash for guaranteed uniqueness
+          const timestamp = Date.now().toString(36);
           if (facadeModuleId && facadeModuleId.includes('src/components/')) {
-            return 'assets/components/[name]-[hash].js';
+            return `assets/components/[name]-[hash]-${timestamp}.js`;
           }
-          return 'assets/[name]-[hash].js';
+          return `assets/[name]-[hash]-${timestamp}.js`;
         },
-        entryFileNames: 'assets/entry-[hash].js',
+        entryFileNames: `assets/entry-[hash]-${Date.now().toString(36)}.js`,
         assetFileNames: (assetInfo) => {
           const info = assetInfo.name.split('.');
           const ext = info[info.length - 1];
+          const timestamp = Date.now().toString(36);
+
           if (/png|jpe?g|svg|gif|tiff|bmp|ico/i.test(ext)) {
-            return 'assets/images/[name]-[hash].[ext]';
+            return `assets/images/[name]-[hash]-${timestamp}.[ext]`;
           }
           if (/css/i.test(ext)) {
-            return 'assets/css/[name]-[hash].[ext]';
+            return `assets/css/[name]-[hash]-${timestamp}.[ext]`;
           }
-          return 'assets/[name]-[hash].[ext]';
+          if (/js/i.test(ext)) {
+            return `assets/[name]-[hash]-${timestamp}.[ext]`;
+          }
+          return `assets/[name]-[hash]-${timestamp}.[ext]`;
         }
       },
       // Prevent circular dependencies
@@ -124,6 +131,11 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000, // Increased for better performance
     // Environment-specific source maps
     sourcemap: process.env.NODE_ENV === 'development' ? true : false,
+    // Force cache invalidation with build-time timestamp
+    define: {
+      __BUILD_TIMESTAMP__: JSON.stringify(Date.now()),
+      __BUILD_VERSION__: JSON.stringify(`${new Date().toISOString().slice(0,10)}-${Date.now().toString(36)}`),
+    },
     // Asset optimization
     assetsInlineLimit: 8192, // Increased for better performance
     // CSS code splitting

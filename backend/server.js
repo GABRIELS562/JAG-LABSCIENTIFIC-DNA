@@ -132,11 +132,59 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Serve static files from the dist directory in production
+// Serve static files from the dist directory in production with proper cache control
 if (process.env.NODE_ENV === 'production' || process.env.SERVE_STATIC === 'true') {
   const distPath = path.join(__dirname, '../dist');
   console.log(`📁 Serving static files from: ${distPath}`);
-  app.use(express.static(distPath));
+
+  // Cache control middleware for different file types
+  app.use((req, res, next) => {
+    // Force no-cache for index.html to ensure fresh content
+    if (req.path === '/' || req.path === '/index.html' || req.path.endsWith('.html')) {
+      res.set({
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'X-Cache-Control': 'no-cache-html'
+      });
+    }
+    // Long-term cache for hashed assets (JS, CSS with hash in filename)
+    else if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|pdf)$/)) {
+      // Check if file has hash in name (cache busting)
+      const hasHash = req.path.match(/-[a-f0-9]{8,}[\.-]/i);
+
+      if (hasHash) {
+        // Hashed assets - cache for 1 year
+        res.set({
+          'Cache-Control': 'public, max-age=31536000, immutable',
+          'X-Cache-Control': 'hashed-asset'
+        });
+      } else {
+        // Non-hashed assets - shorter cache with revalidation
+        res.set({
+          'Cache-Control': 'public, max-age=3600, must-revalidate',
+          'X-Cache-Control': 'non-hashed-asset'
+        });
+      }
+    }
+    next();
+  });
+
+  // Serve static files with cache control
+  app.use(express.static(distPath, {
+    maxAge: 0, // Let our middleware handle caching
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, path) => {
+      // Additional cache control for manifest and service worker
+      if (path.endsWith('manifest.json') || path.endsWith('sw.js')) {
+        res.set({
+          'Cache-Control': 'public, max-age=0, must-revalidate',
+          'X-Cache-Control': 'pwa-files'
+        });
+      }
+    }
+  }));
 }
 
 // Reduced payload limits for memory optimization
