@@ -4,9 +4,13 @@ RUN apk add --no-cache python3 make g++
 COPY package*.json ./
 RUN npm install --force
 COPY . .
-# Copy production environment configuration
-# Use the example file and rename it to .env for production
-COPY .env.production.example .env
+# Create production environment configuration
+# Either copy the example file or create .env directly for production
+RUN if [ -f .env.production.example ]; then \
+      cp .env.production.example .env; \
+    else \
+      echo 'VITE_API_URL=' > .env; \
+    fi
 # Build frontend for production with empty VITE_API_URL for relative paths
 RUN VITE_API_URL="" npm run build
 # Verify build output

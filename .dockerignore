@@ -22,6 +22,7 @@ lerna-debug.log*
 # Environment files
 .env
 .env.*
+!.env.production.example
 
 # Editor directories
 .vscode
