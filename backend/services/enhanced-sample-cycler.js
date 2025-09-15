@@ -144,7 +144,7 @@ class EnhancedSampleCycler {
           lab_number, case_number, name, surname, relation,
           collection_date, workflow_status, status, sample_type, metadata
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
+      `, [
         sample.lab_number,
         sample.case_number,
         sample.name,
@@ -155,7 +155,7 @@ class EnhancedSampleCycler {
         sample.status,
         sample.sample_type,
         sample.metadata
-      );
+      ]);
 
       this.stats.samplesGenerated++;
       this.stats.currentActive++;
@@ -188,40 +188,40 @@ class EnhancedSampleCycler {
   }
 
   startWorkflowProgression() {
-    const progressWorkflows = () => {
+    const progressWorkflows = async () => {
       try {
         const stages = Object.keys(config.workflowProgression.stages);
-        
-        stages.forEach(stage => {
-          if (stage === 'report_sent') return; // Final stage
-          
+
+        for (const stage of stages) {
+          if (stage === 'report_sent') continue; // Final stage
+
           const stageConfig = config.workflowProgression.stages[stage];
           const nextStage = stageConfig.next;
-          
-          if (!nextStage) return;
-          
+
+          if (!nextStage) continue;
+
           // Get samples ready for progression
-          const stmt = this.db.prepare(`
-            SELECT id, lab_number, workflow_status, 
-                   EXTRACT(EPOCH FROM (NOW() - updated_at)) / 3600 as hours_in_stage
-            FROM samples 
-            WHERE workflow_status = ? 
+          const samples = await this.db.all(`
+            SELECT id, lab_number, workflow_status,
+                   EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - updated_at)) / 86400 as days_in_stage
+            FROM samples
+            WHERE workflow_status = ?
               AND status = 'active'
             LIMIT 10
-          `);
-          
-          const samples = stmt.all(stage);
-          
-          samples.forEach(sample => {
-            const requiredTime = stageConfig.duration / config.workflowProgression.simulationSpeed;
-            const timeInStage = (sample.hours_in_stage || 0) * 3600; // Convert to seconds
-            
-            if (timeInStage >= requiredTime) {
-              // Progress to next stage
-              this.progressSample(sample.id, sample.lab_number, nextStage);
-            }
-          });
-        });
+          `, [stage]);
+
+          if (Array.isArray(samples)) {
+            samples.forEach(sample => {
+              const requiredTime = stageConfig.duration / config.workflowProgression.simulationSpeed;
+              const timeInStage = (sample.days_in_stage || 0) * 86400; // Convert days to seconds
+
+              if (timeInStage >= requiredTime) {
+                // Progress to next stage
+                this.progressSample(sample.id, sample.lab_number, nextStage);
+              }
+            });
+          }
+        }
       } catch (error) {
         logger.error('Workflow progression error:', error);
       }
@@ -231,26 +231,32 @@ class EnhancedSampleCycler {
     progressWorkflows(); // Progress immediately
   }
 
-  progressSample(sampleId, labNumber, nextStage) {
+  async progressSample(sampleId, labNumber, nextStage) {
     try {
       // Check if this is a forensic sample
-      const sample = this.db.prepare(`
+      const sample = await this.db.get(`
         SELECT metadata, case_number FROM samples WHERE id = ?
-      `).get(sampleId);
+      `, [sampleId]);
 
-      const isForensic = sample?.case_number?.startsWith('FOR-') ||
-                        sample?.metadata?.includes('"case_type":"Forensic"');
+      // Check if metadata is a string (JSON) or object
+      let isForensic = sample?.case_number?.startsWith('FOR-');
+      if (sample?.metadata) {
+        if (typeof sample.metadata === 'string') {
+          isForensic = isForensic || sample.metadata.includes('"case_type":"Forensic"');
+        } else if (typeof sample.metadata === 'object') {
+          isForensic = isForensic || sample.metadata.case_type === 'Forensic';
+        }
+      }
 
       // Simulate quality control failures
       if (config.qualityControl.enabled && Math.random() < config.qualityControl.failureRate) {
-        const stmt = this.db.prepare(`
+        await this.db.run(`
           UPDATE samples
           SET status = 'failed',
-              updated_at = NOW(),
+              updated_at = CURRENT_TIMESTAMP,
               notes = 'Quality control failure'
           WHERE id = ?
-        `);
-        stmt.run(sampleId);
+        `, [sampleId]);
 
         // Record contamination event for forensic samples
         if (isForensic) {
@@ -272,14 +278,12 @@ class EnhancedSampleCycler {
         return;
       }
 
-      const stmt = this.db.prepare(`
+      await this.db.run(`
         UPDATE samples
         SET workflow_status = ?,
-            updated_at = NOW()
+            updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `);
-
-      stmt.run(nextStage, sampleId);
+      `, [nextStage, sampleId]);
       this.stats.samplesProgressed++;
 
       // Record chain of custody for forensic samples
@@ -341,13 +345,11 @@ class EnhancedSampleCycler {
   startCleanup() {
     const cleanup = () => {
       try {
-        const stmt = this.db.prepare(`
-          DELETE FROM samples 
-          WHERE workflow_status = 'report_sent' 
-            AND updated_at < NOW() - INTERVAL '1 hour'
-        `);
-        
-        const result = stmt.run();
+        const result = this.db.run(`
+          DELETE FROM samples
+          WHERE workflow_status = 'report_sent'
+            AND updated_at < (CURRENT_TIMESTAMP - INTERVAL '1 hour')
+        `, []);
         
         if (result.changes > 0) {
           this.stats.samplesArchived += result.changes;
