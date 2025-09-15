@@ -20,7 +20,12 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
+      // Force React to resolve to a single instance
+      "react": path.resolve(__dirname, "node_modules/react"),
+      "react-dom": path.resolve(__dirname, "node_modules/react-dom")
     },
+    // Ensure .jsx extensions are resolved
+    extensions: ['.mjs', '.js', '.jsx', '.json', '.ts', '.tsx']
   },
   build: {
     // Performance optimizations for production deployment
@@ -28,47 +33,30 @@ export default defineConfig({
     minify: 'esbuild',
     rollupOptions: {
       output: {
-        // Fixed chunk splitting to ensure React ecosystem coherence
+        // Use ES modules for proper React handling
+        format: 'es',
+        // Critical: Proper chunk splitting to ensure React loads first
         manualChunks: {
-          // Core React - Must be loaded first, contains all React hooks
-          'react-core': ['react', 'react-dom'],
-
-          // React ecosystem - Depends on react-core
-          'react-ecosystem': [
-            'react-router-dom',
-            '@mui/material',
-            '@mui/icons-material',
-            '@emotion/react',
-            '@emotion/styled',
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-progress',
-            '@radix-ui/react-select',
-            '@radix-ui/react-tabs',
-            '@radix-ui/react-toast',
-            '@radix-ui/react-toggle',
-            '@radix-ui/react-toggle-group',
-            '@tanstack/react-table',
-            'lucide-react'
-          ],
-
-          // Charts - Heavy libraries
+          // React MUST be in its own chunk that loads before anything else
+          'react-core': ['react', 'react-dom', 'react/jsx-runtime'],
+          // UI libraries that depend on React
+          'ui-vendor': ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
+          // Other React ecosystem
+          'react-libs': ['react-router-dom', '@tanstack/react-table', 'lucide-react'],
+          // Charts
           'charts': ['recharts', 'chart.js', 'react-chartjs-2'],
-
-          // Heavy utilities
-          'heavy-libs': ['tesseract.js', 'xlsx'],
-
-          // Utilities
-          'utils': ['date-fns', 'file-saver', 'clsx', 'class-variance-authority', 'tailwind-merge']
+          // Heavy libraries
+          'heavy': ['tesseract.js', 'xlsx']
         },
-        // Stable chunk naming for reliable loading
+        // Ensure React core loads first
         chunkFileNames: (chunkInfo) => {
-          const facadeModuleId = chunkInfo.facadeModuleId;
-          if (facadeModuleId && facadeModuleId.includes('src/components/')) {
-            return `assets/components/[name]-[hash].js`;
+          // React core gets priority loading
+          if (chunkInfo.name === 'react-core') {
+            return `assets/00-[name]-[hash].js`;
           }
           return `assets/[name]-[hash].js`;
         },
-        entryFileNames: `assets/entry-[hash].js`,
+        entryFileNames: `assets/[name]-[hash].js`,
         assetFileNames: (assetInfo) => {
           const info = assetInfo.name.split('.');
           const ext = info[info.length - 1];
@@ -82,8 +70,6 @@ export default defineConfig({
           return `assets/[name]-[hash].[ext]`;
         }
       },
-      // Prevent circular dependencies
-      external: [],
       onwarn(warning, warn) {
         // Skip certain warnings
         if (warning.code === 'CIRCULAR_DEPENDENCY') {
@@ -135,12 +121,15 @@ export default defineConfig({
       }
     }
   },
-  // Development optimizations
+  // Development optimizations with explicit React handling
   optimizeDeps: {
+    // Force pre-bundling of React to ensure single instance
     include: [
-      'react', 
-      'react-dom', 
-      '@mui/material', 
+      'react',
+      'react-dom',
+      'react/jsx-runtime',
+      'react/jsx-dev-runtime',
+      '@mui/material',
       '@mui/icons-material',
       'react-router-dom',
       '@emotion/react',
@@ -153,5 +142,11 @@ export default defineConfig({
       'tesseract.js',
       'xlsx'
     ],
+    // Force React dependencies to be treated as ESM
+    esbuildOptions: {
+      define: {
+        global: 'globalThis',
+      },
+    },
   },
 });
