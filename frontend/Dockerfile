@@ -3,6 +3,9 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
+# Install build dependencies for node-gyp packages
+RUN apk add --no-cache python3 py3-pip make g++ cairo-dev pango-dev giflib-dev librsvg-dev
+
 # Copy package files
 COPY package*.json ./
 
@@ -18,10 +21,8 @@ RUN npm run build || true
 # Production stage
 FROM nginx:alpine
 
-# Copy built assets from builder stage
-# Try both dist and build directories to handle different build outputs
+# Copy built assets from builder stage (Vite uses dist directory)
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY --from=builder /app/build /usr/share/nginx/html 2>/dev/null || true
 
 # Add nginx configuration for SPA routing
 RUN echo 'server { \
