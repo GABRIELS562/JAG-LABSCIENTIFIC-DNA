@@ -457,6 +457,18 @@ app.get('/health', (req, res) => {
   });
 });
 
+// API Health endpoint for frontend compatibility
+app.get('/api/health', (req, res) => {
+  const healthCheck = databaseService.getHealthCheck();
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    version: process.env.npm_package_version || '3.0.0',
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 // Ready endpoint - returns 200 only if database is connected
 app.get('/ready', async (req, res) => {
   try {

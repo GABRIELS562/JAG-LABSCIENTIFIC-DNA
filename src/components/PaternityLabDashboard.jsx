@@ -201,13 +201,15 @@ const PaternityLabDashboard = () => {
     try {
       setRefreshing(true);
 
+      // Generate timestamp for cache busting
+      const timestamp = Date.now();
+
       // Fetch samples first - most critical data
       let samples = [];
       let batches = [];
-      
+
       try {
         // Fetch ALL samples (up to 500) to see complete workflow - bypass cache for live data
-        const timestamp = Date.now();
         const samplesRes = await api.getSamples({ limit: 500, _t: timestamp });
         console.log('Raw API response:', samplesRes);
         // Handle both old and new API response formats

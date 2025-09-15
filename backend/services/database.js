@@ -744,8 +744,15 @@ async function all(text, params = []) {
 
 async function run(text, params = []) {
   try {
-    // Use PostgreSQL directly without conversion for standard queries
-    const result = await query(text, params);
+    // Ensure params is an array - handle both array and single parameter cases
+    if (!Array.isArray(params)) {
+      console.error('Database run error: Query values must be an array');
+      return { lastInsertRowid: null, changes: 0, rows: [] };
+    }
+
+    // Convert SQLite syntax to PostgreSQL for compatibility
+    const convertedSql = convertSQLiteToPostgreSQL(text);
+    const result = await query(convertedSql, params);
     return {
       lastInsertRowid: result.rows[0]?.id || null,
       changes: result.rowCount || 0,
@@ -782,12 +789,20 @@ function convertSQLiteToPostgreSQL(sql) {
     // Convert IF NOT EXISTS syntax (PostgreSQL doesn't support it in all contexts)
     .replace(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS/gi, 'CREATE TABLE IF NOT EXISTS')
 
-    // Handle SQLite INSERT OR syntax patterns
+    // Handle SQLite INSERT OR syntax patterns more comprehensively
     .replace(/INSERT\s+OR\s+IGNORE\s+INTO/gi, 'INSERT INTO')
     .replace(/INSERT\s+OR\s+REPLACE\s+INTO/gi, 'INSERT INTO')
     .replace(/INSERT\s+OR\s+ABORT\s+INTO/gi, 'INSERT INTO')
     .replace(/INSERT\s+OR\s+FAIL\s+INTO/gi, 'INSERT INTO')
     .replace(/INSERT\s+OR\s+ROLLBACK\s+INTO/gi, 'INSERT INTO')
+
+    // Handle any remaining INSERT OR patterns
+    .replace(/INSERT\s+OR\s+\w+\s+INTO/gi, 'INSERT INTO')
+
+    // Handle UPDATE OR patterns
+    .replace(/UPDATE\s+OR\s+IGNORE/gi, 'UPDATE')
+    .replace(/UPDATE\s+OR\s+REPLACE/gi, 'UPDATE')
+    .replace(/UPDATE\s+OR\s+\w+/gi, 'UPDATE')
 
     // Convert SQLite boolean values (but be careful not to replace all numbers)
     .replace(/\b(true|false)\b/g, '$1') // Keep existing booleans
@@ -802,8 +817,9 @@ function convertSQLiteToPostgreSQL(sql) {
 // Execute multiple statements
 async function exec(sql) {
   try {
-    // Split statements and execute directly (PostgreSQL only)
-    const statements = sql.split(';').filter(s => s.trim());
+    // Convert SQLite syntax to PostgreSQL before executing
+    const convertedSql = convertSQLiteToPostgreSQL(sql);
+    const statements = convertedSql.split(';').filter(s => s.trim());
 
     for (const statement of statements) {
       if (statement.trim()) {
