@@ -213,12 +213,26 @@ const { memoryMonitor } = require('./middleware/memoryMonitor');
 app.use(metricsMiddleware);
 // app.use(sanitizeInput); // TODO: Fix sanitizeInput middleware
 
+// Import simple cycler for fallback when database is unavailable
+const simpleSampleCycler = require('./services/simpleSampleCycler');
+
 // Database helper functions with connection checking
 async function getSamplesWithPagination(page = 1, limit = 50, filters = {}) {
   // Check database connection before proceeding
   if (!databaseService.isConnected()) {
-    logger.warn('Database not connected, returning empty results');
-    return { data: [], pagination: { page: 1, limit, total: 0, pages: 0 } };
+    logger.warn('Database not connected, using simple sample cycler');
+    // Use simple cycler as fallback
+    const samples = await simpleSampleCycler.getAllSamples();
+    const total = samples.length;
+    const pages = Math.ceil(total / limit);
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedSamples = samples.slice(startIndex, endIndex);
+
+    return {
+      data: paginatedSamples,
+      pagination: { page, limit, total, pages }
+    };
   }
 
   try {
@@ -488,7 +502,7 @@ function requireDatabase(req, res, next) {
 }
 
 // Samples endpoints with streaming support
-app.get("/api/samples", requireDatabase, async (req, res) => {
+app.get("/api/samples", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(100, parseInt(req.query.limit) || 50); // Cap limit
@@ -2274,12 +2288,18 @@ const server = app
       }
     }, 2000); // Wait 2 seconds for database to initialize
     
-    // Start sample generator for DevOps monitoring
-    if (process.env.ENABLE_DEVOPS_FEATURES === 'true' || process.env.NODE_ENV === 'production') {
+    // Start appropriate sample generator based on database connection
+    if (!databaseService.isConnected()) {
+      // No database connection - use simple cycler for demo
+      console.log('⚠️  No database connection - starting simple sample cycler');
+      simpleSampleCycler.start();
+      console.log('✅ Simple sample cycler active - 5 demo samples cycling every 30 seconds');
+    } else if (process.env.ENABLE_DEVOPS_FEATURES === 'true' || process.env.NODE_ENV === 'production') {
+      // Database connected - use database-backed sample generator
       const sampleGen = new SampleGenerator(db);
       sampleGen.start();
       console.log('🔄 DevOps Sample Generator active - continuous monitoring data');
-      
+
       // Update Prometheus metrics every 10 seconds
       setInterval(() => {
         prometheusMetrics.updateWorkflowMetrics(db);

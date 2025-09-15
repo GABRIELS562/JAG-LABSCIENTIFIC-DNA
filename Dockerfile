@@ -8,7 +8,13 @@ RUN apk add --no-cache \
     make \
     g++ \
     postgresql-client \
-    curl
+    curl \
+    pkgconfig \
+    cairo-dev \
+    jpeg-dev \
+    pango-dev \
+    giflib-dev \
+    pixman-dev
 
 # Set working directory
 WORKDIR /app

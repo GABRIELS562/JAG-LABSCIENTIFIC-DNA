@@ -4,7 +4,7 @@
  */
 
 const config = require('../config/workflow-config');
-const { logger } = require('../utils/logger');
+const logger = require('../utils/logger'); // Fix: import logger directly, not destructured
 const databaseService = require('./database');
 const forensicMetrics = require('./forensicMetricsService');
 
@@ -30,10 +30,19 @@ class EnhancedSampleCycler {
 
   async initializeForensicTracking() {
     try {
-      await forensicMetrics.initialize();
-      logger.info('Forensic tracking initialized in sample cycler');
+      // Only initialize if database is connected
+      if (this.db && this.db.isConnected && this.db.isConnected()) {
+        await forensicMetrics.initialize();
+        logger.info('Forensic tracking initialized in sample cycler');
+      } else {
+        logger.warn('Skipping forensic tracking - no database connection');
+      }
     } catch (error) {
-      logger.error('Failed to initialize forensic tracking', { error: error.message });
+      if (logger && logger.error) {
+        logger.error('Failed to initialize forensic tracking', { error: error.message });
+      } else {
+        console.error('Failed to initialize forensic tracking:', error.message);
+      }
     }
   }
 

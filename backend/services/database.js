@@ -30,8 +30,10 @@ function getDbHost() {
   if (process.env.KUBERNETES_SERVICE_HOST) {
     return 'postgresql.production.svc.cluster.local';
   }
-  // Support both DB_HOST and POSTGRES_HOST
-  return process.env.DB_HOST || process.env.POSTGRES_HOST || 'localhost';
+  // Support DATABASE_HOST for K3s environment
+  const dbHost = process.env.DATABASE_HOST || process.env.DB_HOST || process.env.POSTGRES_HOST || 'localhost';
+  console.log(`Database host resolved to: ${dbHost}`);
+  return dbHost;
 }
 
 const config = {
@@ -93,6 +95,7 @@ async function initializeConnection() {
         databaseType = 'postgresql';
         isConnected = true;
         logger.info('PostgreSQL connection pool initialized successfully');
+        console.log(`Connecting to database at: ${config.host}:${config.port}`);
         return pool;
       } catch (error) {
         connectionRetries = attempt + 1;
