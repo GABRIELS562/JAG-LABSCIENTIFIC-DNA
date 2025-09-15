@@ -15,13 +15,16 @@ spec:
     spec:
       containers:
       - name: lims-complete
-        image: localhost:5000/lims-complete:final-live
+        image: localhost:5000/lims-complete:showcase-ready
         ports:
         - containerPort: 5173
         - containerPort: 3001
+        envFrom:
+        - configMapRef:
+            name: lims-config
         env:
-        - name: NODE_ENV
-          value: "production"
+        - name: DATABASE_PASSWORD
+          value: "lims_password"  # In production, use a Secret instead
         - name: DATABASE_URL
           value: "postgresql://lims_user:lims_password@postgresql.production.svc.cluster.local:5432/lims_db"
         livenessProbe:

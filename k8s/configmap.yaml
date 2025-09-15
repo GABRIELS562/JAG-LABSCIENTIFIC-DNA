@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lims-config
+  namespace: production
+data:
+  # Sample generation configuration
+  ENABLE_MOCK_SAMPLES: "true"
+  SAMPLE_CYCLE_INTERVAL: "30000"
+  INITIAL_SAMPLE_COUNT: "5"
+
+  # Database configuration
+  DATABASE_HOST: "postgresql.production.svc.cluster.local"
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: "lims_db"
+  DATABASE_USER: "lims_user"
+
+  # Application configuration
+  NODE_ENV: "production"
+  PORT: "3001"
+  FRONTEND_PORT: "5173"
+
+  # Feature flags for demo
+  ENABLE_BACKGROUND_JOBS: "true"
+  ENABLE_SAMPLE_CYCLER: "true"
+  FALLBACK_TO_MOCK_DATA: "true"
+
+  # Workflow configuration
+  WORKFLOW_AUTO_PROGRESS: "true"
+  WORKFLOW_PROGRESS_INTERVAL: "30000"
