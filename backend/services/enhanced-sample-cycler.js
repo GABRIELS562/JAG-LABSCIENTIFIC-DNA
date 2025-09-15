@@ -117,8 +117,10 @@ class EnhancedSampleCycler {
     // Use FOR- prefix for forensic cases
     const casePrefix = caseType === 'Forensic' ? 'FOR' : 'CASE';
 
+    // Generate a simpler sequential lab number to avoid ID issues
+    this.sampleCounter = (this.sampleCounter || 0) + 1;
     const sample = {
-      lab_number: `LAB-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
+      lab_number: `LAB-2025-${String(this.sampleCounter).padStart(3, '0')}`,
       case_number: `${casePrefix}-${new Date().getFullYear()}-${Math.floor(Math.random() * 9999).toString().padStart(4, '0')}`,
       name: firstName,
       surname: lastName,
@@ -177,8 +179,10 @@ class EnhancedSampleCycler {
           }
         );
 
-        // Calculate initial integrity hash
-        forensicMetrics.calculateEvidenceIntegrity(result.lastID || sample.lab_number, sample);
+        // Calculate initial integrity hash - use the lab_number, not ID
+        if (result && result.lastID) {
+          forensicMetrics.calculateEvidenceIntegrity(result.lastID, sample);
+        }
 
         logger.info(`🔬 Forensic sample ${sample.lab_number} created with chain of custody`);
       }
