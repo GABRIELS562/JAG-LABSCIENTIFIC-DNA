@@ -109,5 +109,51 @@ config/environments/production.json
 # PostgreSQL development data
 postgres_dev_data/
 
-# Docker logs
+# Docker and Kubernetes
 docker-compose.override.yml
+*.tar
+*.tar.gz
+*.tgz
+
+# Kubernetes secrets and temporary files
+k8s/secrets/
+k8s/temp/
+k8s/*.secret.yaml
+k8s/*-secret.yaml
+*.kubeconfig
+
+# CI/CD and deployment
+.jenkins/
+jenkins_home/
+argocd-data/
+
+# Container registry and images
+registry-data/
+docker-volumes/
+
+# Backup files
+*.backup
+*.bak
+*.sql.backup
+backups/
+
+# Terraform state (if used for infrastructure)
+terraform.tfstate*
+.terraform/
+*.tfplan
+*.tfvars
+
+# Helm charts (if added later)
+charts/*/charts/
+charts/*/requirements.lock
+
+# ArgoCD application state
+.argocd/
+
+# Local development overrides
+docker-compose.local.yml
+docker-compose.dev.yml
+
+# IDE and editor files
+*.sublime-*
+*.code-workspace

@@ -1,59 +1,112 @@
 pipeline {
     agent any
-    
+
     environment {
-        REGISTRY = 'localhost:5000'
-        IMAGE = 'lims-complete'
-        WORKING_VERSION = 'final-live'
+        DOCKER_REGISTRY = 'localhost:5000'
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
+        KUBECONFIG = credentials('kubeconfig')
     }
-    
+
     stages {
-        stage('Build Docker Image') {
+        stage('Checkout') {
             steps {
-                sh '''
-                    echo "Building LIMS with Jenkins-compatible Dockerfile..."
-                    docker build -t ${REGISTRY}/${IMAGE}:jenkins-${BUILD_NUMBER} -f Dockerfile.jenkins .
-                    
-                    # Also tag as jenkins-latest for testing
-                    docker tag ${REGISTRY}/${IMAGE}:jenkins-${BUILD_NUMBER} ${REGISTRY}/${IMAGE}:jenkins-latest
-                '''
+                checkout scm
             }
         }
-        
-        stage('Push to Registry') {
+
+        stage('Build Backend') {
             steps {
-                sh '''
-                    docker push ${REGISTRY}/${IMAGE}:jenkins-${BUILD_NUMBER}
-                    docker push ${REGISTRY}/${IMAGE}:jenkins-latest
-                    
-                    echo "========================================="
-                    echo "Build successful!"
-                    echo "New image: ${REGISTRY}/${IMAGE}:jenkins-${BUILD_NUMBER}"
-                    echo "Working production: ${REGISTRY}/${IMAGE}:${WORKING_VERSION}"
-                    echo "========================================="
-                '''
+                script {
+                    dir('backend') {
+                        sh 'docker build -t ${DOCKER_REGISTRY}/lims-backend:${IMAGE_TAG} .'
+                        sh 'docker build -t ${DOCKER_REGISTRY}/lims-backend:latest .'
+                    }
+                }
             }
         }
-        
-        stage('Deployment Instructions') {
+
+        stage('Build Frontend') {
             steps {
-                sh '''
-                    echo "========================================="
-                    echo "MANUAL DEPLOYMENT REQUIRED"
-                    echo ""
-                    echo "1. TEST the new image first:"
-                    echo "   kubectl run lims-test --image=${REGISTRY}/${IMAGE}:jenkins-${BUILD_NUMBER} --port=5173 -n default"
-                    echo "   kubectl port-forward lims-test 8888:5173 -n default"
-                    echo "   Test at http://localhost:8888"
-                    echo ""
-                    echo "2. If testing passes, UPDATE production:"
-                    echo "   kubectl set image deployment/lims-complete lims-complete=${REGISTRY}/${IMAGE}:jenkins-${BUILD_NUMBER} -n production"
-                    echo ""
-                    echo "3. If issues occur, ROLLBACK immediately:"
-                    echo "   kubectl set image deployment/lims-complete lims-complete=${REGISTRY}/${IMAGE}:${WORKING_VERSION} -n production"
-                    echo "========================================="
-                '''
+                script {
+                    sh 'docker build -f frontend/Dockerfile -t ${DOCKER_REGISTRY}/lims-frontend:${IMAGE_TAG} .'
+                    sh 'docker build -f frontend/Dockerfile -t ${DOCKER_REGISTRY}/lims-frontend:latest .'
+                }
             }
+        }
+
+        stage('Push Images') {
+            steps {
+                script {
+                    sh 'docker push ${DOCKER_REGISTRY}/lims-backend:${IMAGE_TAG}'
+                    sh 'docker push ${DOCKER_REGISTRY}/lims-backend:latest'
+                    sh 'docker push ${DOCKER_REGISTRY}/lims-frontend:${IMAGE_TAG}'
+                    sh 'docker push ${DOCKER_REGISTRY}/lims-frontend:latest'
+                }
+            }
+        }
+
+        stage('Update K8s Manifests') {
+            steps {
+                script {
+                    sh """
+                        sed -i 's|image: localhost:5000/lims-backend:.*|image: localhost:5000/lims-backend:${IMAGE_TAG}|g' k8s/backend.yaml
+                        sed -i 's|image: localhost:5000/lims-frontend:.*|image: localhost:5000/lims-frontend:${IMAGE_TAG}|g' k8s/frontend.yaml
+                    """
+                }
+            }
+        }
+
+        stage('Commit and Push') {
+            steps {
+                script {
+                    sh """
+                        git config --global user.email "jenkins@lims.local"
+                        git config --global user.name "Jenkins CI"
+                        git add k8s/backend.yaml k8s/frontend.yaml
+                        git commit -m "Update image tags to ${IMAGE_TAG}" || echo "No changes to commit"
+                        git push origin main || echo "Push failed, continuing..."
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to K8s') {
+            steps {
+                script {
+                    sh """
+                        kubectl apply -f k8s/namespace.yaml
+                        kubectl apply -f k8s/postgres.yaml
+                        kubectl apply -f k8s/backend.yaml
+                        kubectl apply -f k8s/frontend.yaml
+                        kubectl apply -f k8s/ingress.yaml
+                        kubectl rollout status deployment/lims-backend -n lims --timeout=300s
+                        kubectl rollout status deployment/lims-frontend -n lims --timeout=300s
+                    """
+                }
+            }
+        }
+
+        stage('Sync ArgoCD') {
+            steps {
+                script {
+                    sh """
+                        argocd app sync lims --force || echo "ArgoCD sync failed, continuing..."
+                        argocd app wait lims --timeout 300 || echo "ArgoCD wait failed, continuing..."
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo "Pipeline completed successfully"
+        }
+        failure {
+            echo "Pipeline failed"
         }
     }
 }
