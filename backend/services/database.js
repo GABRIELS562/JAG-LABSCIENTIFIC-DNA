@@ -744,9 +744,8 @@ async function all(text, params = []) {
 
 async function run(text, params = []) {
   try {
-    // Force PostgreSQL only - convert SQLite syntax if needed
-    const convertedQuery = convertSQLiteToPostgreSQL(text);
-    const result = await query(convertedQuery, params);
+    // Use PostgreSQL directly without conversion for standard queries
+    const result = await query(text, params);
     return {
       lastInsertRowid: result.rows[0]?.id || null,
       changes: result.rowCount || 0,
@@ -803,9 +802,8 @@ function convertSQLiteToPostgreSQL(sql) {
 // Execute multiple statements
 async function exec(sql) {
   try {
-    // Convert SQLite syntax to PostgreSQL
-    const convertedSQL = convertSQLiteToPostgreSQL(sql);
-    const statements = convertedSQL.split(';').filter(s => s.trim());
+    // Split statements and execute directly (PostgreSQL only)
+    const statements = sql.split(';').filter(s => s.trim());
 
     for (const statement of statements) {
       if (statement.trim()) {
