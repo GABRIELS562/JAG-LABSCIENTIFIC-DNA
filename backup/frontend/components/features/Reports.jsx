@@ -1,0 +1,585 @@
+import React, { useState, useEffect } from 'react';
+import { getStatusColor, getBatchTypeColor, getBatchTypeLabel } from '../../utils/statusHelpers';
+import { api } from '../../services/api';
+import {
+  Card,
+  CardContent,
+  Typography,
+  Box,
+  Chip,
+  Button,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Grid,
+  IconButton,
+  Tooltip,
+  Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Pagination,
+  CircularProgress
+} from '@mui/material';
+import {
+  Download as DownloadIcon,
+  Visibility as ViewIcon,
+  FilterList as FilterIcon,
+  Refresh as RefreshIcon,
+  FilePresent as FileIcon,
+  Error as ErrorIcon,
+  CheckCircle as CheckCircleIcon,
+  Pending as PendingIcon,
+  Send as SendIcon,
+  Archive as ArchiveIcon,
+  Assessment as AssessmentIcon,
+  Gavel as GavelIcon,
+  Psychology as PsychologyIcon,
+  Done as DoneIcon,
+  HourglassEmpty as HourglassIcon,
+  SendRounded as SendRoundedIcon,
+  Science as ScienceIcon
+} from '@mui/icons-material';
+
+export default function Reports() {
+  const [reports, setReports] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [batchTypeFilter, setBatchTypeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [selectedReport, setSelectedReport] = useState(null);
+
+  // Status icon helper function
+  const getStatusIcon = (status) => {
+    if (!status) return <PendingIcon color="disabled" />;
+    
+    switch (status.toLowerCase()) {
+      case 'completed':
+      case 'analysis_completed':
+        return <CheckCircleIcon color="success" />;
+      case 'processing':
+      case 'pcr_batched':
+      case 'electro_batched':
+        return <ScienceIcon color="warning" />;
+      case 'pending':
+      case 'sample_collected':
+        return <PendingIcon color="warning" />;
+      case 'sent':
+        return <SendIcon color="primary" />;
+      case 'archived':
+        return <ArchiveIcon color="disabled" />;
+      case 'error':
+      case 'failed':
+        return <ErrorIcon color="error" />;
+      default:
+        return <PendingIcon color="disabled" />;
+    }
+  };
+
+  useEffect(() => {
+    loadReports();
+    loadStats();
+  }, [page, batchTypeFilter, statusFilter, searchQuery]);
+
+  const loadReports = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Build query parameters for reports API
+      const params = {
+        page,
+        limit: 20
+      };
+      
+      if (searchQuery) {
+        params.search = searchQuery;
+      }
+      
+      if (batchTypeFilter !== 'all') {
+        params.batch_type = batchTypeFilter;
+      }
+      
+      if (statusFilter !== 'all') {
+        params.status = statusFilter;
+      }
+      
+      // Fetch reports directly from reports API
+      const response = await api.getReports(params);
+      
+      if (response.success) {
+        setReports(response.data || []);
+        setTotalPages(response.pagination?.pages || 1);
+        console.log('Loaded reports:', response.data?.length || 0);
+      } else {
+        throw new Error(response.error || 'Failed to load reports');
+      }
+    } catch (error) {
+      console.error('Error loading reports:', error);
+      setError('Error loading reports: ' + (error.message || 'Unknown error'));
+      setReports([]);
+      setTotalPages(1);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadStats = async () => {
+    try {
+      // Fetch report statistics directly from reports API
+      const response = await api.getReportStats();
+      
+      if (response.success) {
+        const data = response.data;
+        const stats = {
+          total_reports: data.total_reports || 0,
+          legal_reports: data.legal_reports || 0,
+          peace_of_mind_reports: data.peace_of_mind_reports || 0,
+          completed_reports: data.completed_reports || 0,
+          pending_reports: data.pending_reports || 0,
+          sent_reports: data.sent_reports || 0
+        };
+        setStats(stats);
+      } else {
+        throw new Error(response.error || 'Failed to load report stats');
+      }
+    } catch (error) {
+      console.error('Error loading report stats:', error);
+      // Set default empty stats on error
+      setStats({
+        total_reports: 0,
+        legal_reports: 0,
+        peace_of_mind_reports: 0,
+        completed_reports: 0,
+        pending_reports: 0,
+        sent_reports: 0
+      });
+    }
+  };
+
+  const handleView = async (report) => {
+    try {
+      // Open PDF in new tab
+      window.open(`/api/reports/${report.id}/view`, '_blank');
+    } catch (error) {
+      console.error('Error viewing report:', error);
+      setError('Error viewing report');
+    }
+  };
+
+  const handleDownload = async (report) => {
+    try {
+      // Create download link
+      const link = document.createElement('a');
+      link.href = `/api/reports/${report.id}/download`;
+      link.download = report.original_filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error downloading report:', error);
+      setError('Error downloading report');
+    }
+  };
+
+  // Status utilities now imported from centralized location
+
+  return (
+    <Box sx={{ p: 3 }}>
+      {/* Header */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Box>
+          <Typography variant="h4" component="h1">
+            📋 Final Reports & Deliverables
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
+            Generated PDF reports and certificates ready for client delivery
+          </Typography>
+        </Box>
+        <Button
+          variant="outlined"
+          startIcon={<RefreshIcon />}
+          onClick={() => {
+            loadReports();
+            loadStats();
+          }}
+          disabled={loading}
+        >
+          Refresh
+        </Button>
+      </Box>
+
+      {/* Error Alert */}
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      {/* Bold Metric Blocks */}
+      {stats && (
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid item xs={12} sm={6} md={2}>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #0D488F 0%, #1e4976 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(13, 72, 143, 0.3)'
+              }
+            }}>
+              <AssessmentIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.total_reports || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Total Reports
+              </Typography>
+            </Box>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={2}>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(220, 38, 38, 0.3)'
+              }
+            }}>
+              <GavelIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.legal_reports || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Legal
+              </Typography>
+            </Box>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={2}>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #42a5f5 0%, #1976d2 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(66, 165, 245, 0.3)'
+              }
+            }}>
+              <PsychologyIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.peace_of_mind_reports || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Peace of Mind
+              </Typography>
+            </Box>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={2}>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(22, 163, 74, 0.3)'
+              }
+            }}>
+              <DoneIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.completed_reports || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Completed
+              </Typography>
+            </Box>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={2}>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(255, 152, 0, 0.3)'
+              }
+            }}>
+              <HourglassIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.pending_reports || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Pending
+              </Typography>
+            </Box>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={2}>
+            <Box sx={{ 
+              textAlign: 'center', 
+              p: 3, 
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+              color: 'white',
+              borderRadius: 2, 
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 20px rgba(139, 92, 246, 0.3)'
+              }
+            }}>
+              <SendRoundedIcon sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                {stats.sent_reports || 0}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Sent
+              </Typography>
+            </Box>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* Filters */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={4}>
+              <TextField
+                fullWidth
+                label="Search reports..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Report number, batch number, filename..."
+                variant="outlined"
+                size="small"
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Batch Type</InputLabel>
+                <Select
+                  value={batchTypeFilter}
+                  onChange={(e) => setBatchTypeFilter(e.target.value)}
+                  label="Batch Type"
+                >
+                  <MenuItem value="all">All Types</MenuItem>
+                  <MenuItem value="legal">Legal</MenuItem>
+                  <MenuItem value="peace_of_mind">Peace of Mind</MenuItem>
+                  <MenuItem value="standard">Standard</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  label="Status"
+                >
+                  <MenuItem value="all">All Statuses</MenuItem>
+                  <MenuItem value="pending">Pending</MenuItem>
+                  <MenuItem value="completed">Completed</MenuItem>
+                  <MenuItem value="sent">Sent</MenuItem>
+                  <MenuItem value="archived">Archived</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={2}>
+              <Typography variant="body2" color="text.secondary">
+                {reports.length} reports found
+              </Typography>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* Reports Table */}
+      <Card>
+        <CardContent sx={{ p: 0 }}>
+          {loading ? (
+            <Box display="flex" justifyContent="center" p={4}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <TableContainer sx={{ overflowX: 'auto' }}>
+              <Table sx={{ minWidth: 800 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Report</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Batch Type</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Lab Batch</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>Filename</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Date</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>File</TableCell>
+                    <TableCell align="center">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {reports.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                        <Typography color="text.secondary">
+                          {searchQuery || batchTypeFilter !== 'all' || statusFilter !== 'all'
+                            ? 'No reports found matching your filters'
+                            : 'No reports available'
+                          }
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    reports.map((report) => (
+                      <TableRow key={report.id} hover>
+                        <TableCell>
+                          <Box>
+                            <Typography variant="subtitle2" fontWeight="bold">
+                              {report.report_number}
+                            </Typography>
+                            <Typography variant="body2" color="textSecondary">
+                              {report.report_type}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                          <Chip
+                            label={getBatchTypeLabel(report.batch_type)}
+                            color={getBatchTypeColor(report.batch_type)}
+                            size="small"
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                          <Typography variant="body2" fontFamily="monospace">
+                            {report.lab_batch_number || 'N/A'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>
+                          <Tooltip title={report.original_filename}>
+                            <Typography 
+                              variant="body2" 
+                              sx={{ 
+                                maxWidth: 200, 
+                                overflow: 'hidden', 
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {report.original_filename}
+                            </Typography>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                          <Typography variant="body2">
+                            {new Date(report.date_generated).toLocaleDateString()}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Box display="flex" alignItems="center" gap={1}>
+                            {getStatusIcon(report.status)}
+                            <Chip
+                              label={report.status}
+                              color={getStatusColor(report.status)}
+                              size="small"
+                              variant="outlined"
+                            />
+                          </Box>
+                        </TableCell>
+                        <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                          {report.file_accessible ? (
+                            <Tooltip title="File exists">
+                              <FileIcon color="success" />
+                            </Tooltip>
+                          ) : (
+                            <Tooltip title="File not found">
+                              <ErrorIcon color="error" />
+                            </Tooltip>
+                          )}
+                        </TableCell>
+                        <TableCell align="center">
+                          <Box display="flex" gap={1}>
+                            <Tooltip title="View Report">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleView(report)}
+                                disabled={!report.file_accessible}
+                              >
+                                <ViewIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Download Report">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleDownload(report)}
+                                disabled={!report.file_accessible}
+                              >
+                                <DownloadIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <Box display="flex" justifyContent="center" p={2}>
+              <Pagination
+                count={totalPages}
+                page={page}
+                onChange={(e, newPage) => setPage(newPage)}
+                color="primary"
+              />
+            </Box>
+          )}
+        </CardContent>
+      </Card>
+    </Box>
+  );
+}
