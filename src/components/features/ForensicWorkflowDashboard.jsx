@@ -33,6 +33,7 @@ const ForensicWorkflowDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [simulationSpeed, setSimulationSpeed] = useState(10);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [cyclingSamples, setCyclingSamples] = useState([]);
 
   // Workflow stage configurations - these IDs must match the API response workflow_status values
   const workflowStages = [
@@ -56,6 +57,12 @@ const ForensicWorkflowDashboard = () => {
       const timestamp = Date.now();
       const samplesResponse = await api.getSamples({ limit: 300, _t: timestamp });
       const samples = samplesResponse?.data || [];
+
+      // Filter for cycling demo samples
+      const demoSamples = samples.filter(s =>
+        s.lab_number && s.lab_number.startsWith('DEMO-')
+      ).slice(0, 15); // Show max 15 cycling samples
+      setCyclingSamples(demoSamples);
       
       // Calculate distribution from actual samples
       const queueByStage = {};
@@ -155,6 +162,29 @@ const ForensicWorkflowDashboard = () => {
           Real-time monitoring of DNA paternity testing laboratory operations
         </Typography>
       </Paper>
+
+      {/* Live Cycling Samples Alert */}
+      {cyclingSamples.length > 0 && (
+        <Alert severity="success" sx={{ mb: 3 }} icon={<Science />}>
+          <Typography variant="subtitle2" fontWeight="bold">
+            🧪 Simple Sample Cycler Active: {cyclingSamples.length} samples cycling through stages
+          </Typography>
+          <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {cyclingSamples.slice(0, 10).map(sample => (
+              <Chip
+                key={sample.id}
+                label={`${sample.lab_number.substring(5, 15)}: ${sample.workflow_status.replace(/_/g, ' ')}`}
+                size="small"
+                color="primary"
+                variant="outlined"
+              />
+            ))}
+            {cyclingSamples.length > 10 && (
+              <Chip label={`+${cyclingSamples.length - 10} more`} size="small" />
+            )}
+          </Box>
+        </Alert>
+      )}
 
       {/* Control Panel */}
       <Grid container spacing={3} sx={{ mb: 3 }}>

@@ -112,6 +112,8 @@ const PaternityLabDashboard = () => {
   const [paternityWorkflow, setPaternityWorkflow] = useState(null);
   const [sampleTracking, setSampleTracking] = useState(null);
   const [manualWorkflow, setManualWorkflow] = useState(null);
+  const [cyclingSamples, setCyclingSamples] = useState([]);
+  const [cyclingStageMap, setCyclingStageMap] = useState({});
 
   // Workflow stages for 3500 Genetic Analyzer with PowerPlex ESX 17
   const workflowStages = [
@@ -203,6 +205,33 @@ const PaternityLabDashboard = () => {
 
       // Generate timestamp for cache busting
       const timestamp = Date.now();
+
+      // Fetch cycling samples from the simple sample cycler
+      let cyclingData = [];
+      try {
+        const cyclingRes = await fetch(`${API_BASE_URL}/api/samples`);
+        if (cyclingRes.ok) {
+          const data = await cyclingRes.json();
+          const allSamples = data?.samples || data?.data || [];
+          // Filter for cycling demo samples (DEMO- prefix)
+          cyclingData = allSamples.filter(s =>
+            s.lab_number && s.lab_number.startsWith('DEMO-')
+          ).slice(0, 20); // Show max 20 cycling samples
+          setCyclingSamples(cyclingData);
+
+          // Map samples to their current stages
+          const stageMap = {};
+          cyclingData.forEach(sample => {
+            if (!stageMap[sample.workflow_status]) {
+              stageMap[sample.workflow_status] = [];
+            }
+            stageMap[sample.workflow_status].push(sample);
+          });
+          setCyclingStageMap(stageMap);
+        }
+      } catch (error) {
+        console.warn('Failed to fetch cycling samples:', error);
+      }
 
       // Fetch samples first - most critical data
       let samples = [];
@@ -500,6 +529,21 @@ const PaternityLabDashboard = () => {
         </div>
       </div>
 
+      {/* Live Cycling Status Banner */}
+      {cyclingSamples.length > 0 && (
+        <Alert className="mb-4 border-green-500 bg-green-50 dark:bg-green-900/20">
+          <Activity className="h-4 w-4 animate-pulse" />
+          <AlertDescription className="flex items-center justify-between">
+            <span className="font-semibold">
+              🧬 Simple Sample Cycler Active: {cyclingSamples.length} samples cycling through DNA workflow stages
+            </span>
+            <Badge variant="default" className="bg-green-500 text-white animate-pulse">
+              LIVE - Updates every 30s
+            </Badge>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
@@ -681,9 +725,35 @@ const PaternityLabDashboard = () => {
             <div className="absolute inset-0 bg-gradient-to-r from-blue-400 via-purple-500 to-green-500 animate-pulse" />
           </div>
 
+          {/* Show cycling samples */}
+          {cyclingSamples.length > 0 && (
+            <div className="mt-4">
+              <div className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                🔄 Live Cycling Samples (Simple Sample Cycler)
+              </div>
+              <div className="max-h-32 overflow-y-auto border rounded p-2 bg-gray-50 dark:bg-gray-800">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 text-xs">
+                  {cyclingSamples.map(sample => (
+                    <div key={sample.id} className="flex items-center gap-1 p-1 bg-white dark:bg-gray-700 rounded">
+                      <Badge variant="outline" className="text-xs px-1 py-0">
+                        {sample.lab_number.substring(5, 15)}...
+                      </Badge>
+                      <span className="text-gray-600 dark:text-gray-400 truncate">
+                        {sample.workflow_status.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="text-xs text-center mt-2 text-gray-500 dark:text-gray-400">
+                {cyclingSamples.length} samples cycling • Updates every 30 seconds
+              </div>
+            </div>
+          )}
+
           <div className="mt-4 text-center">
             <span className="text-sm text-gray-600 dark:text-gray-400">
-              🔄 Live demonstration - Samples cycle through all stages automatically
+              🔬 Automated DNA Processing Pipeline - Real-time Status
             </span>
           </div>
         </CardContent>

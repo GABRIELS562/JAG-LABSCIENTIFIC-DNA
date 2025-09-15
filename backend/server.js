@@ -542,7 +542,17 @@ app.get("/api/samples", async (req, res) => {
       });
     } else {
       const result = await getSamplesWithPagination(page, limit, filters);
-      ResponseHandler.paginated(res, result.data, result.pagination);
+
+      // Also include DEMO samples from SimpleSampleCycler for visualization
+      try {
+        const demoSamples = await simpleSampleCycler.getAllSamples();
+        // Merge demo samples with database samples
+        const mergedData = [...demoSamples, ...result.data].slice(0, limit);
+        ResponseHandler.paginated(res, mergedData, result.pagination);
+      } catch (e) {
+        // If simple cycler fails, just return database results
+        ResponseHandler.paginated(res, result.data, result.pagination);
+      }
     }
   } catch (error) {
     ResponseHandler.error(res, 'Failed to fetch samples', error);
