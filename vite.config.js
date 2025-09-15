@@ -28,31 +28,31 @@ export default defineConfig({
     minify: 'esbuild',
     rollupOptions: {
       output: {
-        // Enhanced chunk splitting to prevent circular dependencies
+        // Fixed chunk splitting to ensure React ecosystem coherence
         manualChunks(id) {
-          // React core - highest priority
-          if (id.includes('react') && !id.includes('react-router') && !id.includes('react-chartjs')) {
-            return 'react-core';
+          // React ecosystem - CRITICAL: Keep React, React-DOM, and React hooks together
+          if (id.includes('react') || id.includes('react-dom')) {
+            // Exclude React-based libraries to avoid conflicts
+            if (id.includes('react-router') || id.includes('react-chartjs') || id.includes('lucide-react')) {
+              // These will fall through to their specific chunks
+            } else {
+              return 'react-vendor'; // React + React-DOM together
+            }
           }
 
-          // React Router - separate to prevent conflicts
+          // React Router - separate but stable
           if (id.includes('react-router')) {
             return 'react-router';
           }
 
-          // MUI components - group together for consistency
-          if (id.includes('@mui/material') || id.includes('@mui/icons-material')) {
-            return 'mui-components';
-          }
-
-          // Emotion styling - keep with MUI
-          if (id.includes('@emotion')) {
-            return 'mui-components';
-          }
-
-          // Chart libraries - separate due to size
+          // Chart libraries - separate due to size but include React chart bindings
           if (id.includes('recharts') || id.includes('chart.js') || id.includes('react-chartjs')) {
             return 'charts';
+          }
+
+          // MUI ecosystem - group together for consistency
+          if (id.includes('@mui/material') || id.includes('@mui/icons-material') || id.includes('@emotion')) {
+            return 'mui-components';
           }
 
           // Radix UI components
@@ -65,14 +65,14 @@ export default defineConfig({
             return 'tanstack';
           }
 
+          // Icons (separate from React vendor)
+          if (id.includes('lucide-react')) {
+            return 'icons';
+          }
+
           // Heavy utilities and libraries
           if (id.includes('tesseract.js') || id.includes('xlsx')) {
             return 'heavy-libs';
-          }
-
-          // Icons
-          if (id.includes('lucide-react')) {
-            return 'icons';
           }
 
           // Utility libraries
@@ -82,37 +82,31 @@ export default defineConfig({
             return 'utils';
           }
 
-          // Node modules default
+          // Default vendor chunk for other node_modules
           if (id.includes('node_modules')) {
             return 'vendor';
           }
         },
-        // Enhanced cache busting with consistent hash patterns
+        // Stable chunk naming for reliable loading
         chunkFileNames: (chunkInfo) => {
           const facadeModuleId = chunkInfo.facadeModuleId;
-          // Use timestamp in hash for guaranteed uniqueness
-          const timestamp = Date.now().toString(36);
           if (facadeModuleId && facadeModuleId.includes('src/components/')) {
-            return `assets/components/[name]-[hash]-${timestamp}.js`;
+            return `assets/components/[name]-[hash].js`;
           }
-          return `assets/[name]-[hash]-${timestamp}.js`;
+          return `assets/[name]-[hash].js`;
         },
-        entryFileNames: `assets/entry-[hash]-${Date.now().toString(36)}.js`,
+        entryFileNames: `assets/entry-[hash].js`,
         assetFileNames: (assetInfo) => {
           const info = assetInfo.name.split('.');
           const ext = info[info.length - 1];
-          const timestamp = Date.now().toString(36);
 
           if (/png|jpe?g|svg|gif|tiff|bmp|ico/i.test(ext)) {
-            return `assets/images/[name]-[hash]-${timestamp}.[ext]`;
+            return `assets/images/[name]-[hash].[ext]`;
           }
           if (/css/i.test(ext)) {
-            return `assets/css/[name]-[hash]-${timestamp}.[ext]`;
+            return `assets/css/[name]-[hash].[ext]`;
           }
-          if (/js/i.test(ext)) {
-            return `assets/[name]-[hash]-${timestamp}.[ext]`;
-          }
-          return `assets/[name]-[hash]-${timestamp}.[ext]`;
+          return `assets/[name]-[hash].[ext]`;
         }
       },
       // Prevent circular dependencies
@@ -131,10 +125,10 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000, // Increased for better performance
     // Environment-specific source maps
     sourcemap: process.env.NODE_ENV === 'development' ? true : false,
-    // Force cache invalidation with build-time timestamp
+    // Build-time constants for cache invalidation
     define: {
-      __BUILD_TIMESTAMP__: JSON.stringify(Date.now()),
-      __BUILD_VERSION__: JSON.stringify(`${new Date().toISOString().slice(0,10)}-${Date.now().toString(36)}`),
+      __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString()),
+      __BUILD_VERSION__: JSON.stringify(process.env.npm_package_version || '1.0.0'),
     },
     // Asset optimization
     assetsInlineLimit: 8192, // Increased for better performance
