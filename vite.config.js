@@ -29,63 +29,36 @@ export default defineConfig({
     rollupOptions: {
       output: {
         // Fixed chunk splitting to ensure React ecosystem coherence
-        manualChunks(id) {
-          // React ecosystem - CRITICAL: Keep React, React-DOM, and React hooks together
-          if (id.includes('react') || id.includes('react-dom')) {
-            // Exclude React-based libraries to avoid conflicts
-            if (id.includes('react-router') || id.includes('react-chartjs') || id.includes('lucide-react')) {
-              // These will fall through to their specific chunks
-            } else {
-              return 'react-vendor'; // React + React-DOM together
-            }
-          }
+        manualChunks: {
+          // Core React - Must be loaded first, contains all React hooks
+          'react-core': ['react', 'react-dom'],
 
-          // React Router - separate but stable
-          if (id.includes('react-router')) {
-            return 'react-router';
-          }
+          // React ecosystem - Depends on react-core
+          'react-ecosystem': [
+            'react-router-dom',
+            '@mui/material',
+            '@mui/icons-material',
+            '@emotion/react',
+            '@emotion/styled',
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-progress',
+            '@radix-ui/react-select',
+            '@radix-ui/react-tabs',
+            '@radix-ui/react-toast',
+            '@radix-ui/react-toggle',
+            '@radix-ui/react-toggle-group',
+            '@tanstack/react-table',
+            'lucide-react'
+          ],
 
-          // Chart libraries - separate due to size but include React chart bindings
-          if (id.includes('recharts') || id.includes('chart.js') || id.includes('react-chartjs')) {
-            return 'charts';
-          }
+          // Charts - Heavy libraries
+          'charts': ['recharts', 'chart.js', 'react-chartjs-2'],
 
-          // MUI ecosystem - group together for consistency
-          if (id.includes('@mui/material') || id.includes('@mui/icons-material') || id.includes('@emotion')) {
-            return 'mui-components';
-          }
+          // Heavy utilities
+          'heavy-libs': ['tesseract.js', 'xlsx'],
 
-          // Radix UI components
-          if (id.includes('@radix-ui')) {
-            return 'radix-ui';
-          }
-
-          // Table components
-          if (id.includes('@tanstack')) {
-            return 'tanstack';
-          }
-
-          // Icons (separate from React vendor)
-          if (id.includes('lucide-react')) {
-            return 'icons';
-          }
-
-          // Heavy utilities and libraries
-          if (id.includes('tesseract.js') || id.includes('xlsx')) {
-            return 'heavy-libs';
-          }
-
-          // Utility libraries
-          if (id.includes('date-fns') || id.includes('file-saver') ||
-              id.includes('clsx') || id.includes('class-variance-authority') ||
-              id.includes('tailwind-merge')) {
-            return 'utils';
-          }
-
-          // Default vendor chunk for other node_modules
-          if (id.includes('node_modules')) {
-            return 'vendor';
-          }
+          // Utilities
+          'utils': ['date-fns', 'file-saver', 'clsx', 'class-variance-authority', 'tailwind-merge']
         },
         // Stable chunk naming for reliable loading
         chunkFileNames: (chunkInfo) => {
