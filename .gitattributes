@@ -23,3 +23,17 @@ backend/osiris_workspace/** linguist-generated
 *.scss linguist-language=SCSS
 *.sql linguist-language=SQL
 *.json linguist-data
+
+# === Added by cleanup script ===
+# Fix language detection - ignore log files and node_modules
+*.log linguist-vendored
+*.db linguist-vendored
+dist/** linguist-generated
+build/** linguist-generated
+bundle-analysis.html linguist-generated
+
+# Binary files
+*.tar.gz binary
+*.tgz binary
+*.sqlite binary
+*.sqlite3 binary

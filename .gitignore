@@ -157,3 +157,22 @@ docker-compose.dev.yml
 # IDE and editor files
 *.sublime-*
 *.code-workspace
+# === Added by cleanup script ===
+# Build artifacts
+dist/
+bundle-analysis.html
+
+# Archives and backups
+*.tar.gz
+*.tgz
+backup/
+archive/
+
+# Test files in root
+test-*.js
+test-*.html
+verify-*.js
+
+# Node modules (should already be here)
+node_modules/
+backend/node_modules/
