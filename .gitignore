@@ -9,7 +9,6 @@ node_modules/
 
 # Credentials and sensitive data
 backend/config/credentials.json
-/Users/user/Downloads/labdna-lims-cdd47a45b968.json
 *.key
 *.pem
 .env*
