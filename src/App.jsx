@@ -7,13 +7,13 @@ import { Menu as MenuIcon } from '@mui/icons-material';
 import ThemeToggle from './components/ui/ThemeToggle';
 import Sidebar from './components/layout/Sidebar';
 import LoginPage from './components/auth/LoginPage';
-import ErrorBoundary from './components/ErrorBoundary';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import ConnectionStatus from './components/ui/ConnectionStatus';
 import ErrorNotification from './components/ui/ErrorNotification';
 import { FullPageSkeleton } from './components/ui/SkeletonLoaders';
 
 // Lazy load large feature components
-const PaternityLabDashboard = lazy(() => import('./components/PaternityLabDashboard'));
+const PaternityLabDashboard = lazy(() => import('./components/features/PaternityLabDashboard'));
 const ForensicWorkflowDashboard = lazy(() => import('./components/features/ForensicWorkflowDashboard'));
 const PaternityTestForm = lazy(() => import('./components/forms/PaternityTestForm'));
 const ClientRegister = lazy(() => import('./components/features/ClientRegister'));
@@ -34,9 +34,9 @@ const LabResults = lazy(() => import('./components/features/LabResults'));
 const SampleQueues = lazy(() => import('./components/features/SampleQueues'));
 const Statistics = lazy(() => import('./components/features/Statistics'));
 const AnalysisSummary = lazy(() => import('./components/features/AnalysisSummary'));
-const ForensicReports = lazy(() => import('./components/ForensicReports'));
+const ForensicReports = lazy(() => import('./components/features/ForensicReports'));
 const WorkflowSettings = lazy(() => import('./components/features/WorkflowSettings'));
-const CaseManagement = lazy(() => import('./components/CaseManagement'));
+const CaseManagement = lazy(() => import('./components/features/CaseManagement'));
 
 // Enhanced loading component for Suspense fallback
 const LoadingSpinner = ({ minHeight = 'min-h-screen', type = 'dashboard' }) => (

@@ -71,5 +71,7 @@ class Logger {
   }
 }
 
-// Export singleton instance
-module.exports = new Logger();
+// Export singleton instance - both as default and named export for compatibility
+const loggerInstance = new Logger();
+module.exports = loggerInstance;
+module.exports.logger = loggerInstance;

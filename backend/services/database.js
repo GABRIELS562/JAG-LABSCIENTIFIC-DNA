@@ -653,14 +653,24 @@ function initializeSQLiteTables() {
 function convertSqlToPostgreSQL(sql) {
   let paramIndex = 0;
   let convertedSql = sql.replace(/\?/g, () => `$${++paramIndex}`);
-  
-  // Convert SQLite functions to PostgreSQL equivalents
+
+  // Convert SQLite functions and syntax to PostgreSQL equivalents
   return convertedSql
     .replace(/datetime\('now'\)/gi, 'NOW()')
     .replace(/AUTOINCREMENT/gi, '')
     .replace(/INTEGER PRIMARY KEY/gi, 'SERIAL PRIMARY KEY')
-    .replace(/TEXT/gi, 'VARCHAR(255)')
-    .replace(/DATETIME/gi, 'TIMESTAMP');
+    .replace(/DATETIME/gi, 'TIMESTAMP')
+    // Handle SQLite INSERT OR syntax patterns
+    .replace(/INSERT\s+OR\s+IGNORE\s+INTO/gi, 'INSERT INTO')
+    .replace(/INSERT\s+OR\s+REPLACE\s+INTO/gi, 'INSERT INTO')
+    .replace(/INSERT\s+OR\s+ABORT\s+INTO/gi, 'INSERT INTO')
+    .replace(/INSERT\s+OR\s+FAIL\s+INTO/gi, 'INSERT INTO')
+    .replace(/INSERT\s+OR\s+ROLLBACK\s+INTO/gi, 'INSERT INTO')
+    .replace(/INSERT\s+OR\s+\w+\s+INTO/gi, 'INSERT INTO')
+    // Handle UPDATE OR patterns
+    .replace(/UPDATE\s+OR\s+IGNORE/gi, 'UPDATE')
+    .replace(/UPDATE\s+OR\s+REPLACE/gi, 'UPDATE')
+    .replace(/UPDATE\s+OR\s+\w+/gi, 'UPDATE');
 }
 
 // Helper methods that work with both PostgreSQL and SQLite

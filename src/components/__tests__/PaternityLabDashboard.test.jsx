@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import { renderWithProviders, waitForLoadingToFinish, generateMockSample, generateMockWorkflowStatus } from '../../test/utils'
-import PaternityLabDashboard from '../PaternityLabDashboard'
+import PaternityLabDashboard from '../features/PaternityLabDashboard'
 import * as apiService from '../../services/api'
 
 // Mock the API service
