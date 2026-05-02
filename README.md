@@ -204,7 +204,52 @@ POST   /api/genetic-analysis/launch-osiris
 # Reporting
 GET    /api/reports
 POST   /api/reports/generate
+
+# STR Results Import
+POST   /api/genetic-analysis/str-results           # Import validated results
+POST   /api/genetic-analysis/str-results/synthetic # Generate demo data
 ```
+
+## 🧬 **STR Results Import Modes**
+
+The system supports multiple modes for importing Short Tandem Repeat (STR) analysis results:
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `synthetic` | Generates deterministic profiles from sample names | Demo, testing, development |
+| `genemapper` | Parses tab-delimited GeneMapper exports | Applied Biosystems 3130xl/3500 |
+| `osiris` | Parses .oar XML from NCBI OSIRIS | Open-source STR analysis |
+
+### Mode Selection
+
+```bash
+# Set via environment variable
+IMPORTER_MODE=synthetic npm start   # Default - demo/testing
+IMPORTER_MODE=genemapper npm start  # GeneMapper files
+IMPORTER_MODE=osiris npm start      # OSIRIS analysis reports
+```
+
+### 23-Locus Standard Set
+
+All imports are validated against the 23-locus standard:
+```
+D3S1358, D1S1656, D2S441, D10S1248, D13S317, Penta_E, D16S539,
+D18S51, D2S1338, CSF1PO, Penta_D, TH01, vWA, D21S11, D7S820,
+D5S818, TPOX, D8S1179, D12S391, D19S433, FGA, D22S1045, AMEL
+```
+
+### Sample Naming Convention
+
+Samples follow the pattern: `<PREFIX><YY>_<NNNN>_<ROLE>_<surname>`
+
+- **PREFIX**: POM, LT, UP, MAT, IND, SIB
+- **YY**: Two-digit year
+- **NNNN**: Sequence number (0001-9999)
+- **ROLE**: C (Child), F (Father), M (Mother)
+
+Example: `POM26_0001_C_Smith` - Child in paternity case #1 of 2026
+
+For detailed documentation, see [backend/services/strImporter/README.md](backend/services/strImporter/README.md).
 
 ## 🤝 **Contributing**
 
