@@ -3,7 +3,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs").promises;
 const FSAProcessor = require("../services/fsaProcessor");
-const OsirisIntegration = require("../services/osirisIntegration");
+// OsirisIntegration removed - replaced by strImporter module
 const ReportGenerator = require("../services/reportGenerator");
 const OsirisResultsParser = require("../services/osirisResultsParser");
 const strImporter = require("../services/strImporter");
@@ -14,7 +14,7 @@ const db = require("../services/database");
 
 const router = express.Router();
 const fsaProcessor = new FSAProcessor();
-let osiris = null; // Initialize only when needed
+// OsirisIntegration removed - STR analysis now handled by strImporter
 const reportGenerator = new ReportGenerator();
 // const auth = new GeneticAuthMiddleware(); // Removed for portfolio simplicity
 // const userService = new GeneticUserService(db.db); // Removed for portfolio
