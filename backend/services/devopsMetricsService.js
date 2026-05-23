@@ -1,6 +1,7 @@
 /**
  * DevOps Metrics Service
  * Tracks throughput, efficiency, resource utilization, and SLA compliance
+ * PostgreSQL compatible version
  */
 
 const { logger } = require('../utils/logger');
@@ -14,35 +15,32 @@ class DevOpsMetricsService {
       data: null
     };
     this.slaTargets = {
-      paternity: 72, // 72 hours
-      forensic: 120, // 5 days
-      kinship: 96, // 4 days
-      immigration: 48, // 2 days
+      paternity: 72,
+      forensic: 120,
+      kinship: 96,
+      immigration: 48,
       default: 72
     };
   }
 
-  /**
-   * Initialize DevOps metrics tables
-   */
   async initialize() {
     try {
-      // Throughput tracking table
-      this.db.exec(`
+      // Throughput tracking table (PostgreSQL syntax)
+      await this.db.run(`
         CREATE TABLE IF NOT EXISTS throughput_metrics (
           id SERIAL PRIMARY KEY,
-          hour_timestamp DATETIME NOT NULL,
+          hour_timestamp TIMESTAMP NOT NULL,
           samples_processed INTEGER DEFAULT 0,
           samples_generated INTEGER DEFAULT 0,
           samples_completed INTEGER DEFAULT 0,
           samples_failed INTEGER DEFAULT 0,
           avg_processing_time DECIMAL(10,2),
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
 
       // Resource utilization table
-      this.db.exec(`
+      await this.db.run(`
         CREATE TABLE IF NOT EXISTS resource_utilization (
           id SERIAL PRIMARY KEY,
           resource_type VARCHAR(50) NOT NULL,
@@ -51,12 +49,12 @@ class DevOpsMetricsService {
           current_usage INTEGER DEFAULT 0,
           utilization_percentage DECIMAL(5,2),
           peak_usage INTEGER DEFAULT 0,
-          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
 
       // SLA tracking table
-      this.db.exec(`
+      await this.db.run(`
         CREATE TABLE IF NOT EXISTS sla_tracking (
           id SERIAL PRIMARY KEY,
           sample_id INTEGER NOT NULL,
@@ -65,14 +63,13 @@ class DevOpsMetricsService {
           sla_target_hours INTEGER NOT NULL,
           actual_hours DECIMAL(10,2),
           sla_met BOOLEAN,
-          created_at DATETIME NOT NULL,
-          completed_at DATETIME,
-          FOREIGN KEY (sample_id) REFERENCES samples(id) ON DELETE CASCADE
+          created_at TIMESTAMP NOT NULL,
+          completed_at TIMESTAMP
         )
       `);
 
       // Pipeline efficiency table
-      this.db.exec(`
+      await this.db.run(`
         CREATE TABLE IF NOT EXISTS pipeline_efficiency (
           id SERIAL PRIMARY KEY,
           stage VARCHAR(50) NOT NULL,
@@ -80,7 +77,7 @@ class DevOpsMetricsService {
           samples_exited INTEGER DEFAULT 0,
           avg_duration_seconds INTEGER,
           bottleneck_score DECIMAL(5,2),
-          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
 
@@ -92,69 +89,64 @@ class DevOpsMetricsService {
     }
   }
 
-  /**
-   * Calculate samples per hour
-   */
-  calculateThroughput() {
+  async calculateThroughput() {
     try {
       // Get samples processed in last hour
-      const lastHour = this.db.prepare(`
+      const lastHour = await this.db.get(`
         SELECT COUNT(*) as count
         FROM samples
-        WHERE datetime(updated_at) >= datetime('now', '-1 hour')
+        WHERE updated_at >= NOW() - INTERVAL '1 hour'
           AND workflow_status != 'sample_collected'
-      `).get();
+      `) || { count: 0 };
 
       // Get samples completed in last hour
-      const completed = this.db.prepare(`
+      const completed = await this.db.get(`
         SELECT COUNT(*) as count
         FROM samples
-        WHERE datetime(updated_at) >= datetime('now', '-1 hour')
+        WHERE updated_at >= NOW() - INTERVAL '1 hour'
           AND workflow_status = 'report_sent'
-      `).get();
+      `) || { count: 0 };
 
       // Get samples generated in last hour
-      const generated = this.db.prepare(`
+      const generated = await this.db.get(`
         SELECT COUNT(*) as count
         FROM samples
-        WHERE datetime(created_at) >= datetime('now', '-1 hour')
-      `).get();
+        WHERE created_at >= NOW() - INTERVAL '1 hour'
+      `) || { count: 0 };
 
       // Calculate rolling average over last 24 hours
-      const last24Hours = this.db.prepare(`
+      const last24Hours = await this.db.get(`
         SELECT
           COUNT(*) as total_samples,
           SUM(CASE WHEN workflow_status = 'report_sent' THEN 1 ELSE 0 END) as completed_samples,
           AVG(CASE
             WHEN workflow_status = 'report_sent'
-            THEN CAST((julianday(updated_at) - julianday(created_at)) * 24 AS REAL)
+            THEN EXTRACT(EPOCH FROM (updated_at - created_at)) / 3600
             ELSE NULL
           END) as avg_completion_hours
         FROM samples
-        WHERE datetime(created_at) >= datetime('now', '-24 hours')
-      `).get();
+        WHERE created_at >= NOW() - INTERVAL '24 hours'
+      `) || { total_samples: 0, completed_samples: 0, avg_completion_hours: 0 };
 
       // Store throughput metrics
-      const stmt = this.db.prepare(`
+      await this.db.run(`
         INSERT INTO throughput_metrics
         (hour_timestamp, samples_processed, samples_generated, samples_completed, avg_processing_time)
-        VALUES (datetime('now'), ?, ?, ?, ?)
-      `);
-
-      stmt.run(
-        lastHour.count,
-        generated.count,
-        completed.count,
-        last24Hours.avg_completion_hours || 0
-      );
+        VALUES (NOW(), $1, $2, $3, $4)
+      `, [
+        parseInt(lastHour.count),
+        parseInt(generated.count),
+        parseInt(completed.count),
+        parseFloat(last24Hours.avg_completion_hours) || 0
+      ]);
 
       return {
-        samples_per_hour: lastHour.count,
-        samples_completed_per_hour: completed.count,
-        samples_generated_per_hour: generated.count,
+        samples_per_hour: parseInt(lastHour.count),
+        samples_completed_per_hour: parseInt(completed.count),
+        samples_generated_per_hour: parseInt(generated.count),
         last_24_hours: {
-          total: last24Hours.total_samples,
-          completed: last24Hours.completed_samples,
+          total: parseInt(last24Hours.total_samples),
+          completed: parseInt(last24Hours.completed_samples),
           avg_completion_time_hours: last24Hours.avg_completion_hours?.toFixed(1) || 'N/A'
         }
       };
@@ -164,84 +156,78 @@ class DevOpsMetricsService {
     }
   }
 
-  /**
-   * Calculate pipeline efficiency
-   */
-  calculatePipelineEfficiency() {
+  async calculatePipelineEfficiency() {
     try {
       // Get success rate
-      const successRate = this.db.prepare(`
+      const successRate = await this.db.get(`
         SELECT
           COUNT(*) as total,
           SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
           SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
           SUM(CASE WHEN workflow_status = 'report_sent' THEN 1 ELSE 0 END) as completed
         FROM samples
-      `).get();
+      `) || { total: 0, active: 0, failed: 0, completed: 0 };
 
       // Get stage efficiency
-      const stageEfficiency = this.db.prepare(`
+      const stageEfficiency = await this.db.all(`
         SELECT
           workflow_status,
           COUNT(*) as count,
-          AVG(CAST((julianday('now') - julianday(updated_at)) * 86400 AS REAL)) as avg_time_in_stage
+          AVG(EXTRACT(EPOCH FROM (NOW() - updated_at))) as avg_time_in_stage
         FROM samples
         WHERE status = 'active'
         GROUP BY workflow_status
-      `).all();
+      `) || [];
 
-      // Calculate bottlenecks (stages with highest wait times)
+      // Calculate bottlenecks
       const bottlenecks = stageEfficiency
-        .sort((a, b) => b.avg_time_in_stage - a.avg_time_in_stage)
+        .filter(s => s.avg_time_in_stage !== null)
+        .sort((a, b) => parseFloat(b.avg_time_in_stage) - parseFloat(a.avg_time_in_stage))
         .slice(0, 3)
         .map(stage => ({
           stage: stage.workflow_status,
-          samples: stage.count,
-          avg_wait_seconds: Math.round(stage.avg_time_in_stage)
+          samples: parseInt(stage.count),
+          avg_wait_seconds: Math.round(parseFloat(stage.avg_time_in_stage))
         }));
 
       // Store pipeline efficiency metrics
-      stageEfficiency.forEach(stage => {
+      for (const stage of stageEfficiency) {
         try {
-          const stmt = this.db.prepare(`
+          const bottleneckScore = (parseFloat(stage.avg_time_in_stage) / 60) * parseInt(stage.count);
+          await this.db.run(`
             INSERT INTO pipeline_efficiency
             (stage, samples_entered, avg_duration_seconds, bottleneck_score)
-            VALUES (?, ?, ?, ?)
-          `);
-
-          const bottleneckScore = (stage.avg_time_in_stage / 60) * stage.count; // Higher score = bigger bottleneck
-
-          stmt.run(
+            VALUES ($1, $2, $3, $4)
+          `, [
             stage.workflow_status,
-            stage.count,
-            Math.round(stage.avg_time_in_stage),
-            bottleneckScore
-          );
+            parseInt(stage.count),
+            Math.round(parseFloat(stage.avg_time_in_stage) || 0),
+            bottleneckScore || 0
+          ]);
         } catch (err) {
-          // Ignore duplicate errors
+          // Ignore errors
         }
-      });
+      }
 
-      const efficiency = successRate.total > 0
-        ? ((successRate.completed / successRate.total) * 100)
-        : 0;
+      const total = parseInt(successRate.total) || 1;
+      const completedCount = parseInt(successRate.completed) || 0;
+      const failedCount = parseInt(successRate.failed) || 0;
+      const efficiency = (completedCount / total) * 100;
 
       return {
         overall_efficiency: efficiency.toFixed(1) + '%',
-        success_rate: successRate.total > 0
-          ? (((successRate.total - successRate.failed) / successRate.total) * 100).toFixed(1) + '%'
-          : '100%',
+        success_rate: (((total - failedCount) / total) * 100).toFixed(1) + '%',
         samples: {
-          total: successRate.total,
-          active: successRate.active,
-          failed: successRate.failed,
-          completed: successRate.completed
+          total: parseInt(successRate.total),
+          active: parseInt(successRate.active),
+          failed: failedCount,
+          completed: completedCount
         },
         bottlenecks,
         stage_distribution: stageEfficiency.map(s => ({
           stage: s.workflow_status,
-          count: s.count,
-          avg_time_seconds: Math.round(s.avg_time_in_stage)
+          count: parseInt(s.count),
+          avg_time_seconds: Math.round(parseFloat(s.avg_time_in_stage) || 0)
         }))
       };
     } catch (error) {
@@ -250,84 +236,71 @@ class DevOpsMetricsService {
     }
   }
 
-  /**
-   * Calculate resource utilization
-   */
-  calculateResourceUtilization() {
+  async calculateResourceUtilization() {
     try {
-      // Define resource capacities
       const resources = [
-        { type: 'batch', name: 'PCR Thermal Cyclers', capacity: 64 }, // 4 cyclers x 16 samples
-        { type: 'batch', name: 'Electrophoresis Units', capacity: 32 }, // 4 units x 8 samples
+        { type: 'batch', name: 'PCR Thermal Cyclers', capacity: 64 },
+        { type: 'batch', name: 'Electrophoresis Units', capacity: 32 },
         { type: 'batch', name: 'Analysis Workstations', capacity: 10 },
         { type: 'storage', name: 'Sample Storage', capacity: 200 },
         { type: 'personnel', name: 'Lab Technicians', capacity: 8 }
       ];
 
-      const utilization = resources.map(resource => {
+      const utilization = [];
+
+      for (const resource of resources) {
         let currentUsage = 0;
 
         if (resource.type === 'batch') {
-          // Count samples in relevant stages
           if (resource.name.includes('PCR')) {
-            const pcrSamples = this.db.prepare(`
+            const pcrSamples = await this.db.get(`
               SELECT COUNT(*) as count
               FROM samples
               WHERE workflow_status IN ('pcr_ready', 'pcr_batched')
                 AND status = 'active'
-            `).get();
-            currentUsage = pcrSamples.count;
+            `);
+            currentUsage = parseInt(pcrSamples?.count) || 0;
           } else if (resource.name.includes('Electrophoresis')) {
-            const electroSamples = this.db.prepare(`
+            const electroSamples = await this.db.get(`
               SELECT COUNT(*) as count
               FROM samples
               WHERE workflow_status IN ('electro_ready', 'electro_batched')
                 AND status = 'active'
-            `).get();
-            currentUsage = electroSamples.count;
+            `);
+            currentUsage = parseInt(electroSamples?.count) || 0;
           } else if (resource.name.includes('Analysis')) {
-            const analysisSamples = this.db.prepare(`
+            const analysisSamples = await this.db.get(`
               SELECT COUNT(*) as count
               FROM samples
               WHERE workflow_status IN ('analysis_ready', 'analysis_completed')
                 AND status = 'active'
-            `).get();
-            currentUsage = analysisSamples.count;
+            `);
+            currentUsage = parseInt(analysisSamples?.count) || 0;
           }
         } else if (resource.type === 'storage') {
-          const totalSamples = this.db.prepare(`
+          const totalSamples = await this.db.get(`
             SELECT COUNT(*) as count
             FROM samples
             WHERE status = 'active'
-          `).get();
-          currentUsage = totalSamples.count;
+          `);
+          currentUsage = parseInt(totalSamples?.count) || 0;
         } else if (resource.type === 'personnel') {
-          // Simulate personnel usage based on active processes
           currentUsage = Math.min(resource.capacity, Math.floor(Math.random() * 6) + 2);
         }
 
         const utilizationPercent = (currentUsage / resource.capacity) * 100;
 
-        // Store utilization metrics
         try {
-          const stmt = this.db.prepare(`
+          await this.db.run(`
             INSERT INTO resource_utilization
             (resource_type, resource_name, capacity, current_usage, utilization_percentage)
-            VALUES (?, ?, ?, ?, ?)
-          `);
-
-          stmt.run(
-            resource.type,
-            resource.name,
-            resource.capacity,
-            currentUsage,
-            utilizationPercent
-          );
+            VALUES ($1, $2, $3, $4, $5)
+          `, [resource.type, resource.name, resource.capacity, currentUsage, utilizationPercent]);
         } catch (err) {
-          // Ignore duplicate errors
+          // Ignore errors
         }
 
-        return {
+        utilization.push({
           resource: resource.name,
           type: resource.type,
           capacity: resource.capacity,
@@ -336,11 +309,11 @@ class DevOpsMetricsService {
           status: utilizationPercent > 90 ? 'critical' :
                   utilizationPercent > 75 ? 'warning' :
                   utilizationPercent > 50 ? 'optimal' : 'underutilized'
-        };
-      });
+        });
+      }
 
       // Calculate batch fill rates
-      const batchFillRates = this.db.prepare(`
+      const batchFillRates = await this.db.all(`
         SELECT
           'PCR' as batch_type,
           COUNT(*) as waiting_samples,
@@ -356,15 +329,15 @@ class DevOpsMetricsService {
           CAST(COUNT(*) AS REAL) / 8 * 100 as fill_rate
         FROM samples
         WHERE workflow_status = 'electro_ready' AND status = 'active'
-      `).all();
+      `) || [];
 
       return {
         resources: utilization,
         batch_fill_rates: batchFillRates.map(b => ({
           batch_type: b.batch_type,
-          waiting: b.waiting_samples,
-          capacity: b.batch_size,
-          fill_rate: Math.min(100, b.fill_rate).toFixed(1) + '%'
+          waiting: parseInt(b.waiting_samples),
+          capacity: parseInt(b.batch_size),
+          fill_rate: Math.min(100, parseFloat(b.fill_rate)).toFixed(1) + '%'
         })),
         overall_utilization: (utilization.reduce((sum, r) =>
           sum + parseFloat(r.utilization), 0) / utilization.length).toFixed(1) + '%'
@@ -375,82 +348,57 @@ class DevOpsMetricsService {
     }
   }
 
-  /**
-   * Calculate SLA compliance
-   */
-  calculateSLACompliance() {
+  async calculateSLACompliance() {
     try {
       // Get completed samples with timing
-      const completedSamples = this.db.prepare(`
+      const completedSamples = await this.db.all(`
         SELECT
           id,
           lab_number,
           CASE
             WHEN case_number LIKE 'PAT-%' THEN 'paternity'
             WHEN case_number LIKE 'FOR-%' THEN 'forensic'
-            WHEN metadata LIKE '%Immigration%' THEN 'immigration'
             ELSE 'default'
           END as case_type,
           created_at,
           updated_at,
-          CAST((julianday(updated_at) - julianday(created_at)) * 24 AS REAL) as completion_hours
+          EXTRACT(EPOCH FROM (updated_at - created_at)) / 3600 as completion_hours
         FROM samples
         WHERE workflow_status = 'report_sent'
-          AND datetime(updated_at) >= datetime('now', '-7 days')
-      `).all();
+          AND updated_at >= NOW() - INTERVAL '7 days'
+      `) || [];
 
       let metCount = 0;
       let totalCount = completedSamples.length;
 
       const slaDetails = completedSamples.map(sample => {
         const slaTarget = this.slaTargets[sample.case_type] || this.slaTargets.default;
-        const slaMet = sample.completion_hours <= slaTarget;
+        const completionHours = parseFloat(sample.completion_hours) || 0;
+        const slaMet = completionHours <= slaTarget;
         if (slaMet) metCount++;
-
-        // Store SLA tracking
-        try {
-          const stmt = this.db.prepare(`
-            INSERT OR REPLACE INTO sla_tracking
-            (sample_id, lab_number, case_type, sla_target_hours, actual_hours, sla_met, created_at, completed_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `);
-
-          stmt.run(
-            sample.id,
-            sample.lab_number,
-            sample.case_type,
-            slaTarget,
-            sample.completion_hours,
-            slaMet ? 1 : 0,
-            sample.created_at,
-            sample.updated_at
-          );
-        } catch (err) {
-          // Ignore errors
-        }
 
         return {
           lab_number: sample.lab_number,
           case_type: sample.case_type,
           sla_target: slaTarget + ' hours',
-          actual: sample.completion_hours.toFixed(1) + ' hours',
+          actual: completionHours.toFixed(1) + ' hours',
           met: slaMet,
-          variance: (sample.completion_hours - slaTarget).toFixed(1) + ' hours'
+          variance: (completionHours - slaTarget).toFixed(1) + ' hours'
         };
       });
 
       // Get SLA by case type
-      const slaByType = this.db.prepare(`
+      const slaByType = await this.db.all(`
         SELECT
           case_type,
           COUNT(*) as total,
-          SUM(CASE WHEN sla_met = 1 THEN 1 ELSE 0 END) as met,
+          SUM(CASE WHEN sla_met = true THEN 1 ELSE 0 END) as met,
           AVG(actual_hours) as avg_completion_hours,
           AVG(sla_target_hours) as avg_target_hours
         FROM sla_tracking
-        WHERE datetime(completed_at) >= datetime('now', '-7 days')
+        WHERE completed_at >= NOW() - INTERVAL '7 days'
         GROUP BY case_type
-      `).all();
+      `) || [];
 
       const compliance = totalCount > 0 ? (metCount / totalCount) * 100 : 100;
 
@@ -461,10 +409,10 @@ class DevOpsMetricsService {
         samples_missing_sla: totalCount - metCount,
         by_case_type: slaByType.map(type => ({
           case_type: type.case_type,
-          compliance: type.total > 0 ? ((type.met / type.total) * 100).toFixed(1) + '%' : '100%',
-          avg_completion: type.avg_completion_hours?.toFixed(1) + ' hours',
+          compliance: parseInt(type.total) > 0 ? ((parseInt(type.met) / parseInt(type.total)) * 100).toFixed(1) + '%' : '100%',
+          avg_completion: parseFloat(type.avg_completion_hours)?.toFixed(1) + ' hours',
           target: type.avg_target_hours + ' hours',
-          samples: type.total
+          samples: parseInt(type.total)
         })),
         recent_samples: slaDetails.slice(0, 10)
       };
@@ -474,9 +422,6 @@ class DevOpsMetricsService {
     }
   }
 
-  /**
-   * Get comprehensive DevOps metrics
-   */
   async getDevOpsMetrics() {
     try {
       // Check cache (5 second TTL)
@@ -486,10 +431,10 @@ class DevOpsMetricsService {
       }
 
       const metrics = {
-        throughput: this.calculateThroughput(),
-        pipeline_efficiency: this.calculatePipelineEfficiency(),
-        resource_utilization: this.calculateResourceUtilization(),
-        sla_compliance: this.calculateSLACompliance(),
+        throughput: await this.calculateThroughput(),
+        pipeline_efficiency: await this.calculatePipelineEfficiency(),
+        resource_utilization: await this.calculateResourceUtilization(),
+        sla_compliance: await this.calculateSLACompliance(),
         timestamp: new Date().toISOString()
       };
 
@@ -506,26 +451,23 @@ class DevOpsMetricsService {
     }
   }
 
-  /**
-   * Get historical metrics for trending
-   */
   async getHistoricalMetrics(hours = 24) {
     try {
-      const throughputHistory = this.db.prepare(`
+      const throughputHistory = await this.db.all(`
         SELECT * FROM throughput_metrics
-        WHERE datetime(hour_timestamp) >= datetime('now', '-${hours} hours')
+        WHERE hour_timestamp >= NOW() - INTERVAL '${hours} hours'
         ORDER BY hour_timestamp DESC
-      `).all();
+      `) || [];
 
-      const efficiencyHistory = this.db.prepare(`
+      const efficiencyHistory = await this.db.all(`
         SELECT
           stage,
           AVG(avg_duration_seconds) as avg_duration,
           MAX(bottleneck_score) as max_bottleneck_score
         FROM pipeline_efficiency
-        WHERE datetime(timestamp) >= datetime('now', '-${hours} hours')
+        WHERE timestamp >= NOW() - INTERVAL '${hours} hours'
         GROUP BY stage
-      `).all();
+      `) || [];
 
       return {
         throughput_trend: throughputHistory,

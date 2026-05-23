@@ -1,10 +1,10 @@
 /**
  * Sample Workflow Progressor
  * Continuously moves the 50 paternity samples through workflow stages
+ * PostgreSQL compatible version
  */
 
 const db = require('./database');
-const path = require('path');
 const { logger } = require('../utils/logger');
 
 class SampleWorkflowProgressor {
@@ -12,7 +12,7 @@ class SampleWorkflowProgressor {
     this.db = null;
     this.isRunning = false;
     this.cycleInterval = null;
-    
+
     // Workflow progression map
     this.workflowProgression = {
       'sample_collected': 'pcr_ready',
@@ -45,82 +45,91 @@ class SampleWorkflowProgressor {
       logger.warn('Workflow progressor already running');
       return;
     }
-    
+
     this.isRunning = true;
     logger.info('Starting sample workflow progression (10-second cycles)');
-    
+
     // Progress samples every 10 seconds
     this.cycleInterval = setInterval(() => {
-      this.progressSamples();
+      this.progressSamples().catch(err => {
+        logger.error('Error in progressSamples interval', { error: err.message });
+      });
     }, 10000);
-    
+
     // Do initial progression
-    this.progressSamples();
+    this.progressSamples().catch(err => {
+      logger.error('Error in initial progressSamples', { error: err.message });
+    });
   }
 
-  progressSamples() {
+  async progressSamples() {
     try {
-      // Get all PAT-2025 samples
-      const samples = this.db.prepare(`
+      // Get all PAT-2025 samples using PostgreSQL async API
+      const samples = await this.db.all(`
         SELECT id, lab_number, workflow_status, case_number
-        FROM samples 
+        FROM samples
         WHERE case_number LIKE 'PAT-2025-%'
-      `).all();
-      
-      let progressCount = 0;
-      const updateStmt = this.db.prepare(`
-        UPDATE samples 
-        SET workflow_status = ?, 
-            updated_at = datetime('now')
-        WHERE id = ?
       `);
-      
+
+      if (!samples || !Array.isArray(samples)) {
+        logger.debug('No PAT-2025 samples found to progress');
+        return;
+      }
+
+      let progressCount = 0;
+
       // Progress each sample to its next stage
       for (const sample of samples) {
         const nextStage = this.workflowProgression[sample.workflow_status];
-        
+
         if (nextStage) {
-          updateStmt.run(nextStage, sample.id);
+          await this.db.run(`
+            UPDATE samples
+            SET workflow_status = $1,
+                updated_at = NOW()
+            WHERE id = $2
+          `, [nextStage, sample.id]);
+
           progressCount++;
-          
+
           // Log cycle completion
           if (nextStage === 'sample_collected') {
-            logger.info(`✅ Sample ${sample.lab_number} completed full cycle`);
+            logger.info(`Sample ${sample.lab_number} completed full cycle`);
           }
         }
       }
-      
+
       // Get updated distribution
-      const distribution = this.db.prepare(`
+      const distribution = await this.db.all(`
         SELECT workflow_status, COUNT(*) as count
-        FROM samples 
+        FROM samples
         WHERE case_number LIKE 'PAT-2025-%'
         GROUP BY workflow_status
-      `).all();
-      
+      `) || [];
+
       logger.info('Workflow progression cycle completed', {
         samplesProgressed: progressCount,
         distribution: distribution.reduce((acc, d) => {
-          acc[d.workflow_status] = d.count;
+          acc[d.workflow_status] = parseInt(d.count);
           return acc;
         }, {})
       });
-      
+
     } catch (error) {
       logger.error('Error progressing samples', { error: error.message });
     }
   }
-  
-  getStatus() {
+
+  async getStatus() {
     try {
-      const distribution = this.db.prepare(`
-        SELECT 
+      const distribution = await this.db.all(`
+        SELECT
           workflow_status,
           COUNT(*) as count
-        FROM samples 
+        FROM samples
         WHERE case_number LIKE 'PAT-2025-%'
         GROUP BY workflow_status
-        ORDER BY 
+        ORDER BY
           CASE workflow_status
             WHEN 'sample_collected' THEN 1
             WHEN 'pcr_ready' THEN 2
@@ -134,8 +143,8 @@ class SampleWorkflowProgressor {
             WHEN 'report_ready' THEN 10
             WHEN 'report_sent' THEN 11
           END
-      `).all();
-      
+      `) || [];
+
       return {
         isRunning: this.isRunning,
         distribution
