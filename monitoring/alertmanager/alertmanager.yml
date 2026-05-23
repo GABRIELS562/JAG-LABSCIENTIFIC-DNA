@@ -1,0 +1,62 @@
+# Alertmanager Configuration
+global:
+  resolve_timeout: 5m
+
+# Route tree
+route:
+  group_by: ['alertname', 'environment']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'default'
+
+  routes:
+    # Critical production alerts - immediate notification
+    - match:
+        severity: critical
+        environment: production
+      receiver: 'production-critical'
+      group_wait: 0s
+      repeat_interval: 5m
+
+    # Warning alerts
+    - match:
+        severity: warning
+      receiver: 'warnings'
+      group_wait: 30s
+      repeat_interval: 4h
+
+    # Test/Develop alerts - lower priority
+    - match_re:
+        environment: (test|develop)
+      receiver: 'dev-alerts'
+      group_wait: 1m
+      repeat_interval: 12h
+
+receivers:
+  - name: 'default'
+    # Add webhook, email, or Slack configuration here
+    # webhook_configs:
+    #   - url: 'http://localhost:5001/alerts'
+
+  - name: 'production-critical'
+    # Example Slack configuration (uncomment and configure)
+    # slack_configs:
+    #   - api_url: 'https://hooks.slack.com/services/xxx/yyy/zzz'
+    #     channel: '#alerts-critical'
+    #     title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+    #     text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+
+  - name: 'warnings'
+    # Add notification config
+
+  - name: 'dev-alerts'
+    # Lower priority notifications for dev environments
+
+# Inhibition rules - suppress less severe alerts when critical fires
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'environment']

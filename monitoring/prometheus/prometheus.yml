@@ -1,0 +1,106 @@
+# Prometheus Configuration for LIMS
+# Scrapes all environments: test, develop, production
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'lims-monitor'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+# Load alerting rules
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # Node Exporters - System metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          server: 'server2'
+          role: 'monitoring'
+      - targets: ['100.89.26.128:9100']
+        labels:
+          server: 'server1'
+          role: 'k3s-cluster'
+
+  # LIMS Test Environment (feature/* branches)
+  - job_name: 'lims-test'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['100.89.26.128:30101']
+        labels:
+          environment: 'test'
+          app: 'lims'
+          component: 'backend'
+
+  # LIMS Develop Environment (develop branch)
+  - job_name: 'lims-develop'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['100.89.26.128:30201']
+        labels:
+          environment: 'develop'
+          app: 'lims'
+          component: 'backend'
+
+  # LIMS Production Environment (main branch)
+  - job_name: 'lims-production'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['100.89.26.128:30007']
+        labels:
+          environment: 'production'
+          app: 'lims'
+          component: 'backend'
+
+  # Portfolio Apps on Server1
+  - job_name: 'portfolio-apps'
+    static_configs:
+      - targets:
+        - '100.89.26.128:30002'
+        - '100.89.26.128:30003'
+        labels:
+          environment: 'production'
+          app: 'portfolio'
+
+  # EC2 Forensic Service
+  - job_name: 'forensic-ec2'
+    static_configs:
+      - targets: ['100.101.99.93:9999']
+        labels:
+          environment: 'production'
+          app: 'forensic-compliance'
+
+  # Kubernetes API Server (if accessible)
+  - job_name: 'kubernetes-api'
+    static_configs:
+      - targets: ['100.89.26.128:6443']
+        labels:
+          component: 'apiserver'
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
+    bearer_token_file: /etc/prometheus/k8s-token
+
+  # Locust Load Testing (when running)
+  - job_name: 'locust'
+    static_configs:
+      - targets: ['localhost:8089']
+        labels:
+          app: 'locust'
+          type: 'load-testing'
