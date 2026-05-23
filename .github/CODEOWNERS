@@ -1,0 +1,26 @@
+# CODEOWNERS - Define code owners for automatic review requests
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything in the repo
+*                       @GABRIELS562
+
+# Infrastructure and DevOps
+/infrastructure/        @GABRIELS562
+/k8s/                   @GABRIELS562
+/.github/workflows/     @GABRIELS562
+/monitoring/            @GABRIELS562
+Dockerfile*             @GABRIELS562
+docker-compose*         @GABRIELS562
+Jenkinsfile             @GABRIELS562
+
+# Backend code
+/backend/               @GABRIELS562
+
+# Frontend code
+/src/                   @GABRIELS562
+
+# Tests
+/tests/                 @GABRIELS562
+
+# Documentation
+*.md                    @GABRIELS562
