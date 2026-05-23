@@ -1,0 +1,106 @@
+# Production environment values
+# Used for main branch
+
+global:
+  environment: production
+  imageRegistry: localhost:5000
+
+backend:
+  replicaCount: 2
+  image:
+    tag: latest
+  service:
+    type: NodePort
+    nodePort: 30007
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  env:
+    NODE_ENV: production
+    ENABLE_MOCK_SAMPLES: "true"
+    SAMPLE_CYCLE_INTERVAL: "30000"
+
+frontend:
+  replicaCount: 2
+  image:
+    tag: latest
+  service:
+    type: NodePort
+    nodePort: 30005
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+postgresql:
+  enabled: true
+  auth:
+    database: lims_db
+    username: lims_user
+    # IMPORTANT: Override this in CI/CD or use external secrets
+    password: "CHANGE_ME_IN_PRODUCTION"
+    postgresPassword: "CHANGE_ME_IN_PRODUCTION"
+  primary:
+    persistence:
+      size: 10Gi
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: lims.jagdevops.co.za
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: backend
+        - path: /
+          pathType: Prefix
+          service: frontend
+  tls:
+    - hosts:
+        - lims.jagdevops.co.za
+      secretName: lims-tls
+
+config:
+  enableBackgroundJobs: "true"
+  enableSampleCycler: "true"
+  fallbackToMockData: "false"
+  workflowAutoProgress: "true"
+  workflowProgressInterval: "60000"
+  initialSampleCount: "10"
+
+serviceMonitor:
+  enabled: true
+  interval: 15s
+  labels:
+    release: prometheus
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

@@ -1,0 +1,21 @@
+apiVersion: v2
+name: lims
+description: Laboratory Information Management System for DNA Analysis
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - lims
+  - laboratory
+  - dna-analysis
+  - forensics
+  - paternity
+home: https://github.com/GABRIELS562/JAG-LABSCIENTIFIC-DNA
+maintainers:
+  - name: Gabriel
+    url: https://github.com/GABRIELS562
+dependencies:
+  - name: postgresql
+    version: "12.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled

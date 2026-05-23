@@ -1,0 +1,72 @@
+# Test environment values
+# Used for feature/* branches
+
+global:
+  environment: test
+  imageRegistry: localhost:5000
+
+backend:
+  replicaCount: 1
+  image:
+    tag: test-latest
+  service:
+    type: NodePort
+    nodePort: 30101
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+  env:
+    NODE_ENV: test
+    ENABLE_MOCK_SAMPLES: "true"
+    SAMPLE_CYCLE_INTERVAL: "15000"
+
+frontend:
+  replicaCount: 1
+  image:
+    tag: test-latest
+  service:
+    type: NodePort
+    nodePort: 30102
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+
+postgresql:
+  enabled: true
+  auth:
+    database: lims_test
+    username: lims_test
+    password: test_password
+  primary:
+    persistence:
+      size: 1Gi
+
+ingress:
+  enabled: false
+
+config:
+  enableBackgroundJobs: "true"
+  enableSampleCycler: "true"
+  fallbackToMockData: "true"
+  workflowAutoProgress: "true"
+  workflowProgressInterval: "15000"
+  initialSampleCount: "3"
+
+serviceMonitor:
+  enabled: true
+  labels:
+    release: prometheus
+
+autoscaling:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false
