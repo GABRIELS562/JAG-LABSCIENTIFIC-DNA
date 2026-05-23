@@ -1,0 +1,52 @@
+name: Cleanup Test Deployments
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [develop]
+
+jobs:
+  cleanup:
+    name: Cleanup Test Namespace
+    runs-on: ubuntu-latest
+    if: startsWith(github.head_ref, 'feature/')
+
+    steps:
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Setup kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.13.0'
+
+      - name: Cleanup test release
+        run: |
+          echo "Cleaning up test deployment for PR #${{ github.event.pull_request.number }}"
+
+          # Uninstall helm release if exists
+          if helm list -n test | grep -q lims-test; then
+            helm uninstall lims-test -n test
+            echo "✅ Helm release uninstalled"
+          else
+            echo "ℹ️ No helm release found"
+          fi
+
+      - name: Cleanup summary
+        run: |
+          echo "## 🧹 Cleanup Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "PR #${{ github.event.pull_request.number }} test deployment cleaned up." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ github.head_ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Merged:** ${{ github.event.pull_request.merged }}" >> $GITHUB_STEP_SUMMARY

@@ -41,6 +41,10 @@ frontend:
 
 postgresql:
   enabled: true
+  image:
+    registry: docker.io
+    repository: bitnami/postgresql
+    tag: 15.4.0-debian-11-r45
   auth:
     database: lims_test
     username: lims_test
