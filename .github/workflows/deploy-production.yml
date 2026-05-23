@@ -138,15 +138,13 @@ jobs:
         run: |
           curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
           chmod +x /usr/local/bin/argocd
-          argocd app sync lims \
-            --server ${{ secrets.ARGOCD_SERVER }} \
-            --auth-token ${{ secrets.ARGOCD_TOKEN }} \
-            --insecure
-          argocd app wait lims \
-            --server ${{ secrets.ARGOCD_SERVER }} \
-            --auth-token ${{ secrets.ARGOCD_TOKEN }} \
+          argocd login ${{ secrets.ARGOCD_SERVER }} \
+            --username admin \
+            --password "${{ secrets.ARGOCD_AUTH_TOKEN }}" \
             --insecure \
-            --timeout 300
+            --grpc-web
+          argocd app sync lims --insecure --grpc-web
+          argocd app wait lims --insecure --grpc-web --timeout 300
 
   smoke-tests:
     name: Production Smoke Tests
