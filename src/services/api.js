@@ -1,4 +1,4 @@
-import { errorHandler, ApiError, NetworkError } from '../utils/errorHandler';
+import { errorHandler, ApiError, NetworkError, ValidationError } from '../utils/errorHandler';
 import { getApiBaseUrl, getAppConfig, logEnvironmentInfo } from '../utils/environment';
 
 // Get API base URL from environment utilities
@@ -283,12 +283,12 @@ class UnifiedApiClient {
             null
           );
 
-          // Don't retry 4xx errors (except 429)
+          // Don't retry 4xx errors (except 429 rate limit)
           if (response.status >= 400 && response.status < 500 && response.status !== 429) {
             throw apiError;
           }
 
-          lastError = apiError;
+          // For 5xx errors or 429 rate limit, throw to trigger retry logic in catch block
           throw apiError;
         }
 

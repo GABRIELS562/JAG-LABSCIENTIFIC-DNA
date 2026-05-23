@@ -3,8 +3,13 @@ const bcrypt = require('bcryptjs');
 const logger = require('../utils/logger');
 const { ResponseHandler } = require('../utils/responseHandler');
 
-// Environment variables with fallbacks
-const JWT_SECRET = process.env.JWT_SECRET || 'labdna-lims-secret-key-change-in-production';
+// Environment variables - JWT_SECRET required in production
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET environment variable is required in production');
+  }
+  return 'dev-only-secret-not-for-production';
+})();
 const JWT_EXPIRY = process.env.JWT_EXPIRY || '24h';
 const BCRYPT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS) || 10;
 

@@ -7,7 +7,7 @@ class ReportGenerator {
   constructor() {
     this.reportsDir = path.join(process.cwd(), 'reports');
     this.templatesDir = path.join(__dirname, '..', 'templates');
-    this.logoPath = path.join(process.cwd(), 'public', 'labdna-logo-light.png');
+    this.logoPath = path.join(process.cwd(), 'public', 'jagdna-logo-light.png');
   }
 
   /**
@@ -25,7 +25,7 @@ class ReportGenerator {
         margin: 40,
         info: {
           Title: `Enhanced Paternity Test Report - ${caseData.case_id}`,
-          Author: 'LabDNA Scientific - Osiris Enhanced',
+          Author: 'JAG DNA Scientific - Osiris Enhanced',
           Subject: 'DNA Paternity Analysis Report with STR Electropherograms',
           Keywords: 'DNA, Paternity, STR, Forensic, Analysis, Osiris, Electropherogram'
         }
@@ -101,7 +101,7 @@ class ReportGenerator {
         margin: 50,
         info: {
           Title: `Paternity Test Report - ${caseData.case_id}`,
-          Author: 'LabDNA Scientific',
+          Author: 'JAG DNA Scientific',
           Subject: 'DNA Paternity Analysis Report',
           Keywords: 'DNA, Paternity, STR, Forensic, Analysis'
         }
@@ -165,7 +165,7 @@ class ReportGenerator {
     // Laboratory header with Osiris branding
     doc.fontSize(18)
        .fillColor('#0D488F')
-       .text('LabDNA Scientific', 180, 50)
+       .text('JAG DNA Scientific', 180, 50)
        .fontSize(11)
        .fillColor('black')
        .text('Enhanced DNA Analysis Laboratory', 180, 75)
@@ -504,10 +504,10 @@ class ReportGenerator {
     // Enhanced laboratory footer
     doc.fontSize(8)
        .fillColor('#0D488F')
-       .text('LabDNA Scientific | Enhanced DNA Analysis Laboratory', 40, sigY + 110, { align: 'center' })
+       .text('JAG DNA Scientific | Enhanced DNA Analysis Laboratory', 40, sigY + 110, { align: 'center' })
        .text('Osiris 2.16 Integration | ISO/IEC 17025:2017 Accredited', 40, sigY + 125, { align: 'center' })
        .fillColor('black')
-       .text('Contact: info@labdna.co.za | Tel: +27 11 123 4567 | www.labdna.co.za', 40, sigY + 140, { align: 'center' });
+       .text('Contact: info@jagdna.co.za | Tel: +27 11 123 4567 | www.jagdna.co.za', 40, sigY + 140, { align: 'center' });
   }
 
   /**
@@ -527,7 +527,7 @@ class ReportGenerator {
     // Laboratory header
     doc.fontSize(20)
        .fillColor('#0D488F')
-       .text('LabDNA Scientific', 220, 60)
+       .text('JAG DNA Scientific', 220, 60)
        .fontSize(12)
        .fillColor('black')
        .text('DNA Paternity Testing Laboratory', 220, 85)
@@ -789,8 +789,8 @@ class ReportGenerator {
     // Laboratory footer
     doc.fontSize(8)
        .fillColor('#666')
-       .text('LabDNA Scientific | Accredited DNA Testing Laboratory', 50, sigY + 80, { align: 'center' })
-       .text('Contact: info@labdna.co.za | Tel: +27 11 123 4567 | www.labdna.co.za', 50, sigY + 95, { align: 'center' });
+       .text('JAG DNA Scientific | Accredited DNA Testing Laboratory', 50, sigY + 80, { align: 'center' })
+       .text('Contact: info@jagdna.co.za | Tel: +27 11 123 4567 | www.jagdna.co.za', 50, sigY + 95, { align: 'center' });
   }
 
   /**
@@ -871,7 +871,7 @@ class ReportGenerator {
       // Certification footer
       doc.fontSize(10)
          .text('This certificate is valid only for the case referenced above.', 50, 400, { align: 'center' })
-         .text('LabDNA Scientific - Accredited DNA Testing Laboratory', 50, 450, { align: 'center' });
+         .text('JAG DNA Scientific - Accredited DNA Testing Laboratory', 50, 450, { align: 'center' });
 
       doc.end();
 

@@ -2,341 +2,491 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Dark Lab Mode - Base Styles */
 @layer base {
+  :root {
+    --color-primary: #00d4ff;
+    --color-secondary: #00ff88;
+    --color-accent: #a855f7;
+    --color-background: #0a0a0f;
+    --color-surface: #1a1a2e;
+    --color-surface-light: #252542;
+    --color-border: #2a2a4a;
+    --color-text: #e5e7eb;
+    --color-text-muted: #9ca3af;
+  }
+
   html {
     @apply h-full;
+    color-scheme: dark;
   }
-  
+
   body {
-    @apply h-full m-0 p-0 bg-gray-50 text-gray-900 transition-colors duration-300;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    @apply h-full m-0 p-0 text-gray-100 transition-colors duration-300;
+    background: linear-gradient(135deg, #0a0a0f 0%, #12121f 50%, #0a0a0f 100%);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-  
+
   #root {
     @apply h-full w-full;
+    min-height: 100vh;
   }
-  
+
   * {
     @apply box-border;
   }
-  
-  /* Dark mode styles - Apply to html for better propagation */
-  html.dark,
-  .dark {
-    color-scheme: dark;
+
+  /* Scrollbar styling for dark mode */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
   }
-  
-  html.dark body,
-  .dark body {
-    @apply bg-gray-900 text-gray-100;
+
+  ::-webkit-scrollbar-track {
+    background: #0a0a0f;
   }
-  
-  html.dark,
-  .dark {
-    @apply bg-gray-900 text-gray-100;
+
+  ::-webkit-scrollbar-thumb {
+    background: #2a2a4a;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3a3a5a;
+  }
+
+  /* Selection styling */
+  ::selection {
+    background: rgba(0, 212, 255, 0.3);
+    color: #fff;
   }
 }
 
 @layer components {
-  /* Button styles */
+  /* Neon Button Styles */
   .btn {
-    @apply px-4 py-2 rounded-md font-medium transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-300 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed;
   }
-  
+
   .btn-primary {
-    @apply btn bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+    @apply btn text-white border border-transparent;
+    background: linear-gradient(135deg, #00d4ff 0%, #00a8cc 100%);
+    box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
   }
-  
+
+  .btn-primary:hover {
+    box-shadow: 0 0 30px rgba(0, 212, 255, 0.5);
+    transform: translateY(-1px);
+  }
+
   .btn-secondary {
-    @apply btn bg-gray-600 text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+    @apply btn text-white;
+    background: linear-gradient(135deg, #00ff88 0%, #00cc6d 100%);
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
   }
-  
+
+  .btn-secondary:hover {
+    box-shadow: 0 0 30px rgba(0, 255, 136, 0.5);
+    transform: translateY(-1px);
+  }
+
   .btn-outline {
-    @apply btn border-2 border-gray-300 text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+    @apply btn bg-transparent border-2 text-gray-100;
+    border-color: #2a2a4a;
   }
-  
-  /* Card styles */
+
+  .btn-outline:hover {
+    border-color: #00d4ff;
+    box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
+  }
+
+  /* Glass Card Styles */
   .card {
-    @apply bg-white rounded-lg shadow-md border border-gray-200 p-6 transition-colors duration-300;
+    @apply rounded-xl border p-6 transition-all duration-300;
+    background: rgba(26, 26, 46, 0.8);
+    border-color: rgba(42, 42, 74, 0.5);
+    backdrop-filter: blur(10px);
   }
-  
-  html.dark .card,
-  .dark .card {
-    @apply bg-gray-800 border-gray-700 text-gray-100;
+
+  .card:hover {
+    border-color: rgba(0, 212, 255, 0.3);
+    box-shadow: 0 0 30px rgba(0, 212, 255, 0.1);
   }
-  
-  /* Form styles */
+
+  .card-neon {
+    @apply card;
+    box-shadow: inset 0 0 20px rgba(0, 212, 255, 0.05);
+  }
+
+  /* Form Input Styles */
   .form-input {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-300;
+    @apply w-full px-4 py-3 rounded-lg border transition-all duration-300 text-gray-100;
+    background: rgba(26, 26, 46, 0.6);
+    border-color: #2a2a4a;
   }
-  
-  html.dark .form-input,
-  .dark .form-input {
-    @apply bg-gray-700 border-gray-600 text-gray-100;
+
+  .form-input:focus {
+    @apply outline-none;
+    border-color: #00d4ff;
+    box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
   }
-  
+
+  .form-input::placeholder {
+    @apply text-gray-500;
+  }
+
   .form-label {
-    @apply block text-sm font-medium text-gray-700 mb-1 transition-colors duration-300;
+    @apply block text-sm font-medium mb-2 text-gray-300;
   }
-  
-  html.dark .form-label,
-  .dark .form-label {
-    @apply text-gray-300;
+
+  /* Neon Glow Effects */
+  .glow-cyan {
+    box-shadow: 0 0 20px rgba(0, 212, 255, 0.4);
+  }
+
+  .glow-green {
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
+  }
+
+  /* Text glow effects */
+  .text-glow {
+    text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+  }
+
+  .text-glow-green {
+    text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+  }
+
+  /* Badge/Chip styles */
+  .badge {
+    @apply px-3 py-1 rounded-full text-xs font-medium;
+    background: rgba(0, 212, 255, 0.15);
+    color: #00d4ff;
+    border: 1px solid rgba(0, 212, 255, 0.3);
+  }
+
+  .badge-success {
+    background: rgba(0, 255, 136, 0.15);
+    color: #00ff88;
+    border-color: rgba(0, 255, 136, 0.3);
+  }
+
+  .badge-warning {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+    border-color: rgba(251, 191, 36, 0.3);
+  }
+
+  .badge-error {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.3);
   }
 }
 
 @layer utilities {
-  /* Text utilities */
   .text-balance {
     text-wrap: balance;
   }
-  
-  /* Layout utilities */
+
   .container-fluid {
     @apply w-full px-4 mx-auto;
   }
-  
-  /* Animation utilities */
-  .animate-in {
-    animation: fadeIn 0.2s ease-in;
+
+  /* Glass effect utility */
+  .glass {
+    background: rgba(26, 26, 46, 0.7);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(42, 42, 74, 0.5);
   }
-  
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(-10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+
+  /* Gradient text */
+  .gradient-text {
+    background: linear-gradient(135deg, #00d4ff 0%, #00ff88 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .gradient-text-purple {
+    background: linear-gradient(135deg, #a855f7 0%, #00d4ff 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Animated gradient border */
+  .border-gradient {
+    position: relative;
+    background: linear-gradient(135deg, #1a1a2e, #252542);
+    border-radius: 12px;
+  }
+
+  .border-gradient::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    background: linear-gradient(135deg, #00d4ff, #00ff88, #a855f7);
+    border-radius: 13px;
+    z-index: -1;
+    opacity: 0.5;
+  }
+
+  /* Mesh background pattern */
+  .bg-mesh {
+    background-image:
+      radial-gradient(circle at 25% 25%, rgba(0, 212, 255, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 75% 75%, rgba(0, 255, 136, 0.03) 0%, transparent 50%);
   }
 }
 
-/* Override any Material-UI styles that conflict */
+/* Material UI Overrides for Dark Lab Mode */
 .MuiDrawer-paper {
-  @apply !bg-white !transition-colors !duration-300;
-}
-
-html.dark .MuiDrawer-paper,
-.dark .MuiDrawer-paper {
-  @apply !bg-gray-800;
+  background: linear-gradient(180deg, #0a0a0f 0%, #12121f 100%) !important;
+  border-right: 1px solid rgba(42, 42, 74, 0.5) !important;
+  transition: all 0.3s ease !important;
 }
 
 .MuiListItemText-primary {
-  @apply !text-gray-900 !transition-colors !duration-300;
-}
-
-html.dark .MuiListItemText-primary,
-.dark .MuiListItemText-primary {
-  @apply !text-gray-100;
+  color: #e5e7eb !important;
+  transition: color 0.2s ease !important;
 }
 
 .MuiListItemIcon-root {
-  @apply !text-gray-600 !transition-colors !duration-300;
+  color: #9ca3af !important;
+  transition: color 0.2s ease !important;
 }
 
-html.dark .MuiListItemIcon-root,
-.dark .MuiListItemIcon-root {
-  @apply !text-gray-400;
+.MuiListItemButton-root:hover {
+  background: rgba(0, 212, 255, 0.08) !important;
 }
 
-.MuiAppBar-root {
-  @apply !bg-blue-600;
+.MuiListItemButton-root.Mui-selected {
+  background: rgba(0, 212, 255, 0.15) !important;
+  border-left: 3px solid #00d4ff !important;
 }
 
-html.dark .MuiAppBar-root,
-.dark .MuiAppBar-root {
-  @apply !bg-gray-800;
+.MuiListItemButton-root.Mui-selected .MuiListItemIcon-root {
+  color: #00d4ff !important;
 }
 
-/* Ensure text is visible and not cut off */
-.MuiTypography-root {
-  @apply !leading-normal !text-ellipsis;
+.MuiListItemButton-root.Mui-selected .MuiListItemText-primary {
+  color: #00d4ff !important;
+  font-weight: 600 !important;
 }
 
-/* Fix sidebar width issues - make wider for better text visibility */
-.MuiDrawer-paper {
-  @apply !w-72;
+.MuiPaper-root {
+  background: rgba(26, 26, 46, 0.95) !important;
+  color: #e5e7eb !important;
+  border: 1px solid rgba(42, 42, 74, 0.5) !important;
+  backdrop-filter: blur(10px) !important;
 }
 
-/* Ensure proper spacing */
-.MuiListItem-root {
-  @apply !px-4 !py-2;
+.MuiCard-root {
+  background: rgba(26, 26, 46, 0.8) !important;
+  border: 1px solid rgba(42, 42, 74, 0.5) !important;
+  border-radius: 12px !important;
 }
 
-.MuiListItemButton-root {
-  @apply !min-h-[48px] !px-4 !py-2;
+.MuiCard-root:hover {
+  border-color: rgba(0, 212, 255, 0.3) !important;
+  box-shadow: 0 0 30px rgba(0, 212, 255, 0.1) !important;
 }
 
-.MuiListItemText-root {
-  @apply !my-0;
+.MuiButton-contained {
+  background: linear-gradient(135deg, #00d4ff 0%, #00a8cc 100%) !important;
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.3) !important;
+  border: none !important;
 }
 
-.MuiListItemText-primary {
-  @apply !text-sm !font-medium !whitespace-nowrap !overflow-hidden !text-ellipsis;
+.MuiButton-contained:hover {
+  box-shadow: 0 0 30px rgba(0, 212, 255, 0.5) !important;
+  transform: translateY(-1px) !important;
 }
 
-/* Fix dialog/modal issues */
-.MuiDialog-paper {
-  @apply !max-h-[90vh] !m-4;
+.MuiButton-outlined {
+  border-color: #2a2a4a !important;
+  color: #e5e7eb !important;
 }
 
-html.dark .MuiDialog-paper,
-.dark .MuiDialog-paper {
-  @apply !bg-gray-800 !text-gray-100;
+.MuiButton-outlined:hover {
+  border-color: #00d4ff !important;
+  background: rgba(0, 212, 255, 0.1) !important;
 }
 
-/* Ensure tables display correctly */
-.MuiTable-root {
-  @apply !min-w-full;
-}
-
-html.dark .MuiTable-root,
-.dark .MuiTable-root {
-  @apply !bg-gray-800;
-}
-
-.MuiTableCell-root {
-  @apply !px-4 !py-3;
-}
-
-html.dark .MuiTableCell-root,
-.dark .MuiTableCell-root {
-  @apply !text-gray-100 !border-gray-700;
-}
-
-/* Fix buttons and other interactive elements */
-.MuiButton-root {
-  @apply !transition-all !duration-300;
-}
-
-html.dark .MuiButton-outlined,
-.dark .MuiButton-outlined {
-  @apply !border-gray-600 !text-gray-100;
-}
-
-/* Fix input fields */
 .MuiTextField-root input,
 .MuiOutlinedInput-input {
-  @apply !transition-colors !duration-300;
-}
-
-html.dark .MuiTextField-root input,
-html.dark .MuiOutlinedInput-input,
-.dark .MuiTextField-root input,
-.dark .MuiOutlinedInput-input {
-  @apply !text-gray-100;
+  color: #e5e7eb !important;
 }
 
 .MuiOutlinedInput-notchedOutline {
-  @apply !transition-colors !duration-300;
+  border-color: #2a2a4a !important;
 }
 
-html.dark .MuiOutlinedInput-notchedOutline,
-.dark .MuiOutlinedInput-notchedOutline {
-  @apply !border-gray-600;
+.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: #00d4ff !important;
 }
 
-/* Fix paper backgrounds for all MUI components */
-.MuiPaper-root {
-  @apply !transition-colors !duration-300;
+.MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: #00d4ff !important;
+  box-shadow: 0 0 15px rgba(0, 212, 255, 0.2) !important;
 }
 
-html.dark .MuiPaper-root,
-.dark .MuiPaper-root {
-  @apply !bg-gray-800 !text-gray-100;
+.MuiInputLabel-root {
+  color: #9ca3af !important;
 }
 
-/* Fix tooltips and popovers */
+.MuiInputLabel-root.Mui-focused {
+  color: #00d4ff !important;
+}
+
+.MuiTable-root {
+  background: transparent !important;
+}
+
+.MuiTableCell-root {
+  color: #e5e7eb !important;
+  border-color: rgba(42, 42, 74, 0.5) !important;
+}
+
+.MuiTableHead-root .MuiTableCell-root {
+  background: rgba(26, 26, 46, 0.8) !important;
+  color: #00d4ff !important;
+  font-weight: 600 !important;
+}
+
+.MuiTableRow-root:hover {
+  background: rgba(0, 212, 255, 0.05) !important;
+}
+
+.MuiChip-root {
+  background: rgba(0, 212, 255, 0.15) !important;
+  color: #00d4ff !important;
+  border: 1px solid rgba(0, 212, 255, 0.3) !important;
+}
+
+.MuiDialog-paper {
+  background: rgba(26, 26, 46, 0.98) !important;
+  border: 1px solid rgba(42, 42, 74, 0.5) !important;
+  border-radius: 16px !important;
+  backdrop-filter: blur(20px) !important;
+}
+
+.MuiMenu-paper,
+.MuiPopover-paper {
+  background: rgba(26, 26, 46, 0.98) !important;
+  border: 1px solid rgba(42, 42, 74, 0.5) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.MuiMenuItem-root {
+  color: #e5e7eb !important;
+}
+
+.MuiMenuItem-root:hover {
+  background: rgba(0, 212, 255, 0.1) !important;
+}
+
 .MuiTooltip-tooltip {
-  @apply !transition-colors !duration-300;
+  background: rgba(26, 26, 46, 0.95) !important;
+  color: #e5e7eb !important;
+  border: 1px solid rgba(42, 42, 74, 0.5) !important;
+  backdrop-filter: blur(10px) !important;
 }
 
-html.dark .MuiTooltip-tooltip,
-.dark .MuiTooltip-tooltip {
-  @apply !bg-gray-700 !text-gray-100;
+.MuiAlert-root {
+  background: rgba(26, 26, 46, 0.9) !important;
+  border: 1px solid rgba(42, 42, 74, 0.5) !important;
 }
 
-/* Additional fixes for better text visibility and layout */
-.MuiListItemText-root {
-  @apply !flex-1 !min-w-0;
+.MuiAlert-standardSuccess {
+  border-color: rgba(0, 255, 136, 0.3) !important;
 }
 
-.MuiListItemText-primary {
-  @apply !text-sm !font-medium !leading-5;
+.MuiAlert-standardError {
+  border-color: rgba(239, 68, 68, 0.3) !important;
 }
 
-/* Force consistent sidebar width */
-@media (min-width: 768px) {
-  .MuiDrawer-docked .MuiDrawer-paper {
-    @apply !w-72;
-  }
+.MuiAlert-standardWarning {
+  border-color: rgba(251, 191, 36, 0.3) !important;
 }
 
-/* Ensure text doesn't get cut off in mobile */
+.MuiAlert-standardInfo {
+  border-color: rgba(0, 212, 255, 0.3) !important;
+}
+
+/* Tabs styling */
+.MuiTabs-root {
+  border-bottom: 1px solid rgba(42, 42, 74, 0.5) !important;
+}
+
+.MuiTab-root {
+  color: #9ca3af !important;
+}
+
+.MuiTab-root.Mui-selected {
+  color: #00d4ff !important;
+}
+
+.MuiTabs-indicator {
+  background: linear-gradient(90deg, #00d4ff, #00ff88) !important;
+  height: 3px !important;
+  border-radius: 3px 3px 0 0 !important;
+}
+
+/* AppBar styling */
+.MuiAppBar-root {
+  background: rgba(10, 10, 15, 0.9) !important;
+  backdrop-filter: blur(10px) !important;
+  border-bottom: 1px solid rgba(42, 42, 74, 0.5) !important;
+}
+
+/* Progress indicators */
+.MuiLinearProgress-root {
+  background: rgba(42, 42, 74, 0.5) !important;
+  border-radius: 4px !important;
+}
+
+.MuiLinearProgress-bar {
+  background: linear-gradient(90deg, #00d4ff, #00ff88) !important;
+  border-radius: 4px !important;
+}
+
+.MuiCircularProgress-root {
+  color: #00d4ff !important;
+}
+
+/* Divider */
+.MuiDivider-root {
+  border-color: rgba(42, 42, 74, 0.5) !important;
+}
+
+/* Fix sidebar width */
+.MuiDrawer-paper {
+  width: 280px !important;
+}
+
 @media (max-width: 767px) {
   .MuiDrawer-paper {
-    @apply !w-80;
+    width: 300px !important;
   }
-}
-
-/* Fix card backgrounds in dark mode */
-html.dark .MuiCard-root,
-.dark .MuiCard-root {
-  @apply !bg-gray-800 !border-gray-700;
-}
-
-/* Fix chip/badge styles */
-.MuiChip-root {
-  @apply !transition-colors !duration-300;
-}
-
-html.dark .MuiChip-root,
-.dark .MuiChip-root {
-  @apply !bg-gray-700 !text-gray-100;
-}
-
-/* Ensure proper contrast for disabled states */
-html.dark .MuiButton-root:disabled,
-.dark .MuiButton-root:disabled {
-  @apply !text-gray-500;
-}
-
-/* Fix menu and popover backgrounds */
-html.dark .MuiMenu-paper,
-html.dark .MuiPopover-paper,
-.dark .MuiMenu-paper,
-.dark .MuiPopover-paper {
-  @apply !bg-gray-800 !border-gray-700;
-}
-
-/* Fix menu item styles */
-html.dark .MuiMenuItem-root,
-.dark .MuiMenuItem-root {
-  @apply !text-gray-100;
-}
-
-html.dark .MuiMenuItem-root:hover,
-.dark .MuiMenuItem-root:hover {
-  @apply !bg-gray-700;
 }
 
 /* Smooth transitions for all interactive elements */
 * {
-  transition-property: color, background-color, border-color;
-  transition-duration: 300ms;
+  transition-property: color, background-color, border-color, box-shadow, transform;
+  transition-duration: 200ms;
   transition-timing-function: ease;
 }
 
-/* Fix sidebar logo area */
-.MuiDrawer-paper .logo-container {
-  @apply !p-4 !flex !items-center !justify-center !border-b !border-gray-200;
-}
-
-html.dark .MuiDrawer-paper .logo-container,
-.dark .MuiDrawer-paper .logo-container {
-  @apply !border-gray-700;
+/* Disable transitions for elements that shouldn't animate */
+.no-transition,
+.no-transition * {
+  transition: none !important;
 }

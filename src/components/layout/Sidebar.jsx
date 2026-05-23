@@ -210,7 +210,7 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
         sx={{
           p: 2,
           py: 3,
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          borderBottom: '1px solid rgba(42, 42, 74, 0.5)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -218,9 +218,7 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
           minHeight: { xs: 80, md: 100 },
           maxHeight: { xs: 100, md: 120 },
           '&:hover': {
-            backgroundColor: isDarkMode 
-              ? 'rgba(255, 255, 255, 0.05)' 
-              : 'rgba(255, 255, 255, 0.08)',
+            backgroundColor: 'rgba(0, 212, 255, 0.05)',
           },
         }}
       >
@@ -268,22 +266,25 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
           sx={{
             display: 'flex',
             alignItems: 'center',
-            backgroundColor: isDarkMode 
-              ? 'rgba(255, 255, 255, 0.05)' 
-              : 'rgba(255, 255, 255, 0.1)',
-            borderRadius: 1,
+            background: 'rgba(26, 26, 46, 0.6)',
+            border: '1px solid rgba(42, 42, 74, 0.5)',
+            borderRadius: '8px',
             p: 1,
-            transition: 'background-color 0.3s ease',
+            transition: 'all 0.3s ease',
+            '&:focus-within': {
+              borderColor: '#00d4ff',
+              boxShadow: '0 0 15px rgba(0, 212, 255, 0.2)',
+            },
           }}
         >
-          <Search sx={{ mr: 1, opacity: 0.7 }} />
+          <Search sx={{ mr: 1, color: '#6b7280' }} />
           <input
             type="text"
             placeholder="Search..."
             style={{
               background: 'none',
               border: 'none',
-              color: 'white',
+              color: '#e5e7eb',
               outline: 'none',
               width: '100%',
               fontSize: '0.9rem',
@@ -314,48 +315,41 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
                 minHeight: 48,
                 px: 2.5,
                 '&.Mui-selected': {
-                  bgcolor: isDarkMode 
-                    ? 'rgba(255, 255, 255, 0.2)' 
-                    : 'rgba(13, 72, 143, 0.2)',
-                  borderLeft: '4px solid',
-                  borderLeftColor: isDarkMode ? '#fff' : '#0D488F',
+                  background: 'rgba(0, 212, 255, 0.15)',
+                  borderLeft: '3px solid #00d4ff',
                   borderRadius: '0 8px 8px 0',
                   mx: 1,
                   '&:hover': {
-                    bgcolor: isDarkMode 
-                      ? 'rgba(255, 255, 255, 0.25)' 
-                      : 'rgba(13, 72, 143, 0.25)',
+                    background: 'rgba(0, 212, 255, 0.2)',
                   },
                 },
                 '&:hover': {
-                  backgroundColor: isDarkMode 
-                    ? 'rgba(255, 255, 255, 0.05)' 
-                    : 'rgba(255, 255, 255, 0.08)',
+                  backgroundColor: 'rgba(0, 212, 255, 0.08)',
                 },
-                transition: 'background-color 0.2s ease',
+                transition: 'all 0.2s ease',
               }}
             >
-              <ListItemIcon 
-                sx={{ 
-                  minWidth: 40, 
-                  color: isActiveItem(item) 
-                    ? (isDarkMode ? '#fff' : '#0D488F')
-                    : 'rgba(255, 255, 255, 0.7)',
+              <ListItemIcon
+                sx={{
+                  minWidth: 40,
+                  color: isActiveItem(item)
+                    ? '#00d4ff'
+                    : '#9ca3af',
                   mr: 1,
                   transition: 'color 0.2s ease',
                 }}
               >
                 {item.icon}
               </ListItemIcon>
-              <ListItemText 
+              <ListItemText
                 primary={item.label}
                 sx={{
                   '& .MuiListItemText-primary': {
                     fontSize: '0.95rem',
                     fontWeight: isActiveItem(item) ? 600 : 500,
-                    color: isActiveItem(item) 
-                      ? (isDarkMode ? '#fff' : '#fff')
-                      : 'rgba(255, 255, 255, 0.9)',
+                    color: isActiveItem(item)
+                      ? '#00d4ff'
+                      : '#e5e7eb',
                     transition: 'color 0.2s ease, font-weight 0.2s ease',
                     whiteSpace: 'nowrap',
                     overflow: 'visible',
@@ -365,8 +359,8 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
                 }}
               />
               {item.hasSubMenu && (
-                <Typography sx={{ 
-                  color: 'rgba(255, 255, 255, 0.5)',
+                <Typography sx={{
+                  color: '#6b7280',
                   transition: 'color 0.2s ease',
                 }}>•••</Typography>
               )}
@@ -484,11 +478,11 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
             display: { xs: 'block', md: 'none' },
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
-              width: 320,
-              backgroundColor: isDarkMode ? '#022539' : '#0D488F',
-              color: 'white',
-              borderRight: 'none',
-              transition: 'background-color 0.3s ease',
+              width: 300,
+              background: 'linear-gradient(180deg, #0a0a0f 0%, #12121f 100%)',
+              color: '#e5e7eb',
+              borderRight: '1px solid rgba(42, 42, 74, 0.5)',
+              transition: 'all 0.3s ease',
               display: 'flex',
               flexDirection: 'column',
             },
@@ -496,7 +490,7 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
         >
           {drawerContent}
         </Drawer>
-        
+
         {/* Desktop drawer */}
         <Drawer
           variant="permanent"
@@ -505,10 +499,10 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: 280,
-              backgroundColor: isDarkMode ? '#022539' : '#0D488F',
-              color: 'white',
-              borderRight: 'none',
-              transition: 'background-color 0.3s ease',
+              background: 'linear-gradient(180deg, #0a0a0f 0%, #12121f 100%)',
+              color: '#e5e7eb',
+              borderRight: '1px solid rgba(42, 42, 74, 0.5)',
+              transition: 'all 0.3s ease',
               display: 'flex',
               flexDirection: 'column',
             },
