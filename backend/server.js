@@ -57,9 +57,10 @@ let db = null;
 let dbPool = null;
 const databaseService = require('./services/database');
 
-// Database initialization with graceful degradation
-(async () => {
+// Database initialization - wait for connection before proceeding
+async function initializeDatabase() {
   try {
+    // Wait for the database initialization promise
     const initialized = await databaseService.initialize();
     if (initialized) {
       db = databaseService;
@@ -69,16 +70,21 @@ const databaseService = require('./services/database');
         connected: databaseService.isConnected()
       });
       console.log(`✅ Database connected successfully (${databaseService.getDatabaseType()})`);
+      return true;
     } else {
       logger.warn('Database initialization failed, running with limited functionality');
       console.log('⚠️  Database not available, running with limited functionality');
+      return false;
     }
   } catch (error) {
     logger.error('Database initialization error', { error: error.message });
     console.error('❌ Database initialization error:', error.message);
-    // Continue without database - app will serve static files and return 503 for API calls
+    return false;
   }
-})();
+}
+
+// Initialize database immediately and store the promise
+const dbInitPromise = initializeDatabase();
 
 const app = express();
 
@@ -416,19 +422,21 @@ async function createSample(sampleData) {
 
     const query = `
       INSERT INTO samples (
-        lab_number, name, surname, relation, status, phone_number,
-        created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        lab_number, name, surname, relation, status, case_number, sample_type,
+        workflow_status, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       RETURNING id
     `;
 
-    const result = await databaseService.run(query, [
+    const result = await databaseService.get(query, [
       sampleData.lab_number,
       sampleData.name.trim(),
       sampleData.surname.trim(),
       sampleData.relation || 'Child',
-      sampleData.status || 'pending',
-      sampleData.phone_number
+      sampleData.status || 'active',
+      sampleData.case_number || sampleData.lab_number,
+      sampleData.sample_type || 'Buccal Swab',
+      sampleData.workflow_status || 'sample_collected'
     ]);
 
     // Clear sample counts cache since we added a new sample
@@ -437,7 +445,7 @@ async function createSample(sampleData) {
     // Track sample creation metrics
     trackSampleProcessed('created', 'registration');
 
-    return { id: result.lastInsertRowid, ...sampleData };
+    return { id: result?.id, ...sampleData };
   } catch (error) {
     logger.error('Error creating sample', { error: error.message, sampleData });
     throw error;
@@ -2288,6 +2296,28 @@ app.use(globalErrorHandler);
 const port = process.env.PORT || 3001;
 
 // Database service initialization moved earlier in the file
+// Wait for database before starting server features
+dbInitPromise.then(() => {
+  startServerFeatures();
+}).catch(err => {
+  logger.error('Database init promise rejected', { error: err.message });
+  startServerFeatures();
+});
+
+function startServerFeatures() {
+  // Start Enhanced Sample Cycler for continuous sample generation and progression
+  try {
+    const EnhancedSampleCycler = require('./services/enhanced-sample-cycler');
+    const sampleCycler = new EnhancedSampleCycler(databaseService);
+    sampleCycler.start();
+    logger.info('Enhanced Sample Cycler started - continuous sample processing');
+    console.log('🔄 Enhanced Sample Cycler active - generating samples every 10 seconds');
+    global.sampleCycler = sampleCycler;
+  } catch (error) {
+    logger.error('Failed to start Enhanced Sample Cycler', { error: error.message });
+    console.log('⚠️  Warning: Enhanced Sample Cycler failed to start:', error.message);
+  }
+}
 
 const server = app
   .listen(port, '0.0.0.0', () => {
@@ -2295,41 +2325,22 @@ const server = app
       port,
       environment: process.env.NODE_ENV || 'development',
       pid: process.pid,
-      database: db ? 'connected' : 'disconnected'
+      database: 'initializing'
     });
-    
-    // Always start background jobs for sample processing
+
+    console.log(`✅ Server listening on port ${port}, waiting for database...`);
+
+    // Wait for database to finish connecting before starting services
+    setTimeout(() => {
+    // Start background jobs for sample processing
     try {
       backgroundJobService.start();
-      logger.info('🚀 Background jobs started - samples will process automatically');
+      logger.info('Background jobs started - samples will process automatically');
       console.log('🚀 Background workflow automation active - samples processing automatically');
     } catch (error) {
       logger.error('Failed to start background jobs', { error: error.message });
       console.log('⚠️  Warning: Background jobs failed to start:', error.message);
     }
-    
-    // Start Enhanced Sample Cycler for continuous sample generation and progression
-    // Wait a bit for database to be ready
-    setTimeout(() => {
-      try {
-        // Use unified database service
-        const EnhancedSampleCycler = require('./services/enhanced-sample-cycler');
-        
-        // Pass the database service itself, not .db
-        const sampleCycler = new EnhancedSampleCycler(databaseService);
-        sampleCycler.start();
-        logger.info('🔄 Enhanced Sample Cycler started - continuous sample processing');
-        console.log('🔄 Enhanced Sample Cycler active - generating samples every 10 seconds');
-        
-        // Store reference globally for graceful shutdown
-        global.sampleCycler = sampleCycler;
-      } catch (error) {
-        logger.error('Failed to start Enhanced Sample Cycler', { error: error.message });
-        console.log('⚠️  Warning: Enhanced Sample Cycler failed to start:', error.message);
-      }
-    }, 2000); // Wait 2 seconds for database to initialize
-    
-    // Start appropriate sample generator based on database connection
     if (!databaseService.isConnected()) {
       // No database connection - use simple cycler for demo
       console.log('⚠️  No database connection - starting simple sample cycler');
@@ -2369,6 +2380,7 @@ const server = app
       console.log('   - Load testing capabilities');
       console.log('   - Structured logging');
     }
+    }, 2000); // End of setTimeout - wait 2 seconds for database to finish connecting
   })
   .on("error", (err) => {
     if (err.code === "EADDRINUSE") {
