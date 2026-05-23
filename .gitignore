@@ -179,3 +179,9 @@ backend/node_modules/
 # Logs
 backend/logs/
 *.log
+
+# OSIRIS data files
+backend/osiris_workspace/input/*.fsa
+backend/osiris_workspace/input/*.csv
+backend/osiris_workspace/input/*.oar
+backend/osiris_workspace/output/

@@ -422,19 +422,21 @@ async function createSample(sampleData) {
 
     const query = `
       INSERT INTO samples (
-        lab_number, name, surname, relation, status, phone_number,
-        created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        lab_number, name, surname, relation, status, case_number, sample_type,
+        workflow_status, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       RETURNING id
     `;
 
-    const result = await databaseService.run(query, [
+    const result = await databaseService.get(query, [
       sampleData.lab_number,
       sampleData.name.trim(),
       sampleData.surname.trim(),
       sampleData.relation || 'Child',
-      sampleData.status || 'pending',
-      sampleData.phone_number
+      sampleData.status || 'active',
+      sampleData.case_number || sampleData.lab_number,
+      sampleData.sample_type || 'Buccal Swab',
+      sampleData.workflow_status || 'sample_collected'
     ]);
 
     // Clear sample counts cache since we added a new sample
@@ -443,7 +445,7 @@ async function createSample(sampleData) {
     // Track sample creation metrics
     trackSampleProcessed('created', 'registration');
 
-    return { id: result.lastInsertRowid, ...sampleData };
+    return { id: result?.id, ...sampleData };
   } catch (error) {
     logger.error('Error creating sample', { error: error.message, sampleData });
     throw error;
@@ -2323,10 +2325,14 @@ const server = app
       port,
       environment: process.env.NODE_ENV || 'development',
       pid: process.pid,
-      database: db ? 'connected' : 'disconnected'
+      database: 'initializing'
     });
 
-    // Always start background jobs for sample processing
+    console.log(`✅ Server listening on port ${port}, waiting for database...`);
+
+    // Wait for database to finish connecting before starting services
+    setTimeout(() => {
+    // Start background jobs for sample processing
     try {
       backgroundJobService.start();
       logger.info('Background jobs started - samples will process automatically');
@@ -2335,10 +2341,6 @@ const server = app
       logger.error('Failed to start background jobs', { error: error.message });
       console.log('⚠️  Warning: Background jobs failed to start:', error.message);
     }
-
-    // Start appropriate sample generator based on database connection
-    // Give database a moment to finish connecting
-    setTimeout(() => {
     if (!databaseService.isConnected()) {
       // No database connection - use simple cycler for demo
       console.log('⚠️  No database connection - starting simple sample cycler');
