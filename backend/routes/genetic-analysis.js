@@ -3,9 +3,10 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs").promises;
 const FSAProcessor = require("../services/fsaProcessor");
-const OsirisIntegration = require("../services/osirisIntegration");
+// OsirisIntegration removed - replaced by strImporter module
 const ReportGenerator = require("../services/reportGenerator");
 const OsirisResultsParser = require("../services/osirisResultsParser");
+const strImporter = require("../services/strImporter");
 // Removed genetic auth middleware for portfolio simplicity
 // const GeneticUserService = require("../services/geneticUserService");
 const db = require("../services/database");
@@ -13,7 +14,7 @@ const db = require("../services/database");
 
 const router = express.Router();
 const fsaProcessor = new FSAProcessor();
-let osiris = null; // Initialize only when needed
+// OsirisIntegration removed - STR analysis now handled by strImporter
 const reportGenerator = new ReportGenerator();
 // const auth = new GeneticAuthMiddleware(); // Removed for portfolio simplicity
 // const userService = new GeneticUserService(db.db); // Removed for portfolio
@@ -1194,6 +1195,194 @@ router.post("/genemapper-results", async (req, res) => {
     
   } catch (error) {
     console.error('❌ Error storing GeneMapper results:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// =============================================================================
+// STR Results Import Endpoints (strImporter)
+// =============================================================================
+
+/**
+ * POST /api/genetic-analysis/str-results
+ * Import STR analysis results with contract validation
+ * Accepts payload matching the strImporter contract shape
+ */
+router.post("/str-results", async (req, res) => {
+  try {
+    console.log('📥 Importing STR analysis results...');
+
+    const payload = req.body;
+
+    // Validate against contract
+    const validation = strImporter.validate(payload);
+    if (!validation.valid) {
+      console.warn('❌ STR results validation failed:', validation.errors);
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        errors: validation.errors
+      });
+    }
+
+    // Store each sample's results
+    const stored = [];
+    const errors = [];
+
+    for (const sample of payload.samples) {
+      try {
+        const analysisId = `STR-${sample.sampleName}-${Date.now()}`;
+
+        db.db.prepare(`
+          INSERT OR REPLACE INTO genetic_analysis_results
+          (analysis_id, analysis_type, results_data, created_date)
+          VALUES (?, ?, ?, datetime('now'))
+        `).run(
+          analysisId,
+          'str_import',
+          JSON.stringify({
+            sampleName: sample.sampleName,
+            markers: sample.markers,
+            importDate: payload.importDate,
+            fileName: payload.fileName
+          })
+        );
+
+        stored.push(sample.sampleName);
+      } catch (dbError) {
+        console.error(`Failed to store sample ${sample.sampleName}:`, dbError.message);
+        errors.push({ sampleName: sample.sampleName, error: dbError.message });
+      }
+    }
+
+    console.log(`✅ STR results imported: ${stored.length} samples stored`);
+
+    res.json({
+      success: true,
+      message: `STR results imported successfully`,
+      samplesStored: stored.length,
+      sampleNames: stored,
+      errors: errors.length > 0 ? errors : undefined
+    });
+
+  } catch (error) {
+    console.error('❌ Error importing STR results:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/genetic-analysis/str-results/synthetic
+ * Generate synthetic STR results for demo/testing
+ * Accepts { batchId } or { sampleNames: [...] }
+ */
+router.post("/str-results/synthetic", async (req, res) => {
+  try {
+    console.log('🧬 Generating synthetic STR results...');
+
+    const { batchId, sampleNames: providedNames, simulateNoise, generateFamilies } = req.body;
+
+    let sampleNames = [];
+
+    if (providedNames && Array.isArray(providedNames)) {
+      // Use provided sample names directly
+      sampleNames = providedNames;
+    } else if (batchId) {
+      // Fetch sample names from batch
+      const batch = await db.getBatch(batchId);
+      if (!batch) {
+        return res.status(404).json({
+          success: false,
+          error: `Batch not found: ${batchId}`
+        });
+      }
+
+      const wellAssignments = await db.getWellAssignments(batch.id);
+      sampleNames = wellAssignments
+        .filter(wa => wa.sample_name && wa.well_type !== 'control')
+        .map(wa => wa.sample_name);
+
+      if (sampleNames.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'No samples found in batch'
+        });
+      }
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Either batchId or sampleNames[] is required'
+      });
+    }
+
+    // Generate synthetic results
+    const importer = strImporter.getImporter('synthetic');
+    const payload = importer.generate({
+      sampleNames,
+      sourceTag: batchId ? `batch-${batchId}` : 'synthetic',
+      simulateNoise: simulateNoise || false,
+      generateFamilies: generateFamilies || false
+    });
+
+    // Validate the generated payload
+    const validation = strImporter.validate(payload);
+    if (!validation.valid) {
+      console.error('Generated payload failed validation:', validation.errors);
+      return res.status(500).json({
+        success: false,
+        error: 'Generated payload failed validation',
+        errors: validation.errors
+      });
+    }
+
+    // Store the results
+    const stored = [];
+    for (const sample of payload.samples) {
+      try {
+        const analysisId = `STR-${sample.sampleName}-${Date.now()}`;
+
+        db.db.prepare(`
+          INSERT OR REPLACE INTO genetic_analysis_results
+          (analysis_id, analysis_type, results_data, created_date)
+          VALUES (?, ?, ?, datetime('now'))
+        `).run(
+          analysisId,
+          'str_synthetic',
+          JSON.stringify({
+            sampleName: sample.sampleName,
+            markers: sample.markers,
+            importDate: payload.importDate,
+            fileName: payload.fileName,
+            synthetic: true
+          })
+        );
+
+        stored.push(sample.sampleName);
+      } catch (dbError) {
+        console.error(`Failed to store sample ${sample.sampleName}:`, dbError.message);
+      }
+    }
+
+    console.log(`✅ Synthetic STR results generated: ${stored.length} samples`);
+
+    res.json({
+      success: true,
+      message: 'Synthetic STR results generated and stored',
+      samplesGenerated: payload.samples.length,
+      samplesStored: stored.length,
+      sampleNames: stored,
+      fileName: payload.fileName,
+      importDate: payload.importDate
+    });
+
+  } catch (error) {
+    console.error('❌ Error generating synthetic STR results:', error.message);
     res.status(500).json({
       success: false,
       error: error.message

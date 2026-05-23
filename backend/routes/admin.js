@@ -3,7 +3,15 @@ const { logger } = require('../utils/logger');
 const { ResponseHandler } = require('../utils/responseHandler');
 const { backgroundJobService } = require('../services/backgroundJobs');
 const LoadGenerator = require('../scripts/loadGenerator');
+const { authenticateToken, requireRole } = require('../middleware/auth');
 const router = express.Router();
+
+// Protect all admin routes - require authentication and admin role
+// Note: In development mode without auth, these routes are accessible for testing
+if (process.env.NODE_ENV === 'production') {
+  router.use(authenticateToken);
+  router.use(requireRole('admin'));
+}
 
 // Admin dashboard HTML
 const adminDashboardHTML = `

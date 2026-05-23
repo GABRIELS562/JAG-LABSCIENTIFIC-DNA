@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "lims.fullname" . }}-config
+  labels:
+    {{- include "lims.labels" . | nindent 4 }}
+data:
+  ENABLE_BACKGROUND_JOBS: {{ .Values.config.enableBackgroundJobs | quote }}
+  ENABLE_SAMPLE_CYCLER: {{ .Values.config.enableSampleCycler | quote }}
+  FALLBACK_TO_MOCK_DATA: {{ .Values.config.fallbackToMockData | quote }}
+  WORKFLOW_AUTO_PROGRESS: {{ .Values.config.workflowAutoProgress | quote }}
+  WORKFLOW_PROGRESS_INTERVAL: {{ .Values.config.workflowProgressInterval | quote }}
+  INITIAL_SAMPLE_COUNT: {{ .Values.config.initialSampleCount | quote }}
+  FRONTEND_PORT: "5173"

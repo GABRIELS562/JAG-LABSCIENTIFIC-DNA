@@ -1,0 +1,20 @@
+{{- if .Values.frontend.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "lims.fullname" . }}-frontend
+  labels:
+    {{- include "lims.frontend.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.frontend.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.frontend.service.port }}
+      targetPort: http
+      protocol: TCP
+      {{- if and (eq .Values.frontend.service.type "NodePort") .Values.frontend.service.nodePort }}
+      nodePort: {{ .Values.frontend.service.nodePort }}
+      {{- end }}
+  selector:
+    {{- include "lims.frontend.selectorLabels" . | nindent 4 }}
+{{- end }}

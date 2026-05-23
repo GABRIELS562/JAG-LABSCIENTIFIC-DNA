@@ -1,0 +1,25 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "lims.fullname" . }}-backend
+  labels:
+    {{- include "lims.backend.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "lims.backend.selectorLabels" . | nindent 6 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "lims.fullname" . }}-frontend
+  labels:
+    {{- include "lims.frontend.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "lims.frontend.selectorLabels" . | nindent 6 }}
+{{- end }}

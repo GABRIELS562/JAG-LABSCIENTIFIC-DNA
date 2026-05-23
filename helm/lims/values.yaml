@@ -1,0 +1,161 @@
+# Default values for LIMS Helm chart
+# This is a YAML-formatted file.
+
+# Global settings
+global:
+  environment: production
+  imageRegistry: localhost:5000
+
+# Backend configuration
+backend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: lims-backend
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 3001
+    nodePort: null  # Set for NodePort type
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  probes:
+    liveness:
+      path: /health
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    readiness:
+      path: /ready
+      initialDelaySeconds: 10
+      periodSeconds: 5
+  env:
+    NODE_ENV: production
+    ENABLE_MOCK_SAMPLES: "true"
+    SAMPLE_CYCLE_INTERVAL: "30000"
+
+# Frontend configuration
+frontend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: lims-frontend
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 80
+    nodePort: null  # Set for NodePort type
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  probes:
+    liveness:
+      path: /
+      initialDelaySeconds: 15
+      periodSeconds: 10
+    readiness:
+      path: /
+      initialDelaySeconds: 5
+      periodSeconds: 5
+
+# PostgreSQL configuration (using Bitnami subchart)
+postgresql:
+  enabled: true
+  auth:
+    database: lims_db
+    username: lims_user
+    password: lims_password  # Override in production!
+    postgresPassword: postgres_admin  # Override in production!
+  primary:
+    persistence:
+      enabled: true
+      size: 5Gi
+      storageClass: local-path
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+# Standalone PostgreSQL (if not using Bitnami subchart)
+postgres:
+  enabled: false
+  image:
+    repository: postgres
+    tag: 14-alpine
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: local-path
+  auth:
+    database: lims_db
+    username: lims_user
+    password: lims_password
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+  hosts:
+    - host: lims.local
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: backend
+        - path: /
+          pathType: Prefix
+          service: frontend
+  tls: []
+  # - hosts:
+  #     - lims.example.com
+  #   secretName: lims-tls
+
+# ConfigMap values
+config:
+  enableBackgroundJobs: "true"
+  enableSampleCycler: "true"
+  fallbackToMockData: "true"
+  workflowAutoProgress: "true"
+  workflowProgressInterval: "30000"
+  initialSampleCount: "5"
+
+# ServiceMonitor for Prometheus
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  path: /metrics
+  labels: {}
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+# Autoscaling
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# Node selector, tolerations, affinity
+nodeSelector: {}
+tolerations: []
+affinity: {}

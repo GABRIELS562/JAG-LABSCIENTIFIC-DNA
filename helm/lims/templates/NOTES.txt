@@ -1,0 +1,91 @@
+🧬 LIMS - Laboratory Information Management System
+
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named: {{ .Release.Name }}
+Environment: {{ .Values.global.environment }}
+Namespace: {{ .Release.Namespace }}
+
+📊 DEPLOYMENT STATUS
+====================
+
+To check the status of your deployment:
+
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+🌐 ACCESSING THE APPLICATION
+============================
+
+{{- if .Values.ingress.enabled }}
+The application is accessible via Ingress:
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else }}
+
+To access the application, use port-forward:
+
+  # Frontend
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "lims.fullname" . }}-frontend 8080:{{ .Values.frontend.service.port }}
+
+  # Backend API
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "lims.fullname" . }}-backend 3001:{{ .Values.backend.service.port }}
+
+Then access:
+  - Frontend: http://localhost:8080
+  - API: http://localhost:3001
+{{- end }}
+
+{{- if or (eq .Values.backend.service.type "NodePort") (eq .Values.frontend.service.type "NodePort") }}
+
+NodePort Access:
+{{- if .Values.backend.service.nodePort }}
+  - Backend: http://<node-ip>:{{ .Values.backend.service.nodePort }}
+{{- end }}
+{{- if .Values.frontend.service.nodePort }}
+  - Frontend: http://<node-ip>:{{ .Values.frontend.service.nodePort }}
+{{- end }}
+{{- end }}
+
+🗄️ DATABASE
+===========
+
+{{- if .Values.postgresql.enabled }}
+PostgreSQL is deployed via Bitnami subchart.
+Database: {{ .Values.postgresql.auth.database }}
+Username: {{ .Values.postgresql.auth.username }}
+{{- else if .Values.postgres.enabled }}
+Standalone PostgreSQL is deployed.
+Database: {{ .Values.postgres.auth.database }}
+Username: {{ .Values.postgres.auth.username }}
+{{- else }}
+Using external database.
+{{- end }}
+
+📈 MONITORING
+=============
+
+{{- if .Values.serviceMonitor.enabled }}
+ServiceMonitor is enabled. Metrics will be scraped by Prometheus.
+Endpoint: {{ include "lims.fullname" . }}-backend:{{ .Values.backend.service.port }}{{ .Values.serviceMonitor.path }}
+{{- else }}
+ServiceMonitor is disabled. Enable it in values.yaml for Prometheus integration.
+{{- end }}
+
+🔧 USEFUL COMMANDS
+==================
+
+  # View logs
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -f
+
+  # Restart deployment
+  kubectl rollout restart deployment -n {{ .Release.Namespace }} {{ include "lims.fullname" . }}-backend
+  kubectl rollout restart deployment -n {{ .Release.Namespace }} {{ include "lims.fullname" . }}-frontend
+
+  # Scale deployment
+  kubectl scale deployment -n {{ .Release.Namespace }} {{ include "lims.fullname" . }}-backend --replicas=3
+
+  # Upgrade release
+  helm upgrade {{ .Release.Name }} ./helm/lims -n {{ .Release.Namespace }} -f values-{{ .Values.global.environment }}.yaml
+
+🎉 Happy analyzing DNA!

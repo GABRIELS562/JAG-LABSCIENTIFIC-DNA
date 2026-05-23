@@ -1,0 +1,144 @@
+name: Deploy to Test
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+      - 'feature/*'
+
+env:
+  REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+  NAMESPACE: test
+
+jobs:
+  build-and-push:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install and build frontend
+        run: |
+          npm ci --legacy-peer-deps
+          npm run build
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Generate image metadata
+        id: meta
+        run: |
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          SAFE_BRANCH=$(echo $BRANCH_NAME | sed 's/\//-/g')
+          TAG="${SAFE_BRANCH}-${GITHUB_SHA::7}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Image tag: $TAG"
+
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Build and push backend
+        run: |
+          docker build -t ${{ env.REGISTRY }}/lims-backend:${{ steps.meta.outputs.tag }} ./backend
+          docker push ${{ env.REGISTRY }}/lims-backend:${{ steps.meta.outputs.tag }}
+          docker tag ${{ env.REGISTRY }}/lims-backend:${{ steps.meta.outputs.tag }} ${{ env.REGISTRY }}/lims-backend:test-latest
+          docker push ${{ env.REGISTRY }}/lims-backend:test-latest
+
+      - name: Build and push frontend
+        run: |
+          docker build -t ${{ env.REGISTRY }}/lims-frontend:${{ steps.meta.outputs.tag }} -f Dockerfile.frontend .
+          docker push ${{ env.REGISTRY }}/lims-frontend:${{ steps.meta.outputs.tag }}
+          docker tag ${{ env.REGISTRY }}/lims-frontend:${{ steps.meta.outputs.tag }} ${{ env.REGISTRY }}/lims-frontend:test-latest
+          docker push ${{ env.REGISTRY }}/lims-frontend:test-latest
+
+  deploy:
+    name: Deploy to Test Namespace
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.13.0'
+
+      - name: Setup kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Update Helm dependencies
+        run: |
+          cd helm/lims
+          helm dependency update
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install lims-test ./helm/lims \
+            --namespace ${{ env.NAMESPACE }} \
+            --create-namespace \
+            -f helm/lims/values-test.yaml \
+            --set backend.image.tag=${{ needs.build-and-push.outputs.image_tag }} \
+            --set frontend.image.tag=${{ needs.build-and-push.outputs.image_tag }} \
+            --wait \
+            --timeout 5m
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/lims-test-backend -n ${{ env.NAMESPACE }} --timeout=120s
+          kubectl rollout status deployment/lims-test-frontend -n ${{ env.NAMESPACE }} --timeout=120s
+
+      - name: Get deployment info
+        run: |
+          echo "## Test Deployment Info" >> $GITHUB_STEP_SUMMARY
+          echo "- **Namespace:** ${{ env.NAMESPACE }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Tag:** ${{ needs.build-and-push.outputs.image_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend URL:** http://100.89.26.128:30101" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend URL:** http://100.89.26.128:30102" >> $GITHUB_STEP_SUMMARY
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🚀 Test Deployment Ready
+
+              | Resource | URL |
+              |----------|-----|
+              | Frontend | http://100.89.26.128:30102 |
+              | Backend API | http://100.89.26.128:30101 |
+
+              **Image Tag:** \`${{ needs.build-and-push.outputs.image_tag }}\`
+              **Namespace:** \`test\``
+            })

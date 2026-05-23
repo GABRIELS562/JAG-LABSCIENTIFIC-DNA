@@ -293,9 +293,13 @@ router.patch('/predictive-maintenance/predictions/:id/acknowledge', async (req, 
 router.get('/anomaly-detection/qc-anomalies', async (req, res) => {
   try {
     const { batch_id, severity, reviewed = 'all', days = 30 } = req.query;
-    
-    let whereClause = 'WHERE qa.detection_date >= date("now", "-' + parseInt(days) + ' days")';
-    const params = [];
+
+    // Safely validate days parameter to prevent SQL injection
+    const safeDays = Math.max(1, Math.min(365, parseInt(days) || 30));
+    const cutoffDate = new Date(Date.now() - safeDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    let whereClause = 'WHERE qa.detection_date >= ?';
+    const params = [cutoffDate];
 
     if (batch_id) {
       whereClause += ' AND qa.batch_id = ?';
@@ -628,9 +632,14 @@ router.post('/workflow-optimization/generate-suggestions', async (req, res) => {
 router.get('/demand-forecasting/forecasts', async (req, res) => {
   try {
     const { forecast_type, item_id, test_type_id, period = 'monthly', days_ahead = 90 } = req.query;
-    
-    let whereClause = 'WHERE df.forecast_date >= date("now") AND df.forecast_date <= date("now", "+' + parseInt(days_ahead) + ' days")';
-    const params = [];
+
+    // Safely validate days_ahead parameter to prevent SQL injection
+    const safeDaysAhead = Math.max(1, Math.min(365, parseInt(days_ahead) || 90));
+    const today = new Date().toISOString().split('T')[0];
+    const futureDate = new Date(Date.now() + safeDaysAhead * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    let whereClause = 'WHERE df.forecast_date >= ? AND df.forecast_date <= ?';
+    const params = [today, futureDate];
 
     if (forecast_type) {
       whereClause += ' AND df.forecast_type = ?';

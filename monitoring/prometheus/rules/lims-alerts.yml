@@ -1,0 +1,101 @@
+# LIMS Alerting Rules
+groups:
+  - name: lims-availability
+    rules:
+      # Backend Down
+      - alert: LIMSBackendDown
+        expr: up{job=~"lims-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "LIMS Backend is down ({{ $labels.environment }})"
+          description: "LIMS backend in {{ $labels.environment }} has been down for more than 1 minute."
+
+      # High Error Rate
+      - alert: LIMSHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job=~"lims-.*", status=~"5.."}[5m])) by (environment)
+          /
+          sum(rate(http_requests_total{job=~"lims-.*"}[5m])) by (environment)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate in LIMS ({{ $labels.environment }})"
+          description: "Error rate is above 5% in {{ $labels.environment }} for 5 minutes."
+
+      # High Latency
+      - alert: LIMSHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{job=~"lims-.*"}[5m])) by (le, environment)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High latency in LIMS ({{ $labels.environment }})"
+          description: "95th percentile latency is above 2 seconds in {{ $labels.environment }}."
+
+  - name: lims-resources
+    rules:
+      # High Memory Usage
+      - alert: LIMSHighMemory
+        expr: |
+          (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)
+          / node_memory_MemTotal_bytes * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.server }}"
+          description: "Memory usage is above 85% on {{ $labels.server }}."
+
+      # High CPU Usage
+      - alert: LIMSHighCPU
+        expr: |
+          100 - (avg by(server) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.server }}"
+          description: "CPU usage is above 80% on {{ $labels.server }}."
+
+      # Disk Space Low
+      - alert: LIMSDiskSpaceLow
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 15
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low disk space on {{ $labels.server }}"
+          description: "Disk space is below 15% on {{ $labels.server }}."
+
+  - name: lims-production
+    rules:
+      # Production Specific - Pod Restart
+      - alert: LIMSProductionPodRestart
+        expr: |
+          increase(kube_pod_container_status_restarts_total{namespace="production"}[1h]) > 3
+        for: 5m
+        labels:
+          severity: warning
+          environment: production
+        annotations:
+          summary: "Pod {{ $labels.pod }} restarting frequently"
+          description: "Pod {{ $labels.pod }} has restarted more than 3 times in the last hour."
+
+      # Production Health Check Failing
+      - alert: LIMSProductionUnhealthy
+        expr: up{job="lims-production"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          environment: production
+        annotations:
+          summary: "LIMS Production is DOWN"
+          description: "Production backend has been unreachable for 30 seconds. Immediate action required!"

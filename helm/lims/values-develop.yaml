@@ -1,0 +1,81 @@
+# Develop environment values
+# Used for develop branch
+
+global:
+  environment: develop
+  imageRegistry: localhost:5000
+
+backend:
+  replicaCount: 1
+  image:
+    tag: develop-latest
+  service:
+    type: NodePort
+    nodePort: 30201
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "400m"
+  env:
+    NODE_ENV: development
+    ENABLE_MOCK_SAMPLES: "true"
+    SAMPLE_CYCLE_INTERVAL: "30000"
+
+frontend:
+  replicaCount: 1
+  image:
+    tag: develop-latest
+  service:
+    type: NodePort
+    nodePort: 30202
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+postgresql:
+  enabled: true
+  auth:
+    database: lims_develop
+    username: lims_develop
+    password: develop_password
+  primary:
+    persistence:
+      size: 2Gi
+
+ingress:
+  enabled: true
+  hosts:
+    - host: lims-develop.local
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: backend
+        - path: /
+          pathType: Prefix
+          service: frontend
+
+config:
+  enableBackgroundJobs: "true"
+  enableSampleCycler: "true"
+  fallbackToMockData: "true"
+  workflowAutoProgress: "true"
+  workflowProgressInterval: "30000"
+  initialSampleCount: "5"
+
+serviceMonitor:
+  enabled: true
+  labels:
+    release: prometheus
+
+autoscaling:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false

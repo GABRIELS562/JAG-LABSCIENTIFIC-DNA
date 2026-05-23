@@ -1,0 +1,88 @@
+{{- if .Values.backend.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lims.fullname" . }}-backend
+  labels:
+    {{- include "lims.backend.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.backend.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "lims.backend.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      labels:
+        {{- include "lims.backend.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: backend
+          image: {{ include "lims.backend.image" . }}
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.backend.service.port }}
+              protocol: TCP
+          env:
+            - name: NODE_ENV
+              value: {{ .Values.backend.env.NODE_ENV | quote }}
+            - name: PORT
+              value: {{ .Values.backend.service.port | quote }}
+            - name: DATABASE_HOST
+              value: {{ include "lims.postgresql.host" . }}
+            - name: DATABASE_PORT
+              value: {{ include "lims.postgresql.port" . | quote }}
+            - name: DATABASE_NAME
+              value: {{ include "lims.postgresql.database" . }}
+            - name: DATABASE_USER
+              value: {{ include "lims.postgresql.username" . }}
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.postgresql.enabled }}
+                  name: {{ .Release.Name }}-postgresql
+                  key: password
+                  {{- else }}
+                  name: {{ include "lims.fullname" . }}-db-secret
+                  key: password
+                  {{- end }}
+            - name: DATABASE_URL
+              value: {{ include "lims.databaseUrl" . }}
+            - name: ENABLE_MOCK_SAMPLES
+              value: {{ .Values.backend.env.ENABLE_MOCK_SAMPLES | quote }}
+            - name: SAMPLE_CYCLE_INTERVAL
+              value: {{ .Values.backend.env.SAMPLE_CYCLE_INTERVAL | quote }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "lims.fullname" . }}-config
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.backend.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.backend.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.backend.probes.liveness.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.backend.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.backend.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.backend.probes.readiness.periodSeconds }}
+{{- end }}

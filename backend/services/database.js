@@ -41,7 +41,12 @@ const config = {
   port: parseInt(process.env.DB_PORT || process.env.POSTGRES_PORT || 5432),
   database: process.env.DB_NAME || process.env.POSTGRES_DB || 'limsdb',
   user: process.env.DB_USER || process.env.POSTGRES_USER || 'lims_user',
-  password: process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD || 'lims2024secure',
+  password: process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD || (() => {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('DB_PASSWORD environment variable is required in production');
+    }
+    return 'dev_password_only';
+  })(),
   max: 20, // connection pool size
   idleTimeoutMillis: 30000, // close idle connections after 30 seconds
   connectionTimeoutMillis: 5000, // 5 second connection timeout

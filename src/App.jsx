@@ -55,13 +55,10 @@ function AppContent() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-  const mainBackground = isDarkMode
-    ? 'bg-gradient-to-br from-[#022539] to-[#032539]'
-    : 'bg-gradient-to-br from-[#DBF1FC] to-[#F5F5F5]';
+  // Dark Lab Mode backgrounds
+  const mainBackground = 'bg-gradient-to-br from-[#0a0a0f] via-[#12121f] to-[#0a0a0f]';
 
-  const containerBackground = isDarkMode
-    ? 'bg-[#032539]/70'
-    : 'bg-white/70';
+  const containerBackground = 'bg-[#1a1a2e]/60 backdrop-blur-sm';
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -77,11 +74,13 @@ function AppContent() {
       <div className={`flex h-screen w-screen ${mainBackground} transition-colors duration-300`}>
         {/* Mobile AppBar */}
         {isMobile && (
-          <AppBar 
-            position="fixed" 
-            sx={{ 
+          <AppBar
+            position="fixed"
+            sx={{
               zIndex: (theme) => theme.zIndex.drawer + 1,
-              backgroundColor: isDarkMode ? '#022539' : '#0D488F',
+              background: 'rgba(10, 10, 15, 0.9)',
+              backdropFilter: 'blur(10px)',
+              borderBottom: '1px solid rgba(42, 42, 74, 0.5)',
               display: { xs: 'block', md: 'none' }
             }}
           >
@@ -91,7 +90,7 @@ function AppContent() {
                 aria-label="open drawer"
                 edge="start"
                 onClick={handleDrawerToggle}
-                sx={{ mr: 2 }}
+                sx={{ mr: 2, color: '#00d4ff' }}
               >
                 <MenuIcon />
               </IconButton>
