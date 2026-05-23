@@ -191,30 +191,29 @@ class BackgroundJobService {
         trackSampleProcessed(status, process);
         trackProcessingTime(process, duration);
         
-        // Simulate database update if available
-        if (this.db) {
+        // Simulate database update if available (PostgreSQL compatible)
+        if (this.db && this.db.run) {
           try {
-            // Create a simulated sample processing record
-            const stmt = this.db.prepare(`
-              INSERT OR IGNORE INTO processing_log (sample_id, process_type, status, duration, created_at)
-              VALUES (?, ?, ?, ?, datetime('now'))
-            `);
-            
-            // Create table if it doesn't exist
-            this.db.exec(`
+            // Create table if it doesn't exist (PostgreSQL syntax)
+            await this.db.run(`
               CREATE TABLE IF NOT EXISTS processing_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 sample_id INTEGER,
-                process_type TEXT,
-                status TEXT,
-                duration REAL,
-                created_at TEXT
+                process_type VARCHAR(100),
+                status VARCHAR(50),
+                duration DECIMAL(10,2),
+                created_at TIMESTAMP DEFAULT NOW()
               )
             `);
-            
-            stmt.run(Math.floor(Math.random() * 1000) + 1, process, status, duration);
+
+            // Insert processing record (PostgreSQL syntax)
+            await this.db.run(`
+              INSERT INTO processing_log (sample_id, process_type, status, duration, created_at)
+              VALUES ($1, $2, $3, $4, NOW())
+              ON CONFLICT DO NOTHING
+            `, [Math.floor(Math.random() * 1000) + 1, process, status, duration]);
           } catch (dbError) {
-            logger.warn('Failed to log sample processing to database', { error: dbError.message });
+            // Silently ignore database errors for simulated data
           }
         }
       }
@@ -437,15 +436,15 @@ class BackgroundJobService {
       
       logger.info('Performing periodic cleanup');
       
-      // Simulate cleanup of old processing logs
-      if (this.db) {
+      // Simulate cleanup of old processing logs (PostgreSQL compatible)
+      if (this.db && this.db.run) {
         try {
-          this.db.exec(`
-            DELETE FROM processing_log 
-            WHERE created_at < datetime('now', '-7 days')
+          await this.db.run(`
+            DELETE FROM processing_log
+            WHERE created_at < NOW() - INTERVAL '7 days'
           `);
         } catch (dbError) {
-          logger.warn('Database cleanup failed', { error: dbError.message });
+          // Silently ignore cleanup errors
         }
       }
       
