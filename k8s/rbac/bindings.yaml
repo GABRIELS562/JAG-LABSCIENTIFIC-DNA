@@ -1,0 +1,143 @@
+# Role Bindings and ClusterRole Bindings
+---
+# Bind monitoring-reader to Prometheus service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus-monitoring
+  labels:
+    app.kubernetes.io/name: prometheus-monitoring
+    app.kubernetes.io/part-of: lims-rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: monitoring-reader
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: monitoring
+
+---
+# Bind ArgoCD manager
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-manager-binding
+  labels:
+    app.kubernetes.io/name: argocd-manager-binding
+    app.kubernetes.io/part-of: lims-rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argocd-application-manager
+subjects:
+  - kind: ServiceAccount
+    name: argocd-manager
+    namespace: argocd
+
+---
+# Production namespace bindings
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-deployer-binding
+  namespace: production
+  labels:
+    app.kubernetes.io/name: ci-deployer-binding
+    app.kubernetes.io/part-of: lims-rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ci-deployer
+subjects:
+  - kind: ServiceAccount
+    name: ci-deployer
+    namespace: production
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-operator-binding
+  namespace: production
+  labels:
+    app.kubernetes.io/name: backup-operator-binding
+    app.kubernetes.io/part-of: lims-rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: namespace-admin
+subjects:
+  - kind: ServiceAccount
+    name: backup-operator
+    namespace: production
+
+---
+# Develop namespace bindings
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-deployer-binding
+  namespace: develop
+  labels:
+    app.kubernetes.io/name: ci-deployer-binding
+    app.kubernetes.io/part-of: lims-rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ci-deployer
+subjects:
+  - kind: ServiceAccount
+    name: ci-deployer
+    namespace: develop
+
+---
+# Test namespace bindings
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-deployer-binding
+  namespace: test
+  labels:
+    app.kubernetes.io/name: ci-deployer-binding
+    app.kubernetes.io/part-of: lims-rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: tester
+subjects:
+  - kind: ServiceAccount
+    name: ci-deployer
+    namespace: test
+
+---
+# Example: Bind developer role to a user (uncomment and modify as needed)
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: RoleBinding
+# metadata:
+#   name: developer-john-binding
+#   namespace: production
+# roleRef:
+#   apiGroup: rbac.authorization.k8s.io
+#   kind: Role
+#   name: developer
+# subjects:
+#   - kind: User
+#     name: john@example.com
+#     apiGroup: rbac.authorization.k8s.io
+
+---
+# Example: Bind read-only role to auditors group
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: RoleBinding
+# metadata:
+#   name: auditors-readonly
+#   namespace: production
+# roleRef:
+#   apiGroup: rbac.authorization.k8s.io
+#   kind: Role
+#   name: read-only
+# subjects:
+#   - kind: Group
+#     name: auditors
+#     apiGroup: rbac.authorization.k8s.io

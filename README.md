@@ -1,305 +1,314 @@
-# 🧬 LabScientific LIMS - Complete System with DevOps
-
-**Full-Stack Laboratory Information Management System with Production-Ready Infrastructure**
-
-[![React](https://img.shields.io/badge/React-18.2-blue?logo=react)](https://reactjs.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-18+-green?logo=node.js)](https://nodejs.org/)
-[![Docker](https://img.shields.io/badge/Docker-Containerized-blue?logo=docker)](https://docker.com/)
-[![Kubernetes](https://img.shields.io/badge/Kubernetes-Ready-blue?logo=kubernetes)](https://kubernetes.io/)
-[![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-green?logo=github)](https://github.com/features/actions)
-
-This is a **complete LIMS application** with comprehensive DevOps implementation. Features the full business application plus production-ready infrastructure, containerization, CI/CD pipelines, and scalable deployment strategies.
-
-> **Note**: This branch contains the **complete system** (application + DevOps). The `client-specific` branch contains only the core application without DevOps configurations.
-
-## 🚀 **DevOps Portfolio Highlights**
-
-### **🏗️ Infrastructure as Code**
-- **Docker Containerization**: Multi-stage builds with optimized images
-- **Docker Compose**: Development and production environment orchestration
-- **Kubernetes Deployment**: Production-ready cluster configuration with auto-scaling
-- **Nginx Configuration**: Load balancing, SSL termination, and reverse proxy
-
-### **⚡ CI/CD Pipeline**
-- **GitHub Actions**: Automated testing, building, and deployment
-- **Multi-Environment**: Separate staging and production deployments
-- **Security Scanning**: Automated vulnerability detection and audit checks
-- **Quality Gates**: Linting, testing, and code quality enforcement
-
-### **🛡️ Production-Ready Features**
-- **Health Checks**: Application and database monitoring endpoints
-- **Logging Strategy**: Structured logging with log aggregation
-- **Security Hardening**: Rate limiting, security headers, and input validation
-- **Performance Optimization**: Caching, connection pooling, and resource limits
-
-## 🏗️ **DevOps Technology Stack**
-
-### **Containerization & Orchestration**
-- **Docker**: Multi-stage builds, image optimization
-- **Docker Compose**: Local development and testing environments
-- **Kubernetes**: Production cluster deployment with auto-scaling
-- **Helm**: Package management for Kubernetes deployments
-
-### **CI/CD & Automation**
-- **GitHub Actions**: Automated workflows for testing and deployment
-- **Jest**: Unit and integration testing framework
-- **ESLint**: Code quality and consistency enforcement
-- **Audit Tools**: Security vulnerability scanning
-
-### **Infrastructure & Monitoring**
-- **Nginx**: Reverse proxy, load balancing, SSL termination
-- **PostgreSQL**: Production database with connection pooling
-- **Redis**: Caching and session management
-- **Winston**: Structured logging and log aggregation
-
-### **Security & Performance**
-- **Rate Limiting**: API protection and abuse prevention
-- **Security Headers**: XSS, CSRF, and clickjacking protection
-- **SSL/TLS**: End-to-end encryption
-- **Resource Optimization**: Gzip compression, static file caching
-
-## 🏗️ **Architecture**
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   React Frontend │    │  Node.js Backend │    │   SQLite Database│
-│                 │◄──►│                 │◄──►│                 │
-│ • Material-UI   │    │ • Express.js    │    │ • Better-SQLite3│
-│ • Vite          │    │ • RESTful API   │    │ • ACID Compliant│
-│ • State Mgmt    │    │ • File Upload   │    │ • Full-Text Search│
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │
-                       ┌─────────────────┐
-                       │ Osiris Software │
-                       │                 │
-                       │ • STR Analysis  │
-                       │ • FSA Processing│
-                       │ • Report Gen    │
-                       └─────────────────┘
-```
-
-## 🚀 **DevOps Deployment Guide**
-
-### **Prerequisites**
-- Docker & Docker Compose
-- Kubernetes cluster (optional)
-- Node.js 18+ (for local development)
-
-### **Quick Start - Development**
-
-```bash
-# Clone the repository
-git clone https://github.com/GABRIELS562/LABSCIENTIFIC-LIMS.git
-cd LABSCIENTIFIC-LIMS
-
-# Start with Docker Compose
-docker-compose -f docker-compose.dev.yml up -d
-
-# Or run locally
-npm install && npm run dev
-```
-
-### **Production Deployment**
-
-```bash
-# Production with Docker Compose
-docker-compose -f deployment/docker-compose.prod.yml up -d
-
-# Kubernetes deployment
-kubectl apply -f deployment/k8s-deployment.yml
-
-# Monitor deployment
-kubectl get pods -l app=labscientific-lims
-```
-
-### **Access Points**
-- **Application**: http://localhost (production) / http://localhost:5173 (dev)
-- **API**: http://localhost/api
-- **Health Check**: http://localhost/health
-
-## 📋 **DevOps Workflows**
-
-### **Development Workflow**
-
-1. **Local Development**
-   - Run application with `npm run dev`
-   - Use Docker Compose for backend services
-   - Hot reload for rapid development
-
-2. **Testing & Quality**
-   - Automated testing with Jest
-   - Code linting with ESLint
-   - Security auditing with npm audit
-
-3. **Container Development**
-   - Build Docker images locally
-   - Test containerized application
-   - Validate multi-stage builds
-
-### **Deployment Pipeline**
-
-1. **Continuous Integration**
-   - Automated testing on push/PR
-   - Security vulnerability scanning
-   - Docker image building and testing
-
-2. **Continuous Deployment**
-   - Staging deployment for `client-specific` branch
-   - Production deployment for `main` branch
-   - Health checks and rollback capabilities
-
-## 📊 **Performance Features**
-
-- **Optimized Queries**: Indexed database operations
-- **Lazy Loading**: Component-level code splitting
-- **Memoization**: Efficient re-rendering prevention  
-- **Connection Pooling**: Database optimization
-- **Error Boundaries**: Graceful error handling
-
-## 🔐 **Security & Compliance**
-
-- **Data Validation**: Input sanitization and validation
-- **Audit Logging**: Complete activity tracking
-- **Error Handling**: Secure error management
-- **Data Backup**: Automated backup procedures
-
-## 📈 **Analytics & Monitoring**
-
-- **Real-time Metrics**: Live dashboard updates
-- **Performance Tracking**: System health monitoring
-- **Usage Statistics**: Comprehensive analytics
-- **Alert System**: Proactive issue notification
-
-## 🧪 **Testing Strategy**
-
-- **Unit Tests**: Component and service testing
-- **Integration Tests**: API endpoint validation
-- **Error Boundary Tests**: Graceful failure handling
-- **Performance Tests**: Load and stress testing
-
-## 🚀 **Deployment**
-
-The application supports multiple deployment strategies:
-
-- **Development**: Local SQLite database
-- **Production**: Containerized deployment
-- **Cloud**: Docker + cloud database
-- **Hybrid**: On-premise with cloud backup
-
-## 📝 **API Documentation**
-
-### **Key Endpoints**
-
-```http
-# Sample Management
-GET    /api/samples
-POST   /api/samples
-PUT    /api/samples/:id
-
-# Genetic Analysis  
-GET    /api/genetic-analysis/cases
-POST   /api/genetic-analysis/upload
-POST   /api/genetic-analysis/launch-osiris
-
-# Reporting
-GET    /api/reports
-POST   /api/reports/generate
-
-# STR Results Import
-POST   /api/genetic-analysis/str-results           # Import validated results
-POST   /api/genetic-analysis/str-results/synthetic # Generate demo data
-```
-
-## 🧬 **STR Results Import Modes**
-
-The system supports multiple modes for importing Short Tandem Repeat (STR) analysis results:
-
-| Mode | Description | Use Case |
-|------|-------------|----------|
-| `synthetic` | Generates deterministic profiles from sample names | Demo, testing, development |
-| `genemapper` | Parses tab-delimited GeneMapper exports | Applied Biosystems 3130xl/3500 |
-| `osiris` | Parses .oar XML from NCBI OSIRIS | Open-source STR analysis |
-
-### Mode Selection
-
-```bash
-# Set via environment variable
-IMPORTER_MODE=synthetic npm start   # Default - demo/testing
-IMPORTER_MODE=genemapper npm start  # GeneMapper files
-IMPORTER_MODE=osiris npm start      # OSIRIS analysis reports
-```
-
-### 23-Locus Standard Set
-
-All imports are validated against the 23-locus standard:
-```
-D3S1358, D1S1656, D2S441, D10S1248, D13S317, Penta_E, D16S539,
-D18S51, D2S1338, CSF1PO, Penta_D, TH01, vWA, D21S11, D7S820,
-D5S818, TPOX, D8S1179, D12S391, D19S433, FGA, D22S1045, AMEL
-```
-
-### Sample Naming Convention
-
-Samples follow the pattern: `<PREFIX><YY>_<NNNN>_<ROLE>_<surname>`
-
-- **PREFIX**: POM, LT, UP, MAT, IND, SIB
-- **YY**: Two-digit year
-- **NNNN**: Sequence number (0001-9999)
-- **ROLE**: C (Child), F (Father), M (Mother)
-
-Example: `POM26_0001_C_Smith` - Child in paternity case #1 of 2026
-
-For detailed documentation, see [backend/services/strImporter/README.md](backend/services/strImporter/README.md).
-
-## 🤝 **Contributing**
-
-This project demonstrates modern full-stack development practices including:
-
-- **Clean Architecture**: Separation of concerns
-- **RESTful Design**: Standard API patterns
-- **Responsive UI**: Mobile-first design
-- **Performance Optimization**: Production-ready code
-- **Error Handling**: Robust error management
-
-## 📄 **License**
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🌿 **Branch Strategy**
-
-This repository uses a **dual-branch approach** to demonstrate both portfolio and production capabilities:
-
-### **Main Branch** (Complete System)
-- **Purpose**: Full system with DevOps capabilities
-- **Content**: Complete LIMS application + DevOps infrastructure
-- **Target Audience**: DevOps teams, technical leads, full-stack demonstrations
-- **Focus**: Production-ready application with deployment automation
-
-### **Client-Specific Branch** (Core Application)
-- **Purpose**: Clean application for client delivery
-- **Content**: LIMS application without DevOps configurations
-- **Target Audience**: End users, laboratory staff, client deployments
-- **Focus**: Core business functionality and user experience
-
-```bash
-# Switch to clean client version
-git checkout client-specific
-
-# Return to complete system
-git checkout main
-```
-
-## 🏆 **DevOps Skills Demonstrated**
-
-- **Infrastructure as Code**: Docker, Kubernetes, Docker Compose
-- **CI/CD Pipelines**: GitHub Actions with comprehensive workflows
-- **Production Deployment**: Multi-environment strategy with staging/production
-- **Security Practices**: Vulnerability scanning, security headers, rate limiting
-- **Performance Optimization**: Caching, load balancing, resource management
-- **Monitoring & Logging**: Health checks, structured logging, observability
-- **Container Orchestration**: Kubernetes deployments with auto-scaling
-- **Load Balancing**: Nginx configuration with SSL termination
+# JAG LabScientific LIMS
+
+**Enterprise-Grade Laboratory Information Management System with Production DevOps Infrastructure**
+
+[![CI Pipeline](https://github.com/GABRIELS562/JAG-LABSCIENTIFIC-DNA/actions/workflows/ci.yml/badge.svg)](https://github.com/GABRIELS562/JAG-LABSCIENTIFIC-DNA/actions/workflows/ci.yml)
+[![Deploy Production](https://github.com/GABRIELS562/JAG-LABSCIENTIFIC-DNA/actions/workflows/deploy-production.yml/badge.svg)](https://github.com/GABRIELS562/JAG-LABSCIENTIFIC-DNA/actions/workflows/deploy-production.yml)
+[![Security Scan](https://img.shields.io/badge/Security-Trivy%20Scanned-green?logo=aqua)](https://github.com/aquasecurity/trivy)
+
+[![React](https://img.shields.io/badge/React-18.2-61DAFB?logo=react)](https://reactjs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js)](https://nodejs.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14-4169E1?logo=postgresql)](https://postgresql.org/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-K3s-326CE5?logo=kubernetes)](https://k3s.io/)
+[![ArgoCD](https://img.shields.io/badge/ArgoCD-GitOps-EF7B4D?logo=argo)](https://argoproj.github.io/cd/)
+[![Terraform](https://img.shields.io/badge/Terraform-IaC-844FBA?logo=terraform)](https://terraform.io/)
 
 ---
 
-**Showcasing DevOps excellence through practical implementation**
+## Overview
+
+A full-stack Laboratory Information Management System for DNA analysis workflows, built with modern DevOps practices. This project demonstrates production-ready infrastructure, CI/CD pipelines, GitOps deployment, and comprehensive observability.
+
+### Live Environments
+
+| Environment | URL | Branch |
+|-------------|-----|--------|
+| **Production** | [lims.jagdevops.co.za](https://lims.jagdevops.co.za) | `main` |
+| **Develop** | Internal (Tailscale) | `develop` |
+| **Test** | Internal (Tailscale) | `feature/*` |
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              GITHUB                                          │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐   │
+│  │   CI/CD     │    │  Security   │    │    Load     │    │   GitOps    │   │
+│  │  Pipeline   │    │   Scans     │    │   Tests     │    │   Config    │   │
+│  └──────┬──────┘    └──────┬──────┘    └──────┬──────┘    └──────┬──────┘   │
+└─────────┼──────────────────┼──────────────────┼──────────────────┼──────────┘
+          │                  │                  │                  │
+          ▼                  ▼                  ▼                  ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         CONTAINER REGISTRIES                                 │
+│         ┌─────────────────────┐    ┌─────────────────────┐                  │
+│         │   On-Prem Registry  │    │       GHCR          │                  │
+│         │   (localhost:5000)  │    │  (ghcr.io/...)      │                  │
+│         └──────────┬──────────┘    └──────────┬──────────┘                  │
+└────────────────────┼───────────────────────────┼────────────────────────────┘
+                     │                           │
+                     ▼                           ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        K3S KUBERNETES CLUSTER                                │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐              │
+│  │   Production    │  │     Develop     │  │      Test       │              │
+│  │   Namespace     │  │    Namespace    │  │    Namespace    │              │
+│  │                 │  │                 │  │                 │              │
+│  │ ┌─────────────┐ │  │ ┌─────────────┐ │  │ ┌─────────────┐ │              │
+│  │ │   Backend   │ │  │ │   Backend   │ │  │ │   Backend   │ │              │
+│  │ │   (HPA)     │ │  │ │             │ │  │ │             │ │              │
+│  │ └─────────────┘ │  │ └─────────────┘ │  │ └─────────────┘ │              │
+│  │ ┌─────────────┐ │  │ ┌─────────────┐ │  │ ┌─────────────┐ │              │
+│  │ │  Frontend   │ │  │ │  Frontend   │ │  │ │  Frontend   │ │              │
+│  │ │   (HPA)     │ │  │ │             │ │  │ │             │ │              │
+│  │ └─────────────┘ │  │ └─────────────┘ │  │ └─────────────┘ │              │
+│  │ ┌─────────────┐ │  │ ┌─────────────┐ │  │ ┌─────────────┐ │              │
+│  │ │ PostgreSQL  │ │  │ │ PostgreSQL  │ │  │ │ PostgreSQL  │ │              │
+│  │ └─────────────┘ │  │ └─────────────┘ │  │ └─────────────┘ │              │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘              │
+│                                                                              │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
+│  │   ArgoCD    │  │  External   │  │   Network   │  │   Backup    │         │
+│  │   (GitOps)  │  │   Secrets   │  │  Policies   │  │  CronJobs   │         │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘         │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         MONITORING (Server 2)                                │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
+│  │ Prometheus  │  │   Grafana   │  │    Loki     │  │    Vault    │         │
+│  │  (Metrics)  │  │ (Dashboards)│  │   (Logs)    │  │  (Secrets)  │         │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## DevOps Features
+
+### CI/CD Pipeline
+
+| Workflow | Trigger | Actions |
+|----------|---------|---------|
+| **CI Pipeline** | All branches | Lint, Test, Build, Security Scan |
+| **Deploy Test** | `feature/*` | Build → Push → Helm Deploy |
+| **Deploy Develop** | `develop` | Build → Push → Helm Deploy → Load Test |
+| **Deploy Production** | `main` | Build → Push → ArgoCD Sync → Smoke Test |
+| **Load Testing** | Manual/Auto | Locust performance tests |
+
+### Security
+
+- **Container Scanning**: Trivy scans for vulnerabilities in CI
+- **Network Policies**: Zero-trust networking between namespaces
+- **Secrets Management**: HashiCorp Vault + External Secrets Operator
+- **RBAC**: Role-based access control for Kubernetes
+
+### Reliability
+
+- **GitOps**: ArgoCD with auto-sync and self-healing
+- **Autoscaling**: HPA for production workloads (2-5 replicas)
+- **Backups**: Automated PostgreSQL backups with 7-day retention
+- **SLOs**: Defined availability (99.9%) and latency targets
+
+### Observability
+
+- **Metrics**: Prometheus + custom SLI/SLO recording rules
+- **Dashboards**: Grafana with application and infrastructure views
+- **Logs**: Loki for centralized log aggregation
+- **Alerts**: Prometheus Alertmanager with Slack/email
+
+---
+
+## Technology Stack
+
+### Application
+
+| Layer | Technology |
+|-------|------------|
+| Frontend | React 18, Vite, Material-UI, Tailwind CSS |
+| Backend | Node.js 18, Express.js |
+| Database | PostgreSQL 14 |
+| Testing | Vitest, Jest, Supertest |
+
+### Infrastructure
+
+| Category | Technology |
+|----------|------------|
+| Container Runtime | Docker, containerd |
+| Orchestration | K3s (Lightweight Kubernetes) |
+| Package Management | Helm 3 |
+| GitOps | ArgoCD |
+| IaC | Terraform + Terragrunt |
+| Secrets | HashiCorp Vault, External Secrets Operator |
+| Ingress | NGINX Ingress Controller |
+| VPN | Tailscale |
+| DNS/CDN | Cloudflare |
+
+### CI/CD
+
+| Tool | Purpose |
+|------|---------|
+| GitHub Actions | CI/CD pipelines |
+| Trivy | Container vulnerability scanning |
+| Locust | Load testing |
+
+### Monitoring
+
+| Tool | Purpose |
+|------|---------|
+| Prometheus | Metrics collection |
+| Grafana | Visualization |
+| Loki | Log aggregation |
+| Alertmanager | Alert routing |
+
+---
+
+## Quick Start
+
+### Local Development
+
+```bash
+# Clone repository
+git clone https://github.com/GABRIELS562/JAG-LABSCIENTIFIC-DNA.git
+cd JAG-LABSCIENTIFIC-DNA
+
+# Install dependencies
+npm ci --legacy-peer-deps
+cd backend && npm ci && cd ..
+
+# Start development servers
+npm run dev:all
+```
+
+### Docker Compose
+
+```bash
+docker-compose up -d
+```
+
+### Kubernetes (Helm)
+
+```bash
+# Add Helm dependencies
+cd helm/lims && helm dependency update
+
+# Install
+helm upgrade --install lims ./helm/lims \
+  --namespace production \
+  --create-namespace \
+  -f helm/lims/values-production.yaml
+```
+
+### Terragrunt
+
+```bash
+cd terraform/live/production
+terragrunt init
+terragrunt apply
+```
+
+---
+
+## Project Structure
+
+```
+.
+├── .github/workflows/       # GitHub Actions CI/CD
+│   ├── ci.yml              # CI pipeline
+│   ├── deploy-production.yml
+│   ├── deploy-develop.yml
+│   ├── deploy-test.yml
+│   └── load-test.yml
+├── argocd/                  # ArgoCD application configs
+├── backend/                 # Express.js API
+├── docs/                    # Documentation
+│   ├── runbooks/           # Incident response guides
+│   └── slo/                # SLO definitions
+├── helm/lims/              # Helm chart
+│   ├── templates/
+│   ├── values.yaml
+│   ├── values-production.yaml
+│   ├── values-develop.yaml
+│   └── values-test.yaml
+├── k8s/                     # Kubernetes manifests
+│   ├── backup/             # Backup CronJobs
+│   ├── network-policies/   # Network segmentation
+│   └── external-secrets/   # Vault integration
+├── monitoring/              # Observability configs
+│   ├── prometheus/         # Recording/alerting rules
+│   ├── grafana/            # Dashboards
+│   └── locust/             # Load test scenarios
+├── src/                     # React frontend
+└── terraform/               # Infrastructure as Code
+    ├── modules/            # Terraform modules
+    ├── live/               # Terragrunt environments
+    └── terragrunt.hcl
+```
+
+---
+
+## Architecture Decisions
+
+| Decision | Options Considered | Choice | Rationale |
+|----------|-------------------|--------|-----------|
+| **Orchestration** | Docker Swarm, K8s, K3s | K3s | Lightweight, production-ready, single binary |
+| **CI/CD** | Jenkins, GitLab CI, GitHub Actions | GitHub Actions | Native integration, marketplace actions, free for public repos |
+| **GitOps** | Flux, ArgoCD | ArgoCD | Better UI, RBAC, SSO support |
+| **Secrets** | K8s Secrets, Sealed Secrets, Vault | Vault + ESO | Enterprise-grade, rotation, audit logging |
+| **Registry** | Docker Hub, ECR, GHCR | GHCR + On-prem | Hybrid for resilience, GHCR for portfolio visibility |
+| **Monitoring** | Datadog, New Relic, Prometheus | Prometheus Stack | Open source, industry standard, cost-effective |
+| **IaC** | Ansible, Pulumi, Terraform | Terraform + Terragrunt | DRY config, state management, large ecosystem |
+
+---
+
+## SLOs (Service Level Objectives)
+
+| Service | Availability | Latency (P99) | Error Budget |
+|---------|--------------|---------------|--------------|
+| Backend API | 99.9% | < 200ms | 43 min/month |
+| Frontend | 99.5% | < 500ms | 3.6 hrs/month |
+| Database | 99.95% | < 50ms | 21 min/month |
+
+See [docs/slo/README.md](docs/slo/README.md) for detailed SLO documentation.
+
+---
+
+## Runbooks
+
+| Runbook | Use Case |
+|---------|----------|
+| [Database Issues](docs/runbooks/database-issues.md) | PostgreSQL failures, slow queries |
+| [Deployment Failures](docs/runbooks/deployment-failures.md) | CI/CD or ArgoCD issues |
+| [High Resource Usage](docs/runbooks/high-resource-usage.md) | CPU/memory alerts |
+| [Application Errors](docs/runbooks/application-errors.md) | 5xx errors, health failures |
+| [Network Issues](docs/runbooks/network-issues.md) | Connectivity, Tailscale |
+| [Disaster Recovery](docs/runbooks/disaster-recovery.md) | Full restore procedures |
+
+---
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## License
+
+This project is proprietary software developed for JAG DNA Scientific.
+
+---
+
+## Contact
+
+**Gabriel S.** - DevOps Engineer
+
+- Portfolio: [jagdevops.com](https://jagdevops.com)
+- GitHub: [@GABRIELS562](https://github.com/GABRIELS562)
+- LinkedIn: [Gabriel S.](https://linkedin.com/in/gabriels562)

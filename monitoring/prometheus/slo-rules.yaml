@@ -1,0 +1,252 @@
+# SLO Recording and Alerting Rules for JAG LabScientific LIMS
+# Apply with: kubectl apply -f slo-rules.yaml -n monitoring
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: lims-slo-rules
+  namespace: monitoring
+  labels:
+    app: lims
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+    # Recording rules for SLIs
+    - name: lims-sli-recording
+      interval: 30s
+      rules:
+        # Availability SLI - ratio of successful requests
+        - record: lims:sli:availability:ratio_rate5m
+          expr: |
+            sum(rate(http_requests_total{job="lims-backend",status!~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="lims-backend"}[5m]))
+
+        # Error rate SLI
+        - record: lims:sli:error_rate:ratio_rate5m
+          expr: |
+            sum(rate(http_requests_total{job="lims-backend",status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="lims-backend"}[5m]))
+
+        # Latency P50
+        - record: lims:sli:latency:p50_5m
+          expr: |
+            histogram_quantile(0.50,
+              sum(rate(http_request_duration_seconds_bucket{job="lims-backend"}[5m])) by (le)
+            )
+
+        # Latency P90
+        - record: lims:sli:latency:p90_5m
+          expr: |
+            histogram_quantile(0.90,
+              sum(rate(http_request_duration_seconds_bucket{job="lims-backend"}[5m])) by (le)
+            )
+
+        # Latency P99
+        - record: lims:sli:latency:p99_5m
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(http_request_duration_seconds_bucket{job="lims-backend"}[5m])) by (le)
+            )
+
+        # Request rate
+        - record: lims:sli:request_rate:rate5m
+          expr: |
+            sum(rate(http_requests_total{job="lims-backend"}[5m]))
+
+    # Error budget calculations
+    - name: lims-error-budget
+      interval: 1m
+      rules:
+        # 30-day error budget burn rate
+        - record: lims:slo:error_budget:burn_rate_1h
+          expr: |
+            (
+              1 - lims:sli:availability:ratio_rate5m
+            ) / (1 - 0.999)
+
+        # Error budget consumption over 30 days
+        - record: lims:slo:error_budget:consumed_30d
+          expr: |
+            1 - (
+              avg_over_time(lims:sli:availability:ratio_rate5m[30d])
+              /
+              0.999
+            )
+
+    # SLO Alerts
+    - name: lims-slo-alerts
+      rules:
+        # Availability below SLO
+        - alert: LIMSAvailabilityBelowSLO
+          expr: lims:sli:availability:ratio_rate5m < 0.999
+          for: 5m
+          labels:
+            severity: warning
+            service: lims
+          annotations:
+            summary: "LIMS availability below SLO"
+            description: "LIMS availability is {{ $value | humanizePercentage }} (SLO: 99.9%)"
+            runbook_url: "https://github.com/GABRIELS562/JAG-LABSCIENTIFIC-DNA/blob/main/docs/runbooks/application-errors.md"
+
+        # Critical availability drop
+        - alert: LIMSAvailabilityCritical
+          expr: lims:sli:availability:ratio_rate5m < 0.99
+          for: 2m
+          labels:
+            severity: critical
+            service: lims
+          annotations:
+            summary: "LIMS availability critically low"
+            description: "LIMS availability dropped to {{ $value | humanizePercentage }}"
+            runbook_url: "https://github.com/GABRIELS562/JAG-LABSCIENTIFIC-DNA/blob/main/docs/runbooks/application-errors.md"
+
+        # High error rate
+        - alert: LIMSHighErrorRate
+          expr: lims:sli:error_rate:ratio_rate5m > 0.01
+          for: 5m
+          labels:
+            severity: warning
+            service: lims
+          annotations:
+            summary: "LIMS error rate above 1%"
+            description: "Error rate: {{ $value | humanizePercentage }}"
+            runbook_url: "https://github.com/GABRIELS562/JAG-LABSCIENTIFIC-DNA/blob/main/docs/runbooks/application-errors.md"
+
+        # Critical error rate
+        - alert: LIMSCriticalErrorRate
+          expr: lims:sli:error_rate:ratio_rate5m > 0.05
+          for: 2m
+          labels:
+            severity: critical
+            service: lims
+          annotations:
+            summary: "LIMS error rate above 5%"
+            description: "Error rate: {{ $value | humanizePercentage }}"
+            runbook_url: "https://github.com/GABRIELS562/JAG-LABSCIENTIFIC-DNA/blob/main/docs/runbooks/application-errors.md"
+
+        # High latency warning
+        - alert: LIMSHighLatency
+          expr: lims:sli:latency:p99_5m > 0.5
+          for: 5m
+          labels:
+            severity: warning
+            service: lims
+          annotations:
+            summary: "LIMS P99 latency above 500ms"
+            description: "P99 latency: {{ $value | humanizeDuration }}"
+            runbook_url: "https://github.com/GABRIELS562/JAG-LABSCIENTIFIC-DNA/blob/main/docs/runbooks/high-resource-usage.md"
+
+        # Critical latency
+        - alert: LIMSCriticalLatency
+          expr: lims:sli:latency:p99_5m > 1
+          for: 2m
+          labels:
+            severity: critical
+            service: lims
+          annotations:
+            summary: "LIMS P99 latency above 1 second"
+            description: "P99 latency: {{ $value | humanizeDuration }}"
+            runbook_url: "https://github.com/GABRIELS562/JAG-LABSCIENTIFIC-DNA/blob/main/docs/runbooks/high-resource-usage.md"
+
+        # Error budget burn rate too high
+        - alert: LIMSErrorBudgetBurnHigh
+          expr: lims:slo:error_budget:burn_rate_1h > 2
+          for: 5m
+          labels:
+            severity: warning
+            service: lims
+          annotations:
+            summary: "LIMS error budget burning too fast"
+            description: "Burn rate: {{ $value }}x normal (will exhaust budget in {{ 30 | div $value }} days)"
+
+        # Error budget nearly exhausted
+        - alert: LIMSErrorBudgetLow
+          expr: lims:slo:error_budget:consumed_30d > 0.8
+          for: 5m
+          labels:
+            severity: critical
+            service: lims
+          annotations:
+            summary: "LIMS error budget nearly exhausted"
+            description: "{{ $value | humanizePercentage }} of monthly error budget consumed"
+
+    # Infrastructure alerts
+    - name: lims-infrastructure
+      rules:
+        # Pod not ready
+        - alert: LIMSPodNotReady
+          expr: |
+            kube_pod_status_ready{namespace="production",pod=~"lims-.*"} == 0
+          for: 5m
+          labels:
+            severity: warning
+            service: lims
+          annotations:
+            summary: "LIMS pod not ready"
+            description: "Pod {{ $labels.pod }} has been not ready for 5 minutes"
+            runbook_url: "https://github.com/GABRIELS562/JAG-LABSCIENTIFIC-DNA/blob/main/docs/runbooks/deployment-failures.md"
+
+        # High memory usage
+        - alert: LIMSHighMemory
+          expr: |
+            container_memory_usage_bytes{namespace="production",container=~"lims-.*"}
+            /
+            container_spec_memory_limit_bytes{namespace="production",container=~"lims-.*"}
+            > 0.85
+          for: 5m
+          labels:
+            severity: warning
+            service: lims
+          annotations:
+            summary: "LIMS container high memory usage"
+            description: "Container {{ $labels.container }} using {{ $value | humanizePercentage }} of memory limit"
+            runbook_url: "https://github.com/GABRIELS562/JAG-LABSCIENTIFIC-DNA/blob/main/docs/runbooks/high-resource-usage.md"
+
+        # High CPU usage
+        - alert: LIMSHighCPU
+          expr: |
+            rate(container_cpu_usage_seconds_total{namespace="production",container=~"lims-.*"}[5m])
+            /
+            container_spec_cpu_quota{namespace="production",container=~"lims-.*"}
+            * 100000
+            > 0.8
+          for: 5m
+          labels:
+            severity: warning
+            service: lims
+          annotations:
+            summary: "LIMS container high CPU usage"
+            description: "Container {{ $labels.container }} using {{ $value | humanizePercentage }} of CPU limit"
+            runbook_url: "https://github.com/GABRIELS562/JAG-LABSCIENTIFIC-DNA/blob/main/docs/runbooks/high-resource-usage.md"
+
+        # PostgreSQL down
+        - alert: LIMSPostgreSQLDown
+          expr: |
+            up{job="lims-postgresql"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            service: lims
+          annotations:
+            summary: "LIMS PostgreSQL is down"
+            description: "PostgreSQL instance has been down for more than 1 minute"
+            runbook_url: "https://github.com/GABRIELS562/JAG-LABSCIENTIFIC-DNA/blob/main/docs/runbooks/database-issues.md"
+
+        # Disk space low
+        - alert: LIMSDiskSpaceLow
+          expr: |
+            kubelet_volume_stats_available_bytes{namespace="production",persistentvolumeclaim=~".*postgresql.*"}
+            /
+            kubelet_volume_stats_capacity_bytes{namespace="production",persistentvolumeclaim=~".*postgresql.*"}
+            < 0.2
+          for: 5m
+          labels:
+            severity: warning
+            service: lims
+          annotations:
+            summary: "LIMS PostgreSQL disk space low"
+            description: "Only {{ $value | humanizePercentage }} disk space remaining"
+            runbook_url: "https://github.com/GABRIELS562/JAG-LABSCIENTIFIC-DNA/blob/main/docs/runbooks/database-issues.md"

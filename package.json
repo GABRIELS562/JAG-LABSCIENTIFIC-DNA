@@ -28,6 +28,8 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest --watch",
     "test:backend": "cd backend && npm test",
+    "test:smoke": "cd backend && npm run smoke",
+    "test:smoke:ci": "cd backend && npm run smoke:ci",
     "test:all": "npm run test:run && npm run test:backend",
     "lint": "eslint src --config .eslintrc.ci.js --max-warnings 100 || true",
     "lint:prod": "eslint src --config .eslintrc.ci.js --max-warnings 100 || true",
