@@ -8,6 +8,7 @@ on:
 
 env:
   REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+  GHCR_REGISTRY: ghcr.io/${{ github.repository_owner }}
   NAMESPACE: test
 
 jobs:
@@ -45,6 +46,14 @@ jobs:
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "Image tag: $TAG"
 
+      # Login to GitHub Container Registry (cloud backup + portfolio showcase)
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Setup Tailscale
         uses: tailscale/github-action@v3
         with:
@@ -60,17 +69,45 @@ jobs:
 
       - name: Build and push backend
         run: |
-          docker build -t ${{ env.REGISTRY }}/lims-backend:${{ steps.meta.outputs.tag }} ./backend
+          # Build the image
+          docker build -t lims-backend:${{ steps.meta.outputs.tag }} ./backend
+
+          # Tag for on-prem registry (K8s deployment)
+          docker tag lims-backend:${{ steps.meta.outputs.tag }} ${{ env.REGISTRY }}/lims-backend:${{ steps.meta.outputs.tag }}
+          docker tag lims-backend:${{ steps.meta.outputs.tag }} ${{ env.REGISTRY }}/lims-backend:test-latest
+
+          # Tag for GHCR (cloud backup + portfolio)
+          docker tag lims-backend:${{ steps.meta.outputs.tag }} ${{ env.GHCR_REGISTRY }}/lims-backend:${{ steps.meta.outputs.tag }}
+          docker tag lims-backend:${{ steps.meta.outputs.tag }} ${{ env.GHCR_REGISTRY }}/lims-backend:test
+
+          # Push to on-prem registry
           docker push ${{ env.REGISTRY }}/lims-backend:${{ steps.meta.outputs.tag }}
-          docker tag ${{ env.REGISTRY }}/lims-backend:${{ steps.meta.outputs.tag }} ${{ env.REGISTRY }}/lims-backend:test-latest
           docker push ${{ env.REGISTRY }}/lims-backend:test-latest
+
+          # Push to GHCR
+          docker push ${{ env.GHCR_REGISTRY }}/lims-backend:${{ steps.meta.outputs.tag }}
+          docker push ${{ env.GHCR_REGISTRY }}/lims-backend:test
 
       - name: Build and push frontend
         run: |
-          docker build -t ${{ env.REGISTRY }}/lims-frontend:${{ steps.meta.outputs.tag }} -f Dockerfile.frontend .
+          # Build the image
+          docker build -t lims-frontend:${{ steps.meta.outputs.tag }} -f Dockerfile.frontend .
+
+          # Tag for on-prem registry (K8s deployment)
+          docker tag lims-frontend:${{ steps.meta.outputs.tag }} ${{ env.REGISTRY }}/lims-frontend:${{ steps.meta.outputs.tag }}
+          docker tag lims-frontend:${{ steps.meta.outputs.tag }} ${{ env.REGISTRY }}/lims-frontend:test-latest
+
+          # Tag for GHCR (cloud backup + portfolio)
+          docker tag lims-frontend:${{ steps.meta.outputs.tag }} ${{ env.GHCR_REGISTRY }}/lims-frontend:${{ steps.meta.outputs.tag }}
+          docker tag lims-frontend:${{ steps.meta.outputs.tag }} ${{ env.GHCR_REGISTRY }}/lims-frontend:test
+
+          # Push to on-prem registry
           docker push ${{ env.REGISTRY }}/lims-frontend:${{ steps.meta.outputs.tag }}
-          docker tag ${{ env.REGISTRY }}/lims-frontend:${{ steps.meta.outputs.tag }} ${{ env.REGISTRY }}/lims-frontend:test-latest
           docker push ${{ env.REGISTRY }}/lims-frontend:test-latest
+
+          # Push to GHCR
+          docker push ${{ env.GHCR_REGISTRY }}/lims-frontend:${{ steps.meta.outputs.tag }}
+          docker push ${{ env.GHCR_REGISTRY }}/lims-frontend:test
 
   deploy:
     name: Deploy to Test Namespace
@@ -143,11 +180,22 @@ jobs:
 
       - name: Get deployment info
         run: |
-          echo "## Test Deployment Info" >> $GITHUB_STEP_SUMMARY
-          echo "- **Namespace:** ${{ env.NAMESPACE }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Image Tag:** ${{ needs.build-and-push.outputs.image_tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Backend URL:** http://100.89.26.128:30101" >> $GITHUB_STEP_SUMMARY
-          echo "- **Frontend URL:** http://100.89.26.128:30102" >> $GITHUB_STEP_SUMMARY
+          echo "## 🧪 Test Deployment Info" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🌐 Application URLs" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource | URL |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend API | http://100.89.26.128:30101 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | http://100.89.26.128:30102 |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Container Images" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | Registry |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend | \`ghcr.io/${{ github.repository_owner }}/lims-backend:${{ needs.build-and-push.outputs.image_tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | \`ghcr.io/${{ github.repository_owner }}/lims-frontend:${{ needs.build-and-push.outputs.image_tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Namespace:** \`${{ env.NAMESPACE }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Image Tag:** \`${{ needs.build-and-push.outputs.image_tag }}\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Comment on PR
         if: github.event_name == 'pull_request'
@@ -164,6 +212,10 @@ jobs:
               |----------|-----|
               | Frontend | http://100.89.26.128:30102 |
               | Backend API | http://100.89.26.128:30101 |
+
+              ### 📦 Container Images (GHCR)
+              - Backend: \`ghcr.io/${{ github.repository_owner }}/lims-backend:${{ needs.build-and-push.outputs.image_tag }}\`
+              - Frontend: \`ghcr.io/${{ github.repository_owner }}/lims-frontend:${{ needs.build-and-push.outputs.image_tag }}\`
 
               **Image Tag:** \`${{ needs.build-and-push.outputs.image_tag }}\`
               **Namespace:** \`test\``
