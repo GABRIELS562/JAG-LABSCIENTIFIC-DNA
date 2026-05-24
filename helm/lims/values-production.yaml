@@ -10,8 +10,7 @@ backend:
   image:
     tag: latest
   service:
-    type: NodePort
-    nodePort: 30007
+    type: ClusterIP  # Use ClusterIP since NodePort 30007 is taken by lims-complete
   resources:
     requests:
       memory: "512Mi"
