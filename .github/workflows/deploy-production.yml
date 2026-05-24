@@ -11,6 +11,10 @@ env:
   GHCR_REGISTRY: ghcr.io/gabriels562
   NAMESPACE: production
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build-and-push:
     name: Build & Push Images
