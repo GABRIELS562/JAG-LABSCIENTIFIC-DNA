@@ -113,8 +113,30 @@ jobs:
           # Sync the application
           argocd app sync lims --insecure --grpc-web --force
 
-          # Wait for healthy state
-          argocd app wait lims --insecure --grpc-web --timeout 300
+          # Wait for sync operation to complete (not health - Ingress stays Progressing in k3s)
+          argocd app wait lims --insecure --grpc-web --timeout 120 --operation || true
+
+          # Get final status
+          argocd app get lims --insecure --grpc-web
+
+      - name: Verify deployments
+        run: |
+          # Setup kubeconfig for direct verification
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+          # Verify deployments rolled out successfully
+          echo "Waiting for backend deployment..."
+          kubectl rollout status deployment/lims-backend -n production --timeout=120s
+
+          echo "Waiting for frontend deployment..."
+          kubectl rollout status deployment/lims-frontend -n production --timeout=120s
+
+          echo "✅ All deployments rolled out successfully"
+
+          # Show pod status
+          kubectl get pods -n production -l app.kubernetes.io/instance=lims
 
   smoke-tests:
     name: Production Smoke Tests
