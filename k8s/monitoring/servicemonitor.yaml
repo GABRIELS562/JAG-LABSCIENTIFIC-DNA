@@ -1,0 +1,122 @@
+# ServiceMonitor for LIMS Application
+# Used by Prometheus Operator to auto-discover and scrape metrics
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: lims-backend
+  namespace: production
+  labels:
+    app: lims
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lims
+      app.kubernetes.io/component: backend
+  namespaceSelector:
+    matchNames:
+      - production
+      - develop
+      - test
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      honorLabels: true
+---
+# PodMonitor for direct pod scraping (alternative to ServiceMonitor)
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: lims-pods
+  namespace: production
+  labels:
+    app: lims
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lims
+  namespaceSelector:
+    matchNames:
+      - production
+      - develop
+      - test
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+---
+# PrometheusRule for LIMS-specific alerts
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: lims-alerts
+  namespace: production
+  labels:
+    app: lims
+    release: prometheus
+spec:
+  groups:
+    - name: lims.rules
+      rules:
+        - alert: LIMSServiceDown
+          expr: up{job=~"lims-.*"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            app: lims
+          annotations:
+            summary: "LIMS service is down"
+            description: "{{ $labels.job }} in {{ $labels.environment }} has been down for more than 1 minute."
+
+        - alert: LIMSHighErrorRate
+          expr: sum(rate(lims_errors_total[5m])) by (environment) > 5
+          for: 2m
+          labels:
+            severity: warning
+            app: lims
+          annotations:
+            summary: "High error rate in LIMS"
+            description: "{{ $labels.environment }} has error rate of {{ $value }} errors/sec."
+
+        - alert: LIMSSlowResponses
+          expr: histogram_quantile(0.95, sum(rate(lims_http_request_duration_seconds_bucket[5m])) by (le, environment)) > 2
+          for: 5m
+          labels:
+            severity: warning
+            app: lims
+          annotations:
+            summary: "LIMS responses are slow"
+            description: "95th percentile response time in {{ $labels.environment }} is {{ $value }}s."
+
+        - alert: LIMSDatabaseConnectionsHigh
+          expr: lims_database_connections > 18
+          for: 5m
+          labels:
+            severity: warning
+            app: lims
+          annotations:
+            summary: "Database connections near limit"
+            description: "LIMS has {{ $value }} database connections (limit is 20)."
+
+        - alert: LIMSHighMemoryUsage
+          expr: process_resident_memory_bytes{job=~"lims-.*"} / 1024 / 1024 > 450
+          for: 10m
+          labels:
+            severity: warning
+            app: lims
+          annotations:
+            summary: "High memory usage in LIMS"
+            description: "{{ $labels.job }} is using {{ $value }}MB of memory."
+
+        - alert: LIMSWorkflowBacklog
+          expr: sum(lims_active_workflows{stage=~".*_ready"}) > 50
+          for: 15m
+          labels:
+            severity: warning
+            app: lims
+          annotations:
+            summary: "Workflow backlog detected"
+            description: "{{ $value }} samples waiting in ready stages for over 15 minutes."
