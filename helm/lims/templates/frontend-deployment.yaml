@@ -37,6 +37,9 @@ spec:
             - name: http
               containerPort: {{ .Values.frontend.service.port }}
               protocol: TCP
+          env:
+            - name: BACKEND_HOST
+              value: {{ include "lims.fullname" . }}-backend
           resources:
             {{- toYaml .Values.frontend.resources | nindent 12 }}
           livenessProbe:
