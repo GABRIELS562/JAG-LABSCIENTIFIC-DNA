@@ -1,0 +1,7 @@
+# Locust Load Testing Dependencies
+locust==2.20.0
+gevent==23.9.1
+greenlet==3.0.1
+Flask==3.0.0
+Werkzeug==3.0.1
+requests==2.31.0

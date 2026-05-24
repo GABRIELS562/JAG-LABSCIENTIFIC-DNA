@@ -1,97 +1,140 @@
 # LIMS Load Testing with Locust
 
-Load testing suite for the LIMS application using [Locust](https://locust.io/).
+Performance and load testing for the LIMS DNA Analysis application.
 
 ## Quick Start
 
-### Start Locust on Server2
+### Using Docker Compose (Recommended)
 
 ```bash
-# Copy files to Server2
-scp -r monitoring/locust server2:/home/jaime/portfolio/
+# Start Locust with web UI
+docker-compose up -d
 
-# SSH into Server2
-ssh server2
+# Open UI: http://localhost:8089
+# Enter target host: http://100.89.26.128:30007
 
-# Start Locust
-cd /home/jaime/portfolio/locust
-docker compose up -d
+# Scale workers for more load
+docker-compose up -d --scale locust-worker=4
 
-# Access Web UI
-# http://192.168.50.74:8089 or http://100.103.13.92:8089
+# Stop
+docker-compose down
 ```
 
-### Run Tests Headlessly
+### Using Python Directly
 
 ```bash
-# Smoke Test (1 user, 1 minute)
-docker compose run --rm locust-master \
-  -f /mnt/locust/scenarios/smoke_test.py \
-  --headless -u 1 -r 1 -t 1m \
-  --host http://100.89.26.128:30007
+# Install dependencies
+pip install -r requirements.txt
 
-# Load Test (50 users, 5 minutes)
-docker compose run --rm locust-master \
-  -f /mnt/locust/scenarios/load_test.py \
-  --headless -u 50 -r 5 -t 5m \
-  --host http://100.89.26.128:30007
+# Run with web UI
+locust -f locustfile.py --host http://100.89.26.128:30007
 
-# Stress Test (200 users, 10 minutes)
-docker compose run --rm locust-master \
-  -f /mnt/locust/scenarios/stress_test.py \
-  --headless -u 200 -r 10 -t 10m \
-  --host http://100.89.26.128:30007
+# Run headless
+locust -f locustfile.py \
+  --headless \
+  --host http://100.89.26.128:30007 \
+  --users 50 \
+  --spawn-rate 5 \
+  --run-time 5m
+```
+
+### Using the Runner Script
+
+```bash
+# Make executable
+chmod +x run-load-test.sh
+
+# Run smoke test (1 user, 1 min)
+./run-load-test.sh smoke
+
+# Run load test (50 users, 5 min)
+./run-load-test.sh load
+
+# Run stress test (200 users, 10 min)
+./run-load-test.sh stress
+
+# Custom test
+./run-load-test.sh custom 100 10 5m
 ```
 
 ## Test Scenarios
 
-| Scenario | Users | Duration | Purpose |
-|----------|-------|----------|---------|
-| Smoke | 1 | 1 min | Verify endpoints work |
-| Load | 50 | 5 min | Normal production load |
-| Stress | 200 | 10 min | Find breaking points |
+### Main Test File (`locustfile.py`)
+
+Simulates realistic lab technician behavior with weighted tasks:
+
+| Task | Weight | Description |
+|------|--------|-------------|
+| Health Check | 10 | `/health` endpoint |
+| List Samples | 8 | GET `/api/samples` |
+| List Cases | 6 | GET `/api/cases` |
+| Dashboard | 5 | GET `/api/dashboard/stats` |
+| Get Sample | 5 | GET `/api/samples/{id}` |
+| Paternity Calc | 2 | POST `/api/paternity/calculate` |
+| Create Sample | 2 | POST `/api/samples` |
+| Generate Report | 1 | POST `/api/reports/generate` |
+
+### Smoke Test (`scenarios/smoke_test.py`)
+
+Quick verification that system is working.
+
+```bash
+locust -f scenarios/smoke_test.py --headless -u 1 -r 1 -t 1m --host http://localhost:30007
+```
+
+- **Users:** 1
+- **Duration:** 1 minute
+- **Purpose:** Verify endpoints are responsive
+- **Pass Criteria:** <1% failure rate, <1000ms avg response
+
+### Load Test (`scenarios/load_test.py`)
+
+Simulate normal production traffic.
+
+```bash
+locust -f scenarios/load_test.py --headless -u 50 -r 5 -t 5m --host http://localhost:30007
+```
+
+- **Users:** 50
+- **Duration:** 5 minutes
+- **Purpose:** Verify system handles normal load
+- **Pass Criteria:** <5% failure rate, <2000ms avg response
+
+### Stress Test (`scenarios/stress_test.py`)
+
+Find system breaking point with stepped load.
+
+```bash
+locust -f scenarios/stress_test.py --headless --host http://localhost:30007
+```
+
+- **Users:** 20 → 50 → 100 → 150 → 200 (stepped)
+- **Duration:** 10 minutes
+- **Purpose:** Identify capacity limits
+- **Watch For:**
+  - Response time degradation
+  - Error rate increase
+  - Resource exhaustion
 
 ## Environment Targets
 
-| Environment | Target URL | When to Test |
-|-------------|------------|--------------|
-| Test | http://100.89.26.128:30101 | After feature deploy |
-| Develop | http://100.89.26.128:30201 | Before PR merge |
-| Production | http://100.89.26.128:30007 | Scheduled/manual |
+| Environment | Endpoint | Use Case |
+|-------------|----------|----------|
+| Test | http://100.89.26.128:30101 | Feature branch testing |
+| Develop | http://100.89.26.128:30201 | Integration testing |
+| Production | http://100.89.26.128:30007 | Baseline & monitoring |
 
 ```bash
 # Test against different environments
-TARGET_HOST=http://100.89.26.128:30101 docker compose up -d  # Test
-TARGET_HOST=http://100.89.26.128:30201 docker compose up -d  # Develop
-TARGET_HOST=http://100.89.26.128:30007 docker compose up -d  # Production
+TARGET_HOST=http://100.89.26.128:30101 docker-compose up -d  # Test
+TARGET_HOST=http://100.89.26.128:30201 docker-compose up -d  # Develop
+TARGET_HOST=http://100.89.26.128:30007 docker-compose up -d  # Production
 ```
-
-## Test Endpoints
-
-### Health Checks (High Priority)
-- `GET /health` - Liveness
-- `GET /ready` - Readiness
-
-### Sample Management
-- `GET /api/samples` - List samples
-- `GET /api/samples/{id}` - Get sample
-- `POST /api/samples` - Create sample
-
-### Case Management
-- `GET /api/cases` - List cases
-- `GET /api/cases/{id}` - Get case
-
-### Paternity Testing
-- `GET /api/paternity` - List cases
-- `POST /api/paternity/calculate` - Run calculation (CPU intensive)
-
-### Reports
-- `GET /api/reports` - List reports
-- `POST /api/reports/generate` - Generate report (heavy)
 
 ## Performance Targets
 
 ### Acceptable Performance
+
 | Metric | Target |
 |--------|--------|
 | p50 Response Time | < 100ms |
@@ -101,6 +144,7 @@ TARGET_HOST=http://100.89.26.128:30007 docker compose up -d  # Production
 | Throughput | > 100 req/s |
 
 ### Warning Thresholds
+
 | Metric | Warning |
 |--------|---------|
 | p95 Response Time | > 500ms |
@@ -108,63 +152,119 @@ TARGET_HOST=http://100.89.26.128:30007 docker compose up -d  # Production
 | CPU Usage | > 80% |
 | Memory Usage | > 85% |
 
-## Prometheus Integration
+## Metrics & Monitoring
 
-Locust exporter exposes metrics at `http://server2:9646/metrics`
+### Prometheus Exporter
 
-Add to Prometheus scrape config:
+The docker-compose includes a Prometheus exporter on port 9646.
+
 ```yaml
+# Add to prometheus.yml
 - job_name: 'locust'
   static_configs:
     - targets: ['localhost:9646']
 ```
 
-Metrics available:
-- `locust_requests_total` - Total requests
-- `locust_failures_total` - Failed requests
-- `locust_response_time_percentile` - Response time percentiles
-- `locust_current_users` - Current user count
+### Available Metrics
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `locust_users` | Gauge | Current number of users |
+| `locust_requests_total` | Counter | Total requests by endpoint |
+| `locust_requests_fail_total` | Counter | Failed requests by endpoint |
+| `locust_requests_avg_response_time` | Gauge | Average response time |
+| `locust_requests_50_response_time` | Gauge | Median response time |
+| `locust_requests_95_response_time` | Gauge | 95th percentile |
+| `locust_requests_99_response_time` | Gauge | 99th percentile |
+
+### Grafana Dashboard
+
+Import `../grafana/dashboards/locust-load-testing.json` for a pre-built dashboard.
 
 ## CI/CD Integration
 
-Add to GitHub Actions workflow:
+Load tests run automatically after deployments to develop:
 
 ```yaml
-- name: Run Load Test
-  run: |
-    ssh server2 "cd /home/jaime/portfolio/locust && \
-      docker compose run --rm locust-master \
-      -f /mnt/locust/scenarios/load_test.py \
-      --headless -u 50 -r 5 -t 2m \
-      --host http://100.89.26.128:30201 \
-      --html /mnt/locust/reports/load-test-\$(date +%Y%m%d-%H%M%S).html"
+# Trigger: Push to develop → Deploy → Load Test (smoke)
+# Manual: Actions → Load Testing → Run workflow
 ```
 
-## Reports
+See `.github/workflows/load-test.yml` for configuration.
 
-HTML reports are saved to `./reports/` directory:
+### GitHub Actions Inputs
+
+| Input | Options | Description |
+|-------|---------|-------------|
+| `test_type` | smoke, load, stress | Test scenario |
+| `target_env` | test, develop, production | Target environment |
+| `users` | number | Custom user count |
+| `duration` | e.g., 1m, 5m | Custom duration |
+
+## Results & Reports
+
+### Output Files
+
+| File | Description |
+|------|-------------|
+| `*_report.html` | Interactive HTML report |
+| `*_stats.csv` | Request statistics |
+| `*_failures.csv` | Failure details |
+| `*_stats_history.csv` | Time-series data |
+| `summary.json` | Machine-readable summary |
+
+### Pass/Fail Criteria
+
+| Test | Max Failure Rate | Max Avg Response |
+|------|------------------|------------------|
+| Smoke | 1% | 1000ms |
+| Load | 5% | 2000ms |
+| Stress | 10% | 5000ms |
+
+## Deploy to Server2
 
 ```bash
-# Generate HTML report
-locust -f locustfile.py --headless -u 50 -r 5 -t 5m \
-  --host http://100.89.26.128:30007 \
-  --html reports/load-test-$(date +%Y%m%d-%H%M%S).html
+# Copy files to Server2
+scp -r monitoring/locust jag@100.103.13.92:~/portfolio/
+
+# SSH into Server2 and start
+ssh jag@100.103.13.92
+cd ~/portfolio/locust
+docker-compose up -d
+
+# Access Web UI: http://100.103.13.92:8089
 ```
 
 ## Troubleshooting
 
 ### Connection Refused
+
 ```bash
 # Check target is accessible
-curl http://100.89.26.128:30007/health
+curl -v http://100.89.26.128:30007/health
+
+# Check Tailscale connectivity
+tailscale status
 ```
 
-### High Error Rate
-1. Check backend logs: `kubectl logs -n production -l app=lims-backend`
-2. Check resource usage: `kubectl top pods -n production`
-3. Check database connections
+### High Failure Rate
+
+- Check application logs: `kubectl logs -l app=lims -n production`
+- Verify database connectivity
+- Check resource limits (CPU, memory)
 
 ### Slow Response Times
-1. Enable profiling in backend
-2. Check database query times
-3. Review resource limits in Helm values
+
+- Check database query performance
+- Review application profiling
+- Consider scaling replicas
+
+### Worker Connection Issues
+
+```bash
+# Restart workers
+docker-compose restart locust-worker
+
+# Check master logs
+docker-compose logs locust-master
+```

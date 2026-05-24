@@ -1,0 +1,264 @@
+name: Load Testing
+
+on:
+  # Run after successful deployment to develop
+  workflow_run:
+    workflows: ["Deploy to Develop"]
+    types:
+      - completed
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Test type (smoke, load, stress)'
+        required: true
+        default: 'smoke'
+        type: choice
+        options:
+          - smoke
+          - load
+          - stress
+      target_env:
+        description: 'Target environment'
+        required: true
+        default: 'develop'
+        type: choice
+        options:
+          - test
+          - develop
+          - production
+      users:
+        description: 'Number of users (for custom)'
+        required: false
+        default: '10'
+      duration:
+        description: 'Test duration (e.g., 1m, 5m)'
+        required: false
+        default: '1m'
+
+env:
+  # Environment endpoints
+  TEST_HOST: http://100.89.26.128:30101
+  DEVELOP_HOST: http://100.89.26.128:30201
+  PRODUCTION_HOST: http://100.89.26.128:30007
+
+jobs:
+  load-test:
+    name: Run Load Tests
+    runs-on: ubuntu-latest
+    # Only run if triggered manually or if previous workflow succeeded
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Locust
+        run: |
+          pip install locust==2.20.0
+
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: ""
+
+      - name: Determine target host
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            case "${{ inputs.target_env }}" in
+              test) echo "host=$TEST_HOST" >> $GITHUB_OUTPUT ;;
+              develop) echo "host=$DEVELOP_HOST" >> $GITHUB_OUTPUT ;;
+              production) echo "host=$PRODUCTION_HOST" >> $GITHUB_OUTPUT ;;
+            esac
+            echo "test_type=${{ inputs.test_type }}" >> $GITHUB_OUTPUT
+          else
+            # Default to develop for automated runs
+            echo "host=$DEVELOP_HOST" >> $GITHUB_OUTPUT
+            echo "test_type=smoke" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify target is accessible
+        run: |
+          echo "Testing connectivity to ${{ steps.target.outputs.host }}"
+          for i in {1..5}; do
+            if curl -sf "${{ steps.target.outputs.host }}/health" > /dev/null; then
+              echo "Target is accessible"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying..."
+            sleep 5
+          done
+          echo "Target is not accessible"
+          exit 1
+
+      - name: Run smoke test
+        if: steps.target.outputs.test_type == 'smoke'
+        run: |
+          cd monitoring/locust
+          locust -f scenarios/smoke_test.py \
+            --headless \
+            --host="${{ steps.target.outputs.host }}" \
+            --users 1 \
+            --spawn-rate 1 \
+            --run-time 1m \
+            --html=smoke_report.html \
+            --csv=smoke \
+            --only-summary
+
+      - name: Run load test
+        if: steps.target.outputs.test_type == 'load'
+        run: |
+          cd monitoring/locust
+          locust -f scenarios/load_test.py \
+            --headless \
+            --host="${{ steps.target.outputs.host }}" \
+            --users 50 \
+            --spawn-rate 5 \
+            --run-time 5m \
+            --html=load_report.html \
+            --csv=load \
+            --only-summary
+
+      - name: Run stress test
+        if: steps.target.outputs.test_type == 'stress'
+        run: |
+          cd monitoring/locust
+          locust -f scenarios/stress_test.py \
+            --headless \
+            --host="${{ steps.target.outputs.host }}" \
+            --html=stress_report.html \
+            --csv=stress \
+            --only-summary
+
+      - name: Check results
+        id: results
+        run: |
+          cd monitoring/locust
+          TEST_TYPE="${{ steps.target.outputs.test_type }}"
+          CSV_FILE="${TEST_TYPE}_stats.csv"
+
+          if [ ! -f "$CSV_FILE" ]; then
+            echo "Results file not found"
+            exit 1
+          fi
+
+          # Parse aggregated stats (last row)
+          STATS=$(tail -1 "$CSV_FILE")
+          TOTAL=$(echo "$STATS" | cut -d',' -f3)
+          FAILURES=$(echo "$STATS" | cut -d',' -f4)
+          AVG_RESPONSE=$(echo "$STATS" | cut -d',' -f6)
+          P95_RESPONSE=$(echo "$STATS" | cut -d',' -f10)
+
+          # Calculate failure rate
+          if [ "$TOTAL" -gt 0 ]; then
+            FAILURE_RATE=$(echo "scale=2; $FAILURES * 100 / $TOTAL" | bc)
+          else
+            FAILURE_RATE=100
+          fi
+
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+          echo "failures=$FAILURES" >> $GITHUB_OUTPUT
+          echo "failure_rate=$FAILURE_RATE" >> $GITHUB_OUTPUT
+          echo "avg_response=$AVG_RESPONSE" >> $GITHUB_OUTPUT
+          echo "p95_response=$P95_RESPONSE" >> $GITHUB_OUTPUT
+
+          # Set thresholds based on test type
+          case "$TEST_TYPE" in
+            smoke)
+              MAX_FAILURE_RATE=1
+              MAX_AVG_RESPONSE=1000
+              ;;
+            load)
+              MAX_FAILURE_RATE=5
+              MAX_AVG_RESPONSE=2000
+              ;;
+            stress)
+              MAX_FAILURE_RATE=10
+              MAX_AVG_RESPONSE=5000
+              ;;
+          esac
+
+          # Check thresholds
+          PASSED=true
+          if (( $(echo "$FAILURE_RATE > $MAX_FAILURE_RATE" | bc -l) )); then
+            echo "::error::Failure rate ($FAILURE_RATE%) exceeds threshold ($MAX_FAILURE_RATE%)"
+            PASSED=false
+          fi
+
+          AVG_INT=${AVG_RESPONSE%.*}
+          if [ "$AVG_INT" -gt "$MAX_AVG_RESPONSE" ]; then
+            echo "::error::Avg response (${AVG_RESPONSE}ms) exceeds threshold (${MAX_AVG_RESPONSE}ms)"
+            PASSED=false
+          fi
+
+          if [ "$PASSED" = "false" ]; then
+            exit 1
+          fi
+
+          echo "All thresholds passed!"
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test-results-${{ steps.target.outputs.test_type }}
+          path: |
+            monitoring/locust/*.html
+            monitoring/locust/*.csv
+          retention-days: 30
+
+      - name: Create summary
+        if: always()
+        run: |
+          echo "## Load Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Type | ${{ steps.target.outputs.test_type }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Target | ${{ steps.target.outputs.host }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Total Requests | ${{ steps.results.outputs.total }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Failures | ${{ steps.results.outputs.failures }} (${{ steps.results.outputs.failure_rate }}%) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Avg Response | ${{ steps.results.outputs.avg_response }}ms |" >> $GITHUB_STEP_SUMMARY
+          echo "| P95 Response | ${{ steps.results.outputs.p95_response }}ms |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Post results to PR
+        if: github.event.workflow_run.head_branch != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const summary = `
+            ### Load Test Results
+
+            | Metric | Value |
+            |--------|-------|
+            | Test Type | ${{ steps.target.outputs.test_type }} |
+            | Total Requests | ${{ steps.results.outputs.total }} |
+            | Failure Rate | ${{ steps.results.outputs.failure_rate }}% |
+            | Avg Response | ${{ steps.results.outputs.avg_response }}ms |
+            | P95 Response | ${{ steps.results.outputs.p95_response }}ms |
+            `;
+
+            // Find associated PR
+            const pulls = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:${{ github.event.workflow_run.head_branch }}`
+            });
+
+            if (pulls.data.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pulls.data[0].number,
+                body: summary
+              });
+            }
