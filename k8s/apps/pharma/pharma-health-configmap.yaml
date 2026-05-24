@@ -1,0 +1,51 @@
+# Nginx config with /health and /metrics endpoints for Pharma frontend
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pharma-nginx-config
+  namespace: production
+  labels:
+    app: pharma-frontend
+    team: devops
+data:
+  nginx.conf: |
+    server {
+        listen 80;
+        server_name _;
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        # Health endpoint for Kubernetes probes
+        location /health {
+            access_log off;
+            return 200 '{"status":"healthy","app":"pharma-frontend","timestamp":"$time_iso8601"}';
+            add_header Content-Type application/json;
+        }
+
+        # Metrics endpoint for Prometheus (basic nginx stub status)
+        location /metrics {
+            access_log off;
+            stub_status on;
+            allow all;
+        }
+
+        # Ready endpoint
+        location /ready {
+            access_log off;
+            return 200 '{"status":"ready"}';
+            add_header Content-Type application/json;
+        }
+
+        # Main app
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+        # API proxy (if backend exists)
+        location /api/ {
+            proxy_pass http://pharma-app:8080/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+    }

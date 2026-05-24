@@ -1,0 +1,14 @@
+# Kustomization for Finance app
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: production
+
+commonLabels:
+  app.kubernetes.io/name: finance
+  app.kubernetes.io/part-of: portfolio
+  team: devops
+
+resources:
+  - deployment.yaml
+  - service.yaml

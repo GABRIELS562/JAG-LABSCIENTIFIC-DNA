@@ -1,0 +1,15 @@
+# Kustomization for Pharma app
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: production
+
+commonLabels:
+  app.kubernetes.io/name: pharma
+  app.kubernetes.io/part-of: portfolio
+  team: devops
+
+resources:
+  - pharma-health-configmap.yaml
+  - pharma-frontend-deployment.yaml
+  - service.yaml

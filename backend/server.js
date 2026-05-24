@@ -2346,11 +2346,11 @@ const server = app
       console.log('⚠️  No database connection - starting simple sample cycler');
       simpleSampleCycler.start();
       console.log('✅ Simple sample cycler active - 5 demo samples cycling every 30 seconds');
-    } else if (process.env.ENABLE_DEVOPS_FEATURES === 'true' || process.env.NODE_ENV === 'production') {
-      // Database connected - use database-backed sample generator
+    } else {
+      // Database connected - always use database-backed sample generator for live workflow
       const sampleGen = new SampleGenerator(db);
       sampleGen.start();
-      console.log('🔄 DevOps Sample Generator active - continuous monitoring data');
+      console.log('🔄 Sample Generator active - samples flowing through workflow');
 
       // Update Prometheus metrics every 10 seconds
       setInterval(() => {

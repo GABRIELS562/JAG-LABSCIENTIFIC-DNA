@@ -1,0 +1,20 @@
+# Pharma Frontend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: pharma-app
+  namespace: production
+  labels:
+    app: pharma-frontend
+    team: devops
+    env: production
+spec:
+  type: NodePort
+  selector:
+    app: pharma-frontend
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 80
+      nodePort: 30002
+      protocol: TCP

@@ -4,68 +4,55 @@
 
 const promClient = require('prom-client');
 
-// Create a Registry or use existing one
-let register = promClient.register;
+// Use the default registry (shared with metrics.js)
+const register = promClient.register;
 
-// Clear existing metrics to prevent duplication
-register.clear();
-
-// Create new registry
-register = new promClient.Registry();
-
-// Add default metrics (CPU, memory, etc.)
-promClient.collectDefaultMetrics({ register });
+// Add default metrics (CPU, memory, etc.) - only if not already collecting
+if (!register.getSingleMetric('process_cpu_user_seconds_total')) {
+  promClient.collectDefaultMetrics({ register });
+}
 
 // Custom metrics for LIMS
 let httpRequestDuration, activeWorkflowGauge, sampleProcessingCounter;
 let batchSizeHistogram, errorCounter, databaseConnectionsGauge;
 
-try {
-  httpRequestDuration = new promClient.Histogram({
-    name: 'lims_http_request_duration_seconds',
-    help: 'Duration of HTTP requests in seconds',
-    labelNames: ['method', 'route', 'status'],
-    buckets: [0.1, 0.5, 1, 2, 5],
-    registers: [register]
-  });
+// Register metrics only if not already registered
+httpRequestDuration = register.getSingleMetric('lims_http_request_duration_seconds') || new promClient.Histogram({
+  name: 'lims_http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'status'],
+  buckets: [0.1, 0.5, 1, 2, 5]
+});
 
-  activeWorkflowGauge = new promClient.Gauge({
-    name: 'lims_active_workflows',
-    help: 'Number of active workflows by stage',
-    labelNames: ['stage'],
-    registers: [register]
-  });
+activeWorkflowGauge = register.getSingleMetric('lims_active_workflows') || new promClient.Gauge({
+  name: 'lims_active_workflows',
+  help: 'Number of active workflows by stage',
+  labelNames: ['stage']
+});
 
-  sampleProcessingCounter = new promClient.Counter({
-    name: 'lims_samples_processed_total',
-    help: 'Total number of samples processed',
-    labelNames: ['stage', 'status'],
-    registers: [register]
-  });
+sampleProcessingCounter = register.getSingleMetric('lims_samples_processed_total') || new promClient.Counter({
+  name: 'lims_samples_processed_total',
+  help: 'Total number of samples processed',
+  labelNames: ['stage', 'status']
+});
 
-  batchSizeHistogram = new promClient.Histogram({
-    name: 'lims_batch_size',
-    help: 'Size of processing batches',
-    labelNames: ['type'],
-    buckets: [5, 10, 15, 20, 25, 30],
-    registers: [register]
-  });
+batchSizeHistogram = register.getSingleMetric('lims_batch_size') || new promClient.Histogram({
+  name: 'lims_batch_size',
+  help: 'Size of processing batches',
+  labelNames: ['type'],
+  buckets: [5, 10, 15, 20, 25, 30]
+});
 
-  errorCounter = new promClient.Counter({
-    name: 'lims_errors_total',
-    help: 'Total number of errors',
-    labelNames: ['type', 'severity'],
-    registers: [register]
-  });
+errorCounter = register.getSingleMetric('lims_errors_total') || new promClient.Counter({
+  name: 'lims_errors_total',
+  help: 'Total number of errors',
+  labelNames: ['type', 'severity']
+});
 
-  databaseConnectionsGauge = new promClient.Gauge({
-    name: 'lims_database_connections',
-    help: 'Number of active database connections',
-    registers: [register]
-  });
-} catch (error) {
-  console.error('Error registering Prometheus metrics:', error.message);
-}
+databaseConnectionsGauge = register.getSingleMetric('lims_database_connections') || new promClient.Gauge({
+  name: 'lims_database_connections',
+  help: 'Number of active database connections'
+});
 
 // Middleware to track HTTP metrics
 const httpMetricsMiddleware = (req, res, next) => {
@@ -82,7 +69,7 @@ const httpMetricsMiddleware = (req, res, next) => {
 };
 
 // Update workflow metrics
-const updateWorkflowMetrics = (db) => {
+const updateWorkflowMetrics = async (db) => {
   try {
     const stages = [
       'sample_collected',
@@ -99,10 +86,16 @@ const updateWorkflowMetrics = (db) => {
       'report_sent'
     ];
 
-    stages.forEach(stage => {
-      const count = db.prepare('SELECT COUNT(*) as count FROM samples WHERE workflow_status = ?').get(stage);
-      activeWorkflowGauge.labels(stage).set(count?.count || 0);
-    });
+    // PostgreSQL query
+    for (const stage of stages) {
+      try {
+        const result = await db.query('SELECT COUNT(*) as count FROM samples WHERE workflow_status = $1', [stage]);
+        const count = parseInt(result.rows[0]?.count || 0);
+        activeWorkflowGauge.labels(stage).set(count);
+      } catch (err) {
+        // Silently handle individual stage errors
+      }
+    }
 
     // Update database connections
     databaseConnectionsGauge.set(5); // Simulated value

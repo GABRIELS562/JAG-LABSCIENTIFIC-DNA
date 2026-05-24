@@ -1,0 +1,63 @@
+# ArgoCD AppProject for Portfolio Applications
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: portfolio
+  namespace: argocd
+  labels:
+    team: devops
+spec:
+  description: Portfolio DevOps Project - LIMS, Pharma, Finance, Dashboard
+
+  # Source repositories
+  sourceRepos:
+    - 'https://github.com/GABRIELS562/JAG-LABSCIENTIFIC-DNA.git'
+    - 'https://github.com/GABRIELS562/*'
+
+  # Allowed destinations
+  destinations:
+    - namespace: production
+      server: https://kubernetes.default.svc
+    - namespace: develop
+      server: https://kubernetes.default.svc
+    - namespace: test
+      server: https://kubernetes.default.svc
+
+  # Allowed cluster resources
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: 'networking.k8s.io'
+      kind: NetworkPolicy
+
+  # Allowed namespace resources
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: '*'
+    - group: 'apps'
+      kind: '*'
+    - group: 'batch'
+      kind: '*'
+    - group: 'networking.k8s.io'
+      kind: '*'
+    - group: 'autoscaling'
+      kind: '*'
+    - group: 'policy'
+      kind: '*'
+
+  # Roles for RBAC
+  roles:
+    - name: admin
+      description: Full access to portfolio apps
+      policies:
+        - p, proj:portfolio:admin, applications, *, portfolio/*, allow
+      groups:
+        - devops-team
+
+    - name: developer
+      description: Read and sync access
+      policies:
+        - p, proj:portfolio:developer, applications, get, portfolio/*, allow
+        - p, proj:portfolio:developer, applications, sync, portfolio/*, allow
+      groups:
+        - developers

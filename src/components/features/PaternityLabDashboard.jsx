@@ -251,9 +251,9 @@ const PaternityLabDashboard = () => {
           allSamples = generateMockSamplesForDemo();
         }
         
-        // Filter for live cycling samples - include both AUTO- and LAB- prefixes for live data
-        samples = allSamples.filter(s => s.lab_number && (s.lab_number.startsWith('AUTO-') || s.lab_number.startsWith('LAB-')));
-        console.log('Filtered live samples (AUTO- and LAB-):', samples.length);
+        // Use all samples for live workflow display (AUTO-, LAB-, DEMO-, or any prefix)
+        samples = allSamples;
+        console.log('All samples for workflow:', samples.length);
       } catch (error) {
         console.warn('Failed to fetch samples:', error);
         // Continue with empty samples array
@@ -681,14 +681,14 @@ const PaternityLabDashboard = () => {
                     <div className={`p-3 rounded-lg border-2 h-24 flex flex-col justify-center ${
                       stage.count > 0 ? 'border-blue-300 dark:border-blue-600' : 'border-gray-200 dark:border-gray-700'
                     } ${
-                      stage.workflow_status === 'sample_collected' ? 'bg-blue-100 dark:bg-blue-900/30' :
-                      stage.workflow_status === 'extraction_completed' ? 'bg-purple-100 dark:bg-purple-900/30' :
-                      stage.workflow_status === 'quantification_completed' ? 'bg-teal-100 dark:bg-teal-900/30' :
-                      stage.workflow_status === 'pcr_ready' || stage.workflow_status === 'pcr_completed' ? 'bg-orange-100 dark:bg-orange-900/30' :
-                      stage.workflow_status === 'electro_completed' ? 'bg-yellow-100 dark:bg-yellow-900/30' :
-                      stage.workflow_status === 'analysis_completed' ? 'bg-green-100 dark:bg-green-900/30' :
-                      stage.workflow_status === 'report_sent' ? 'bg-indigo-100 dark:bg-indigo-900/30' :
-                      'bg-gray-100 dark:bg-gray-800'
+                      stage.workflow_status === 'sample_collected' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100' :
+                      stage.workflow_status === 'extraction_completed' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-900 dark:text-purple-100' :
+                      stage.workflow_status === 'quantification_completed' ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-900 dark:text-teal-100' :
+                      stage.workflow_status === 'pcr_ready' || stage.workflow_status === 'pcr_completed' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-900 dark:text-orange-100' :
+                      stage.workflow_status === 'electro_completed' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-900 dark:text-yellow-100' :
+                      stage.workflow_status === 'analysis_completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-900 dark:text-green-100' :
+                      stage.workflow_status === 'report_sent' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-900 dark:text-indigo-100' :
+                      'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
                     }`}>
                       <div className="text-2xl font-bold">{stage.count}</div>
                       <div className="text-xs mt-1 font-medium">
@@ -712,8 +712,8 @@ const PaternityLabDashboard = () => {
               ['Collection', 'Extraction', 'qPCR', 'PCR Ready', 'PCR Done', 'Electro', 'Analysis', 'Report'].map(stage => (
                 <div key={stage} className="text-center">
                   <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-800 animate-pulse h-24 flex flex-col justify-center">
-                    <div className="text-2xl font-bold text-gray-400">--</div>
-                    <div className="text-xs mt-1">{stage}</div>
+                    <div className="text-2xl font-bold text-gray-500 dark:text-gray-400">--</div>
+                    <div className="text-xs mt-1 text-gray-700 dark:text-gray-300">{stage}</div>
                   </div>
                 </div>
               ))
