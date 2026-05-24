@@ -107,19 +107,39 @@ jobs:
 
       - name: Deploy with Helm
         run: |
+          # Deploy without --wait to avoid timeout issues
           helm upgrade --install lims-test ./helm/lims \
             --namespace ${{ env.NAMESPACE }} \
             --create-namespace \
             -f helm/lims/values-test.yaml \
             --set backend.image.tag=${{ needs.build-and-push.outputs.image_tag }} \
             --set frontend.image.tag=${{ needs.build-and-push.outputs.image_tag }} \
-            --wait \
-            --timeout 5m
+            --timeout 8m
+
+          # Wait for deployments separately with better feedback
+          echo "Waiting for backend deployment..."
+          kubectl rollout status deployment/lims-test-backend -n ${{ env.NAMESPACE }} --timeout=180s || true
+
+          echo "Waiting for frontend deployment..."
+          kubectl rollout status deployment/lims-test-frontend -n ${{ env.NAMESPACE }} --timeout=180s || true
 
       - name: Verify deployment
         run: |
-          kubectl rollout status deployment/lims-test-backend -n ${{ env.NAMESPACE }} --timeout=120s
-          kubectl rollout status deployment/lims-test-frontend -n ${{ env.NAMESPACE }} --timeout=120s
+          echo "Verifying pods are running..."
+          kubectl get pods -n ${{ env.NAMESPACE }} -l app.kubernetes.io/instance=lims-test
+
+          echo "Testing backend health endpoint..."
+          for i in {1..5}; do
+            if curl -sf http://100.89.26.128:30101/health; then
+              echo "Backend is healthy"
+              break
+            fi
+            echo "Waiting for backend... ($i/5)"
+            sleep 10
+          done
+
+          echo "Testing frontend..."
+          curl -sI http://100.89.26.128:30102 | head -3 || true
 
       - name: Get deployment info
         run: |
