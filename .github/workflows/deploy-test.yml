@@ -8,7 +8,7 @@ on:
 
 env:
   REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
-  GHCR_REGISTRY: ghcr.io/${{ github.repository_owner }}
+  GHCR_REGISTRY: ghcr.io/gabriels562
   NAMESPACE: test
 
 jobs:
