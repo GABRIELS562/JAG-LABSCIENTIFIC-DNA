@@ -69,6 +69,31 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
+      - name: Verify Tailscale connection
+        run: |
+          echo "Checking Tailscale status..."
+          tailscale status
+
+          echo ""
+          echo "Waiting for Tailscale network to stabilize..."
+          sleep 5
+
+          # Ping the target server to establish connection
+          echo "Pinging target server (100.89.26.128)..."
+          for i in {1..10}; do
+            if tailscale ping --timeout=5s 100.89.26.128 2>/dev/null; then
+              echo "Tailscale connection established"
+              break
+            fi
+            echo "Tailscale ping attempt $i/10..."
+            sleep 3
+          done
+
+          # Show final status
+          echo ""
+          echo "Final Tailscale status:"
+          tailscale status
+
       - name: Determine target host
         id: target
         run: |
@@ -85,23 +110,29 @@ jobs:
             echo "test_type=smoke" >> $GITHUB_OUTPUT
           fi
 
-      - name: Wait for Tailscale connection
-        run: |
-          echo "Waiting for Tailscale connection to stabilize..."
-          sleep 10
-
       - name: Verify target is accessible
         run: |
-          echo "Testing connectivity to ${{ steps.target.outputs.host }}"
-          for i in {1..10}; do
-            if curl -sf --connect-timeout 5 "${{ steps.target.outputs.host }}/health" > /dev/null; then
+          echo "Testing HTTP connectivity to ${{ steps.target.outputs.host }}"
+          for i in {1..15}; do
+            if curl -sf --connect-timeout 10 --max-time 15 "${{ steps.target.outputs.host }}/health"; then
+              echo ""
               echo "Target is accessible"
               exit 0
             fi
-            echo "Attempt $i/10 failed, retrying..."
-            sleep 10
+            echo "HTTP attempt $i/15 failed, retrying in 5s..."
+            sleep 5
           done
-          echo "Target is not accessible after 10 attempts"
+
+          # Debug: try direct connection info
+          echo ""
+          echo "=== DEBUG INFO ==="
+          echo "Tailscale IPs:"
+          tailscale ip -4 || true
+          echo ""
+          echo "Trying netcat to port 30201..."
+          nc -zv 100.89.26.128 30201 -w 5 || true
+          echo ""
+          echo "Target is not accessible after 15 attempts"
           exit 1
 
       - name: Run smoke test
