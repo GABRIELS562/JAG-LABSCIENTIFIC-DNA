@@ -1,0 +1,14 @@
+# Kustomization for External Secrets resources
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - vault-token-secret.yaml
+  - cluster-secret-store.yaml
+  - lims-external-secret.yaml
+  - pharma-external-secret.yaml
+  - finance-external-secret.yaml
+
+commonLabels:
+  app.kubernetes.io/managed-by: kustomize
+  app.kubernetes.io/part-of: portfolio-devops
