@@ -56,6 +56,16 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
+      - name: Verify Tailscale connectivity
+        run: |
+          echo "Waiting for Tailscale to be ready..."
+          sleep 10
+          echo "Tailscale status:"
+          tailscale status
+          echo ""
+          echo "Testing registry connectivity..."
+          curl -v --connect-timeout 10 http://${{ env.REGISTRY }}/v2/_catalog || echo "Registry test failed"
+
       - name: Configure Docker for insecure registry
         run: |
           echo '{"insecure-registries": ["${{ env.REGISTRY }}"]}' | sudo tee /etc/docker/daemon.json
