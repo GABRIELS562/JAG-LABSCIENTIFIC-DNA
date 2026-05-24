@@ -91,6 +91,9 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "lims.fullname" . }}-config
+            - secretRef:
+                name: {{ include "lims.fullname" . }}-secrets
+                optional: true
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
           livenessProbe:
