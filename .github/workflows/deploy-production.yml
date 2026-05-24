@@ -103,6 +103,17 @@ jobs:
             --insecure \
             --grpc-web
 
+          # Wait for any existing operation to complete
+          echo "Waiting for any existing sync to complete..."
+          for i in {1..6}; do
+            if argocd app wait lims --insecure --grpc-web --timeout 30 --operation 2>/dev/null; then
+              echo "ArgoCD ready"
+              break
+            fi
+            echo "Waiting... ($i/6)"
+            sleep 10
+          done
+
           # Trigger sync with new image
           argocd app set lims \
             --parameter backend.image.tag=${{ needs.build-and-push.outputs.image_tag }} \
@@ -113,7 +124,7 @@ jobs:
           # Sync the application
           argocd app sync lims --insecure --grpc-web --force
 
-          # Wait for sync operation to complete (not health - Ingress stays Progressing in k3s)
+          # Wait for sync operation to complete
           argocd app wait lims --insecure --grpc-web --timeout 120 --operation || true
 
           # Get final status
