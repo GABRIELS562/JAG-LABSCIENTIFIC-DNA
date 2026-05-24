@@ -44,9 +44,9 @@ postgresql:
   auth:
     database: lims_db
     username: lims_user
-    # IMPORTANT: Override this in CI/CD or use external secrets
-    password: "CHANGE_ME_IN_PRODUCTION"
-    postgresPassword: "CHANGE_ME_IN_PRODUCTION"
+    # Password synced with External Secrets from Vault
+    password: "lims_password"
+    postgresPassword: "lims_password"
   primary:
     persistence:
       size: 10Gi
