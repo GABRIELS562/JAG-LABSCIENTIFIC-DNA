@@ -26,11 +26,7 @@ try {
 
 // Database configuration with environment variables
 function getDbHost() {
-  // In Kubernetes, use the service name
-  if (process.env.KUBERNETES_SERVICE_HOST) {
-    return 'postgresql.production.svc.cluster.local';
-  }
-  // Support DATABASE_HOST for K3s environment
+  // Use DATABASE_HOST or DB_HOST from Helm/K8s environment
   const dbHost = process.env.DATABASE_HOST || process.env.DB_HOST || process.env.POSTGRES_HOST || 'localhost';
   console.log(`Database host resolved to: ${dbHost}`);
   return dbHost;
