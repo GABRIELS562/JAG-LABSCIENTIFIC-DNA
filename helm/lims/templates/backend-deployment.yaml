@@ -52,7 +52,27 @@ spec:
               value: {{ include "lims.postgresql.database" . }}
             - name: DATABASE_USER
               value: {{ include "lims.postgresql.username" . }}
+            # DB_* vars are used by the application code
+            - name: DB_HOST
+              value: {{ include "lims.postgresql.host" . }}
+            - name: DB_PORT
+              value: {{ include "lims.postgresql.port" . | quote }}
+            - name: DB_NAME
+              value: {{ include "lims.postgresql.database" . }}
+            - name: DB_USER
+              value: {{ include "lims.postgresql.username" . }}
             - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.postgresql.enabled }}
+                  name: {{ .Release.Name }}-postgresql
+                  key: password
+                  {{- else }}
+                  name: {{ include "lims.fullname" . }}-db-secret
+                  key: password
+                  {{- end }}
+            # DB_PASSWORD is used by the application code
+            - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   {{- if .Values.postgresql.enabled }}
