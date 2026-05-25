@@ -16,6 +16,7 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        image-tag: {{ .Values.backend.image.tag | quote }}
       labels:
         {{- include "lims.backend.selectorLabels" . | nindent 8 }}
     spec:

@@ -14,6 +14,8 @@ spec:
       {{- include "lims.frontend.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+      annotations:
+        image-tag: {{ .Values.frontend.image.tag | quote }}
       labels:
         {{- include "lims.frontend.selectorLabels" . | nindent 8 }}
     spec:
