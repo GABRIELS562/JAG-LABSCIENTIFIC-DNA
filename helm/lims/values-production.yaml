@@ -3,12 +3,12 @@
 
 global:
   environment: production
-  imageRegistry: ghcr.io/gabriels562
+  imageRegistry: localhost:5000
 
 backend:
   replicaCount: 2
   image:
-    tag: v0.0.0-bf2de07  # Prometheus metrics + chain of custody
+    tag: latest  # Use latest for immediate deployment
   service:
     type: ClusterIP  # Use ClusterIP since NodePort 30007 is taken by lims-complete
   resources:
@@ -26,7 +26,7 @@ backend:
 frontend:
   replicaCount: 2
   image:
-    tag: v0.0.0-bf2de07  # Prometheus metrics + chain of custody
+    tag: latest  # Use latest for immediate deployment
   service:
     type: NodePort
     nodePort: 30005
