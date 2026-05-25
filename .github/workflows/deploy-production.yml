@@ -149,17 +149,17 @@ jobs:
           grep -A 3 "image:" helm/lims/values-production.yaml
 
       - name: Commit and push image tag update
+        continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           if git diff --quiet helm/lims/values-production.yaml; then
-            echo "No changes to commit"
+            echo "No changes to commit - image tag already up to date"
           else
             git add helm/lims/values-production.yaml
             git commit -m "chore: update image tag to ${{ needs.build-and-push.outputs.image_tag }} [skip ci]"
-            git push
-            echo "Pushed image tag update to git"
+            git push || echo "⚠️ Git push failed (branch protection). Manual update may be needed."
           fi
 
       - name: Setup Tailscale
