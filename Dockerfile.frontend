@@ -2,6 +2,9 @@
 # Stage 1: Build the React application
 FROM node:18-alpine AS builder
 
+# Install build dependencies for native modules
+RUN apk add --no-cache python3 make g++
+
 WORKDIR /app
 
 # Copy package files
