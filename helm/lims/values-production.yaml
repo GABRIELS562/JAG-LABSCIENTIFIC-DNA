@@ -8,7 +8,7 @@ global:
 backend:
   replicaCount: 2
   image:
-    tag: v0.0.0-2792e8b  # Prometheus metrics + chain of custody
+    tag: v0.0.0-3615ca7  # Prometheus metrics + chain of custody
   service:
     type: ClusterIP  # Use ClusterIP since NodePort 30007 is taken by lims-complete
   resources:
@@ -26,7 +26,7 @@ backend:
 frontend:
   replicaCount: 2
   image:
-    tag: v0.0.0-2792e8b  # Prometheus metrics + chain of custody
+    tag: v0.0.0-3615ca7  # Prometheus metrics + chain of custody
   service:
     type: NodePort
     nodePort: 30005
