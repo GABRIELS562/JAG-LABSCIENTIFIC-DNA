@@ -12,7 +12,7 @@ env:
   NAMESPACE: production
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
@@ -127,6 +127,41 @@ jobs:
     needs: build-and-push
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Update Helm values with new image tag
+        run: |
+          IMAGE_TAG="${{ needs.build-and-push.outputs.image_tag }}"
+          echo "Updating image tag to: $IMAGE_TAG"
+
+          # Update backend image tag in values-production.yaml
+          sed -i "s/^  image:$/&\n    # Auto-updated by CI/; /^backend:/,/^[a-z]/ { /tag:/s/tag:.*/tag: $IMAGE_TAG/ }" helm/lims/values-production.yaml
+
+          # Use yq-style sed for more precise update
+          sed -i '/^backend:/,/^frontend:/{s/\(    tag:\).*/\1 '"$IMAGE_TAG"'/}' helm/lims/values-production.yaml
+          sed -i '/^frontend:/,/^[a-z]/{ /^  image:/,/^  [a-z]/{s/\(    tag:\).*/\1 '"$IMAGE_TAG"'/} }' helm/lims/values-production.yaml
+
+          echo "Updated values-production.yaml:"
+          grep -A 3 "image:" helm/lims/values-production.yaml
+
+      - name: Commit and push image tag update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet helm/lims/values-production.yaml; then
+            echo "No changes to commit"
+          else
+            git add helm/lims/values-production.yaml
+            git commit -m "chore: update image tag to ${{ needs.build-and-push.outputs.image_tag }} [skip ci]"
+            git push
+            echo "Pushed image tag update to git"
+          fi
+
       - name: Setup Tailscale
         uses: tailscale/github-action@v3
         with:
@@ -159,12 +194,8 @@ jobs:
             sleep 10
           done
 
-          # Trigger sync with new image
-          argocd app set lims \
-            --parameter backend.image.tag=${{ needs.build-and-push.outputs.image_tag }} \
-            --parameter frontend.image.tag=${{ needs.build-and-push.outputs.image_tag }} \
-            --insecure \
-            --grpc-web || true
+          # Refresh to pick up git changes
+          argocd app get lims --refresh --insecure --grpc-web
 
           # Sync the application
           argocd app sync lims --insecure --grpc-web --force
