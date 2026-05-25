@@ -95,6 +95,32 @@ const processingTime = new promClient.Histogram({
   buckets: [1, 5, 10, 30, 60, 120, 300, 600, 1200]
 });
 
+// LIMS Sample Metrics for Prometheus
+const samplesByStatus = new promClient.Gauge({
+  name: 'lims_samples_by_status',
+  help: 'Number of samples by workflow status',
+  labelNames: ['status']
+});
+
+const samplesTotal = new promClient.Gauge({
+  name: 'lims_samples_total',
+  help: 'Total number of samples in the system'
+});
+
+const workflowTransitions = new promClient.Counter({
+  name: 'lims_workflow_transitions_total',
+  help: 'Total workflow transitions between stages',
+  labelNames: ['from_status', 'to_status']
+});
+
+const limsUp = new promClient.Gauge({
+  name: 'lims_up',
+  help: 'LIMS application health status (1 = up, 0 = down)'
+});
+
+// Initialize lims_up to 1
+limsUp.set(1);
+
 // Register all metrics
 register.registerMetric(httpRequestDuration);
 register.registerMetric(httpRequestTotal);
@@ -110,6 +136,10 @@ register.registerMetric(slowOperations);
 register.registerMetric(errorSimulations);
 register.registerMetric(queueSize);
 register.registerMetric(processingTime);
+register.registerMetric(samplesByStatus);
+register.registerMetric(samplesTotal);
+register.registerMetric(workflowTransitions);
+register.registerMetric(limsUp);
 
 // Metrics middleware with memory optimization
 const metricsMiddleware = (req, res, next) => {
@@ -193,6 +223,28 @@ const trackProcessingTime = (processType, duration) => {
   processingTime.observe({ process_type: processType }, duration);
 };
 
+// LIMS sample metrics helpers
+const updateSamplesByStatus = (statusCounts) => {
+  // Reset all status gauges first
+  samplesByStatus.reset();
+  // Set each status count
+  for (const [status, count] of Object.entries(statusCounts)) {
+    samplesByStatus.set({ status }, count);
+  }
+};
+
+const updateSamplesTotal = (total) => {
+  samplesTotal.set(total);
+};
+
+const trackWorkflowTransition = (fromStatus, toStatus) => {
+  workflowTransitions.inc({ from_status: fromStatus, to_status: toStatus });
+};
+
+const setLimsUp = (isUp) => {
+  limsUp.set(isUp ? 1 : 0);
+};
+
 // Simulation metrics
 const simulateMemoryLeak = () => {
   memoryLeakCounter.inc();
@@ -267,6 +319,11 @@ module.exports = {
   startUserMonitoring,
   stopUserMonitoring,
   cleanup,
+  // LIMS sample metrics
+  updateSamplesByStatus,
+  updateSamplesTotal,
+  trackWorkflowTransition,
+  setLimsUp,
   // Export individual metrics for direct access
   metrics: {
     httpRequestDuration,
@@ -282,6 +339,10 @@ module.exports = {
     slowOperations,
     errorSimulations,
     queueSize,
-    processingTime
+    processingTime,
+    samplesByStatus,
+    samplesTotal,
+    workflowTransitions,
+    limsUp
   }
 };

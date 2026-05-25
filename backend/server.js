@@ -1498,6 +1498,99 @@ app.get('/api/forensic-metrics/sample/:sampleId', async (req, res) => {
   }
 });
 
+// Chain of Custody API Endpoints
+
+// GET /api/chain-of-custody - Returns recent chain of custody records
+app.get('/api/chain-of-custody', requireDatabase, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+
+    const records = await databaseService.all(`
+      SELECT
+        coc.id,
+        coc.sample_id,
+        coc.lab_number,
+        coc.action,
+        coc.performed_by,
+        coc.location,
+        coc.temperature,
+        coc.integrity_hash,
+        coc.timestamp,
+        coc.notes
+      FROM chain_of_custody coc
+      ORDER BY coc.timestamp DESC
+      LIMIT ? OFFSET ?
+    `, [limit, offset]);
+
+    const countResult = await databaseService.get(`
+      SELECT COUNT(*) as total FROM chain_of_custody
+    `);
+
+    ResponseHandler.success(res, {
+      records: records || [],
+      total: countResult?.total || 0,
+      limit,
+      offset
+    }, 'Chain of custody records retrieved successfully');
+  } catch (error) {
+    logger.error('Failed to get chain of custody records', { error: error.message });
+    ResponseHandler.error(res, 'Failed to get chain of custody records', error);
+  }
+});
+
+// GET /api/chain-of-custody/:lab_number - Returns custody chain for specific sample
+app.get('/api/chain-of-custody/:lab_number', requireDatabase, async (req, res) => {
+  try {
+    const { lab_number } = req.params;
+
+    // Get all custody records for this lab number
+    const records = await databaseService.all(`
+      SELECT
+        coc.id,
+        coc.sample_id,
+        coc.lab_number,
+        coc.action,
+        coc.performed_by,
+        coc.location,
+        coc.temperature,
+        coc.integrity_hash,
+        coc.timestamp,
+        coc.notes
+      FROM chain_of_custody coc
+      WHERE coc.lab_number = ?
+      ORDER BY coc.timestamp ASC
+    `, [lab_number]);
+
+    if (!records || records.length === 0) {
+      return ResponseHandler.success(res, {
+        lab_number,
+        records: [],
+        total: 0
+      }, `No chain of custody records found for ${lab_number}`);
+    }
+
+    // Get sample info
+    const sample = await databaseService.get(`
+      SELECT id, lab_number, case_number, name, surname, workflow_status, created_at
+      FROM samples
+      WHERE lab_number = ?
+    `, [lab_number]);
+
+    ResponseHandler.success(res, {
+      lab_number,
+      sample: sample || null,
+      records,
+      total: records.length,
+      first_event: records[0]?.timestamp,
+      last_event: records[records.length - 1]?.timestamp
+    }, `Chain of custody for ${lab_number} retrieved successfully`);
+  } catch (error) {
+    logger.error('Failed to get chain of custody for sample', { error: error.message, lab_number: req.params.lab_number });
+    ResponseHandler.error(res, 'Failed to get chain of custody for sample', error);
+  }
+});
+
 // Prometheus metrics endpoint
 app.get('/metrics', async (req, res) => {
   try {

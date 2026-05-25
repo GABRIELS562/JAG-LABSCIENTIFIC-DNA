@@ -3,10 +3,12 @@
  * Generates samples, progresses them through workflow stages, and manages lifecycle
  */
 
+const crypto = require('crypto');
 const config = require('../config/workflow-config');
 const logger = require('../utils/logger'); // Fix: import logger directly, not destructured
 const databaseService = require('./database');
 const forensicMetrics = require('./forensicMetricsService');
+const { updateSamplesByStatus, updateSamplesTotal, trackWorkflowTransition } = require('../middleware/metrics');
 
 class EnhancedSampleCycler {
   constructor(db = null) {
@@ -237,10 +239,12 @@ class EnhancedSampleCycler {
 
   async progressSample(sampleId, labNumber, nextStage) {
     try {
-      // Check if this is a forensic sample
+      // Get current sample info including current workflow status
       const sample = await this.db.get(`
-        SELECT metadata, case_number FROM samples WHERE id = ?
+        SELECT metadata, case_number, workflow_status FROM samples WHERE id = ?
       `, [sampleId]);
+
+      const previousStage = sample?.workflow_status || 'unknown';
 
       // Check if metadata is a string (JSON) or object
       let isForensic = sample?.case_number?.startsWith('FOR-');
@@ -251,6 +255,9 @@ class EnhancedSampleCycler {
           isForensic = isForensic || sample.metadata.case_type === 'Forensic';
         }
       }
+
+      // Track workflow transition in Prometheus metrics
+      trackWorkflowTransition(previousStage, nextStage);
 
       // Simulate quality control failures
       if (config.qualityControl.enabled && Math.random() < config.qualityControl.failureRate) {
@@ -290,7 +297,10 @@ class EnhancedSampleCycler {
       `, [nextStage, sampleId]);
       this.stats.samplesProgressed++;
 
-      // Record chain of custody for forensic samples
+      // Record chain of custody for ALL samples (not just forensic)
+      await this.recordChainOfCustody(sampleId, labNumber, previousStage, nextStage);
+
+      // Additional forensic-specific chain of custody tracking
       if (isForensic) {
         const stageActions = {
           'dna_extraction': 'DNA_EXTRACTION',
@@ -372,17 +382,29 @@ class EnhancedSampleCycler {
       try {
         const now = Date.now();
         const timeDiff = (now - this.lastStatsUpdate) / 1000; // seconds
-        
+
         this.stats.averageThroughput = this.stats.samplesCompleted / (timeDiff / 3600); // per hour
-        
+
         // Get current distribution
         const distribution = await this.db.all(`
-          SELECT workflow_status, COUNT(*) as count 
-          FROM samples 
+          SELECT workflow_status, COUNT(*) as count
+          FROM samples
           WHERE status = 'active'
           GROUP BY workflow_status
         `);
-        
+
+        // Update Prometheus metrics for sample counts by status
+        if (Array.isArray(distribution)) {
+          const statusCounts = {};
+          let total = 0;
+          distribution.forEach(row => {
+            statusCounts[row.workflow_status] = parseInt(row.count) || 0;
+            total += parseInt(row.count) || 0;
+          });
+          updateSamplesByStatus(statusCounts);
+          updateSamplesTotal(total);
+        }
+
         logger.info('📈 Workflow Metrics:', {
           generated: this.stats.samplesGenerated,
           progressed: this.stats.samplesProgressed,
@@ -397,6 +419,8 @@ class EnhancedSampleCycler {
     };
 
     this.intervals.metrics = setInterval(updateMetrics, config.metrics.updateInterval);
+    // Also run immediately to populate initial metrics
+    updateMetrics();
   }
 
   startLoadSpikes() {
@@ -454,6 +478,46 @@ class EnhancedSampleCycler {
     
     const caseRelations = relations[caseType] || relations['Paternity'];
     return caseRelations[Math.floor(Math.random() * caseRelations.length)];
+  }
+
+  /**
+   * Record chain of custody for workflow transitions
+   * @param {number} sampleId - Sample ID
+   * @param {string} labNumber - Lab number
+   * @param {string} fromStatus - Previous workflow status
+   * @param {string} toStatus - New workflow status
+   */
+  async recordChainOfCustody(sampleId, labNumber, fromStatus, toStatus) {
+    try {
+      const timestamp = new Date().toISOString();
+
+      // Generate SHA-256 hash of: lab_number + old_status + new_status + timestamp
+      const hashData = `${labNumber}${fromStatus}${toStatus}${timestamp}`;
+      const integrityHash = crypto.createHash('sha256').update(hashData).digest('hex');
+
+      const action = `WORKFLOW_TRANSITION: ${fromStatus} -> ${toStatus}`;
+
+      await this.db.run(`
+        INSERT INTO chain_of_custody
+        (sample_id, lab_number, action, performed_by, location, temperature, integrity_hash, timestamp, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        sampleId,
+        labNumber,
+        action,
+        'SampleCycler',
+        'Laboratory',
+        null,
+        integrityHash,
+        timestamp,
+        `Automated workflow transition from ${fromStatus} to ${toStatus}`
+      ]);
+
+      logger.debug(`Chain of custody recorded: ${action} for ${labNumber}`);
+    } catch (error) {
+      // Don't fail the workflow if custody recording fails
+      logger.error(`Failed to record chain of custody for ${labNumber}:`, error.message);
+    }
   }
 
   getStats() {
