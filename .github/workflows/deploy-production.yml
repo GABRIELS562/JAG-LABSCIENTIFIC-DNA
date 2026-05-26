@@ -171,6 +171,17 @@ jobs:
 
           echo "✅ GHCR pull secret created/updated"
 
+          # Fix PostgreSQL if stuck in ImagePullBackOff
+          PG_STATUS=$(kubectl get pod lims-postgresql-0 -n production -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
+          PG_IMAGE=$(kubectl get statefulset lims-postgresql -n production -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "unknown")
+
+          if [[ "$PG_STATUS" != "Running" ]] || [[ "$PG_IMAGE" == *"ghcr.io"* ]]; then
+            echo "⚠️ PostgreSQL needs repair (status: $PG_STATUS, image: $PG_IMAGE)"
+            # Delete pod to trigger recreation with correct image after ArgoCD sync
+            kubectl delete pod lims-postgresql-0 -n production --ignore-not-found --force --grace-period=0 || true
+            echo "Deleted PostgreSQL pod for recreation"
+          fi
+
       - name: Sync ArgoCD Application
         run: |
           # Login to ArgoCD
