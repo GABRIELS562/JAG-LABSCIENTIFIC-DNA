@@ -2313,6 +2313,39 @@ app.get('/api/simulated-stages', (req, res) => {
   }
 });
 
+// Debug endpoint to list all registered routes
+app.get('/api/debug/routes', (req, res) => {
+  const routes = [];
+  app._router.stack.forEach((middleware) => {
+    if (middleware.route) {
+      // Direct routes
+      routes.push({
+        path: middleware.route.path,
+        methods: Object.keys(middleware.route.methods)
+      });
+    } else if (middleware.name === 'router') {
+      // Router middleware
+      middleware.handle.stack.forEach((handler) => {
+        if (handler.route) {
+          routes.push({
+            path: handler.route.path,
+            methods: Object.keys(handler.route.methods)
+          });
+        }
+      });
+    }
+  });
+
+  // Filter for chain-of-custody specifically
+  const chainRoutes = routes.filter(r => r.path && r.path.includes('chain'));
+
+  res.json({
+    total_routes: routes.length,
+    chain_of_custody_routes: chainRoutes,
+    sample_routes: routes.filter(r => r.path && r.path.includes('/api/')).slice(0, 30)
+  });
+});
+
 // Global 404 handler for API routes
 app.use('/api/*', (req, res) => {
   logger.warn('API route not found', { url: req.originalUrl, method: req.method });
