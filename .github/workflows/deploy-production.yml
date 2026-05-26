@@ -178,28 +178,9 @@ jobs:
 
           echo "✅ GHCR pull secret created/updated"
 
-          # Fix PostgreSQL if stuck in ImagePullBackOff
-          PG_STATUS=$(kubectl get pod lims-postgresql-0 -n production -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
-          PG_IMAGE=$(kubectl get statefulset lims-postgresql -n production -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "unknown")
-
-          if [[ "$PG_STATUS" != "Running" ]] || [[ "$PG_IMAGE" == *"ghcr.io"* ]]; then
-            echo "⚠️ PostgreSQL needs repair (status: $PG_STATUS, image: $PG_IMAGE)"
-            # Delete pod to trigger recreation with correct image after ArgoCD sync
-            kubectl delete pod lims-postgresql-0 -n production --ignore-not-found --force --grace-period=0 || true
-            echo "Deleted PostgreSQL pod for recreation"
-          fi
-
-          # Wait for PostgreSQL to be ready before continuing
-          echo "Waiting for PostgreSQL to be ready..."
-          for i in {1..30}; do
-            PG_READY=$(kubectl get pod lims-postgresql-0 -n production -o jsonpath='{.status.containerStatuses[0].ready}' 2>/dev/null || echo "false")
-            if [[ "$PG_READY" == "true" ]]; then
-              echo "✅ PostgreSQL is ready"
-              break
-            fi
-            echo "PostgreSQL not ready yet ($i/30)..."
-            sleep 10
-          done
+          # Note: Production uses external PostgreSQL (postgresql.enabled: false)
+          # No need to wait for lims-postgresql pod - it doesn't exist
+          echo "ℹ️ Using external PostgreSQL database"
 
       - name: Sync ArgoCD Application
         run: |
