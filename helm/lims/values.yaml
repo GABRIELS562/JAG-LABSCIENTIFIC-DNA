@@ -3,8 +3,10 @@
 
 # Global settings
 global:
-  environment: production
-  imageRegistry: localhost:5000
+  environment: development
+  # Default imageRegistry - used when component doesn't specify its own
+  # For production, set registry per-component in values-production.yaml
+  imageRegistry: ""
   # imagePullSecrets - list of secrets for pulling images from private registries
   # Example: imagePullSecrets: [{name: ghcr-secret}]
   imagePullSecrets: []
@@ -14,6 +16,7 @@ backend:
   enabled: true
   replicaCount: 2
   image:
+    # registry: Override global.imageRegistry for backend only
     repository: lims-backend
     tag: latest
     pullPolicy: Always

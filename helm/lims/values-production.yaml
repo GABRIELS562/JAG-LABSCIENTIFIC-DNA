@@ -3,14 +3,15 @@
 
 global:
   environment: production
-  imageRegistry: ghcr.io/gabriels562
-  # Reference to the GHCR pull secret created in the cluster
+  # NOTE: Don't set global imageRegistry - let dependencies use their defaults
+  # GHCR credentials for our custom images
   imagePullSecrets:
     - name: ghcr-pull-secret
 
 backend:
   replicaCount: 2
   image:
+    registry: ghcr.io/gabriels562  # Our backend image on GHCR
     tag: production  # Stable production tag
   service:
     type: ClusterIP  # Use ClusterIP since NodePort 30007 is taken by lims-complete
@@ -29,6 +30,7 @@ backend:
 frontend:
   replicaCount: 2
   image:
+    registry: ghcr.io/gabriels562  # Our frontend image on GHCR
     tag: production  # Stable production tag
   service:
     type: NodePort

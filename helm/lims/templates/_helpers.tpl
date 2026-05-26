@@ -85,14 +85,16 @@ app.kubernetes.io/component: frontend
 Create the image name for backend
 */}}
 {{- define "lims.backend.image" -}}
-{{- printf "%s/%s:%s" .Values.global.imageRegistry .Values.backend.image.repository .Values.backend.image.tag }}
+{{- $registry := .Values.backend.image.registry | default .Values.global.imageRegistry -}}
+{{- printf "%s/%s:%s" $registry .Values.backend.image.repository .Values.backend.image.tag }}
 {{- end }}
 
 {{/*
 Create the image name for frontend
 */}}
 {{- define "lims.frontend.image" -}}
-{{- printf "%s/%s:%s" .Values.global.imageRegistry .Values.frontend.image.repository .Values.frontend.image.tag }}
+{{- $registry := .Values.frontend.image.registry | default .Values.global.imageRegistry -}}
+{{- printf "%s/%s:%s" $registry .Values.frontend.image.repository .Values.frontend.image.tag }}
 {{- end }}
 
 {{/*
