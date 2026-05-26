@@ -254,21 +254,30 @@ jobs:
 
           echo "=== Checking for old lims-complete deployment ==="
 
-          # Check if old lims-complete deployment exists
-          if kubectl get deployment lims-complete-backend -n production 2>/dev/null; then
+          # Check if old lims-complete deployment exists (this is a single deployment, not backend/frontend split)
+          if kubectl get deployment lims-complete -n production 2>/dev/null; then
             echo "⚠️ Old lims-complete deployment found - scaling down to migrate traffic"
 
             # Scale down the old deployment so traffic goes to new ArgoCD deployment
-            kubectl scale deployment lims-complete-backend -n production --replicas=0 || true
-            kubectl scale deployment lims-complete-frontend -n production --replicas=0 || true
+            kubectl scale deployment lims-complete -n production --replicas=0
 
-            # Delete old ingress if it exists (so ArgoCD ingress takes over)
-            kubectl delete ingress lims-complete -n production --ignore-not-found || true
+            # Delete old service if it exists
+            # The old deployment was likely exposed via a service pointing to NodePort 30007
+            # But we want traffic to go through the ArgoCD-managed ingress now
+            echo "Old deployment scaled to 0 replicas"
 
             echo "✅ Old lims-complete deployment scaled down"
           else
             echo "✅ No old lims-complete deployment found"
           fi
+
+          # Also check for old lims-complete-backend/frontend naming (in case it exists with that pattern)
+          for dep in lims-complete-backend lims-complete-frontend; do
+            if kubectl get deployment $dep -n production 2>/dev/null; then
+              echo "Scaling down $dep..."
+              kubectl scale deployment $dep -n production --replicas=0 || true
+            fi
+          done
 
           echo ""
           echo "=== Current deployments in production namespace ==="
