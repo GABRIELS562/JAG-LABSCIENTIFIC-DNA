@@ -194,11 +194,15 @@ jobs:
           # Refresh to pick up git changes
           argocd app get lims --refresh --insecure --grpc-web
 
-          # Sync the application with rollout timestamp to force pod restart
+          # Set rollout timestamp to force pod restart, then sync
           TIMESTAMP=$(date +%s)
-          argocd app sync lims --insecure --grpc-web --force \
-            --parameter backend.forceRollout=$TIMESTAMP \
-            --parameter frontend.forceRollout=$TIMESTAMP
+          argocd app set lims \
+            --insecure --grpc-web \
+            -p backend.forceRollout=$TIMESTAMP \
+            -p frontend.forceRollout=$TIMESTAMP
+
+          # Sync the application
+          argocd app sync lims --insecure --grpc-web --force
 
           # Wait for sync operation to complete
           argocd app wait lims --insecure --grpc-web --timeout 120 --operation || true
