@@ -221,18 +221,23 @@ jobs:
           # Get final status
           argocd app get lims --insecure --grpc-web
 
-      - name: Verify deployments
+      - name: Force pod restart and verify
         run: |
           # Setup kubeconfig for direct verification
           mkdir -p ~/.kube
           echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
           chmod 600 ~/.kube/config
 
-          # Verify deployments rolled out successfully
+          # Force rollout restart to ensure new image is pulled
+          echo "Forcing rollout restart..."
+          kubectl rollout restart deployment/lims-backend -n production
+          kubectl rollout restart deployment/lims-frontend -n production
+
+          # Wait for rollouts to complete
           echo "Waiting for backend deployment..."
           kubectl rollout status deployment/lims-backend -n production --timeout=300s || {
             echo "⚠️ Backend rollout timeout - checking pod status"
-            kubectl get pods -n production -l app=lims-backend
+            kubectl get pods -n production -l app.kubernetes.io/component=backend
             kubectl describe deployment/lims-backend -n production | tail -20
           }
 
