@@ -14,7 +14,8 @@ backend:
     registry: ghcr.io/gabriels562  # Our backend image on GHCR
     tag: production  # Stable production tag
   service:
-    type: ClusterIP  # Use ClusterIP since NodePort 30007 is taken by lims-complete
+    type: NodePort
+    nodePort: 30007  # Now free since lims-complete is scaled down
   resources:
     requests:
       memory: "512Mi"

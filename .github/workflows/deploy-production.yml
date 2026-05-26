@@ -355,64 +355,66 @@ jobs:
         run: |
           echo "Running production smoke tests..."
 
-          # Get the Tailscale IP to test directly
+          # Tailscale IP for direct access
           TAILSCALE_IP="100.89.26.128"
+          BACKEND_URL="http://${TAILSCALE_IP}:30007"
+          FRONTEND_URL="http://${TAILSCALE_IP}:30005"
 
-          # Test backend health via ClusterIP service port-forward simulation
-          # Since ingress may have TLS issues from CI, test via NodePort directly
           echo ""
-          echo "=== Testing Backend via direct access ==="
+          echo "=== Testing via NodePorts (direct access) ==="
 
-          # First try the lims-backend service via port 3001 on the node
-          # The backend service is ClusterIP, but we can test via the ingress IP
-          BACKEND_DIRECT="http://${TAILSCALE_IP}:30005"
-
-          # Test frontend NodePort first (this works)
-          echo "Testing frontend via NodePort..."
-          if curl -sf "http://${TAILSCALE_IP}:30005" -o /dev/null 2>/dev/null; then
-            echo "✅ Frontend NodePort (30005) accessible"
-          else
-            echo "⚠️ Frontend NodePort not accessible"
-          fi
-
-          # Since backend is ClusterIP, test via ingress or through the cluster
-          # Let's check if we can reach the backend through the ingress HTTP (not HTTPS)
-          echo ""
-          echo "Testing backend via ingress (HTTP)..."
-          INGRESS_IP="192.168.50.100"
-          for i in {1..5}; do
-            # Try HTTP with Host header
-            HEALTH_RESPONSE=$(curl -sf --connect-timeout 5 -H "Host: lims.jagdevops.co.za" "http://${INGRESS_IP}/api/health" 2>/dev/null || echo "")
+          # Test backend health via NodePort
+          echo "Testing backend health via NodePort 30007..."
+          for i in {1..10}; do
+            HEALTH_RESPONSE=$(curl -sf --connect-timeout 5 "${BACKEND_URL}/api/health" 2>/dev/null || echo "")
             if [ -n "$HEALTH_RESPONSE" ]; then
-              echo "✅ Backend health check passed via ingress HTTP"
-              echo "$HEALTH_RESPONSE" | head -c 200
+              echo "✅ Backend health check passed"
+              echo "$HEALTH_RESPONSE" | head -c 300
               echo ""
               break
             fi
-            echo "Waiting for backend via ingress HTTP... ($i/5)"
-            sleep 5
+            echo "Waiting for backend... ($i/10)"
+            sleep 10
           done
 
-          # Test chain-of-custody endpoint via ingress HTTP
+          if [ -z "$HEALTH_RESPONSE" ]; then
+            echo "❌ Backend health check failed after 10 retries"
+            # Show what we can about the response
+            curl -v --connect-timeout 5 "${BACKEND_URL}/api/health" 2>&1 | tail -20 || true
+          fi
+
+          # Test chain-of-custody endpoint
           echo ""
-          echo "Testing chain-of-custody endpoint via ingress..."
-          COC_RESPONSE=$(curl -sf --connect-timeout 5 -H "Host: lims.jagdevops.co.za" "http://${INGRESS_IP}/api/chain-of-custody?limit=1" 2>/dev/null || echo "404")
-          if [ "$COC_RESPONSE" != "404" ]; then
+          echo "Testing chain-of-custody endpoint..."
+          COC_RESPONSE=$(curl -sf --connect-timeout 5 "${BACKEND_URL}/api/chain-of-custody?limit=1" 2>/dev/null || echo "")
+          if [ -n "$COC_RESPONSE" ]; then
             echo "✅ Chain of custody endpoint working"
             echo "Response: $COC_RESPONSE" | head -c 300
           else
-            echo "⚠️ Chain of custody endpoint not available yet"
+            echo "⚠️ Chain of custody endpoint returned empty or error"
+            # Check what error we got
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "${BACKEND_URL}/api/chain-of-custody?limit=1" 2>/dev/null || echo "000")
+            echo "HTTP response code: $HTTP_CODE"
           fi
 
-          # Test via HTTPS with -k (insecure) to bypass cert issues
+          # Test metrics endpoint
           echo ""
-          echo "=== Testing via HTTPS (insecure mode) ==="
-          HTTPS_RESPONSE=$(curl -sfk --connect-timeout 10 "https://lims.jagdevops.co.za/api/health" 2>/dev/null || echo "")
-          if [ -n "$HTTPS_RESPONSE" ]; then
-            echo "✅ Backend accessible via HTTPS"
-            echo "$HTTPS_RESPONSE" | head -c 200
+          echo "Testing Prometheus metrics endpoint..."
+          METRICS_RESPONSE=$(curl -sf --connect-timeout 5 "${BACKEND_URL}/metrics" 2>/dev/null | head -5 || echo "")
+          if [ -n "$METRICS_RESPONSE" ]; then
+            echo "✅ Prometheus metrics endpoint working"
+            echo "$METRICS_RESPONSE"
           else
-            echo "⚠️ HTTPS not accessible from CI runner (may work from browser)"
+            echo "⚠️ Metrics endpoint not available"
+          fi
+
+          # Test frontend NodePort
+          echo ""
+          echo "Testing frontend via NodePort 30005..."
+          if curl -sf --connect-timeout 5 "${FRONTEND_URL}" -o /dev/null 2>/dev/null; then
+            echo "✅ Frontend NodePort accessible"
+          else
+            echo "⚠️ Frontend NodePort not accessible"
           fi
 
           echo ""
