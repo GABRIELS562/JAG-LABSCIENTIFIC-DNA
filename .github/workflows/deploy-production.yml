@@ -233,6 +233,35 @@ jobs:
           # Get final status
           argocd app get lims --insecure --grpc-web
 
+      - name: Migrate traffic to ArgoCD deployment
+        run: |
+          # Setup kubeconfig
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+          echo "=== Checking for old lims-complete deployment ==="
+
+          # Check if old lims-complete deployment exists
+          if kubectl get deployment lims-complete-backend -n production 2>/dev/null; then
+            echo "⚠️ Old lims-complete deployment found - scaling down to migrate traffic"
+
+            # Scale down the old deployment so traffic goes to new ArgoCD deployment
+            kubectl scale deployment lims-complete-backend -n production --replicas=0 || true
+            kubectl scale deployment lims-complete-frontend -n production --replicas=0 || true
+
+            # Delete old ingress if it exists (so ArgoCD ingress takes over)
+            kubectl delete ingress lims-complete -n production --ignore-not-found || true
+
+            echo "✅ Old lims-complete deployment scaled down"
+          else
+            echo "✅ No old lims-complete deployment found"
+          fi
+
+          echo ""
+          echo "=== Current deployments in production namespace ==="
+          kubectl get deployments -n production
+
       - name: Force pod restart and verify
         run: |
           # Setup kubeconfig for direct verification
@@ -241,9 +270,9 @@ jobs:
           chmod 600 ~/.kube/config
 
           # Delete ALL old backend pods to force fresh start with new image
-          echo "Deleting all existing backend pods..."
-          kubectl delete pods -n production -l app.kubernetes.io/component=backend --force --grace-period=0 || true
-          kubectl delete pods -n production -l app.kubernetes.io/component=frontend --force --grace-period=0 || true
+          echo "Deleting all existing lims backend/frontend pods..."
+          kubectl delete pods -n production -l app.kubernetes.io/component=backend,app.kubernetes.io/instance=lims --force --grace-period=0 || true
+          kubectl delete pods -n production -l app.kubernetes.io/component=frontend,app.kubernetes.io/instance=lims --force --grace-period=0 || true
 
           # Wait briefly for new pods to be created
           sleep 10
@@ -252,20 +281,41 @@ jobs:
           echo "Waiting for backend deployment..."
           kubectl rollout status deployment/lims-backend -n production --timeout=300s || {
             echo "⚠️ Backend rollout timeout - checking pod status"
-            kubectl get pods -n production -l app.kubernetes.io/component=backend
-            kubectl describe deployment/lims-backend -n production | tail -20
+            kubectl get pods -n production -l app.kubernetes.io/component=backend,app.kubernetes.io/instance=lims
+            kubectl describe deployment/lims-backend -n production | tail -30
+            kubectl logs -n production -l app.kubernetes.io/component=backend,app.kubernetes.io/instance=lims --tail=50 || true
           }
 
           echo "Waiting for frontend deployment..."
           kubectl rollout status deployment/lims-frontend -n production --timeout=300s || {
             echo "⚠️ Frontend rollout timeout - checking pod status"
-            kubectl get pods -n production -l app=lims-frontend
+            kubectl get pods -n production -l app.kubernetes.io/component=frontend,app.kubernetes.io/instance=lims
           }
 
           echo "✅ Deployment verification complete"
 
-          # Show pod status
-          kubectl get pods -n production -l app.kubernetes.io/instance=lims
+          # Show pod status and verify readiness
+          echo ""
+          echo "=== ArgoCD LIMS Pod Status ==="
+          kubectl get pods -n production -l app.kubernetes.io/instance=lims -o wide
+
+          echo ""
+          echo "=== Backend pod readiness check ==="
+          BACKEND_READY=$(kubectl get pods -n production -l app.kubernetes.io/component=backend,app.kubernetes.io/instance=lims -o jsonpath='{.items[0].status.containerStatuses[0].ready}' 2>/dev/null || echo "false")
+          if [ "$BACKEND_READY" == "true" ]; then
+            echo "✅ Backend pods are ready and passing health checks"
+          else
+            echo "⚠️ Backend pods not ready - checking logs"
+            kubectl logs -n production -l app.kubernetes.io/component=backend,app.kubernetes.io/instance=lims --tail=30 || true
+          fi
+
+          echo ""
+          echo "=== Services ==="
+          kubectl get svc -n production | grep lims
+
+          echo ""
+          echo "=== Ingress ==="
+          kubectl get ingress -n production
 
   smoke-tests:
     name: Production Smoke Tests
@@ -284,23 +334,48 @@ jobs:
         run: |
           echo "Running production smoke tests..."
 
-          # Test backend health
-          BACKEND_URL="http://100.89.26.128:30007"
-          for i in {1..5}; do
-            if curl -sf "$BACKEND_URL/health"; then
-              echo "✅ Backend health check passed"
+          # Test via ingress (the actual user-facing URLs)
+          INGRESS_URL="https://lims.jagdevops.co.za"
+
+          # Test backend health via ingress
+          echo "Testing backend via ingress..."
+          for i in {1..10}; do
+            HEALTH_RESPONSE=$(curl -sf "$INGRESS_URL/api/health" 2>/dev/null || echo "")
+            if [ -n "$HEALTH_RESPONSE" ]; then
+              echo "✅ Backend health check passed via ingress"
+              echo "$HEALTH_RESPONSE" | head -c 200
+              echo ""
               break
             fi
-            echo "Waiting for backend... ($i/5)"
-            sleep 10
+            echo "Waiting for backend via ingress... ($i/10)"
+            sleep 15
           done
 
-          # Test frontend
-          FRONTEND_URL="http://100.89.26.128:30005"
-          if curl -sf "$FRONTEND_URL" > /dev/null; then
-            echo "✅ Frontend check passed"
+          # Test chain-of-custody endpoint (new feature)
+          echo "Testing chain-of-custody endpoint..."
+          COC_RESPONSE=$(curl -sf "$INGRESS_URL/api/chain-of-custody?limit=1" 2>/dev/null || echo "404")
+          if [ "$COC_RESPONSE" != "404" ]; then
+            echo "✅ Chain of custody endpoint working"
+          else
+            echo "⚠️ Chain of custody endpoint not available yet"
+          fi
+
+          # Test frontend via ingress
+          echo "Testing frontend via ingress..."
+          if curl -sf "$INGRESS_URL" > /dev/null; then
+            echo "✅ Frontend check passed via ingress"
           else
             echo "⚠️ Frontend check pending"
+          fi
+
+          # Also check NodePort directly for debugging
+          echo ""
+          echo "=== Direct NodePort checks (for debugging) ==="
+          FRONTEND_URL="http://100.89.26.128:30005"
+          if curl -sf "$FRONTEND_URL" -o /dev/null 2>/dev/null; then
+            echo "✅ Frontend NodePort (30005) accessible"
+          else
+            echo "⚠️ Frontend NodePort not accessible"
           fi
 
           echo "Smoke tests completed"
@@ -315,7 +390,7 @@ jobs:
           echo "| Resource | URL |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-----|" >> $GITHUB_STEP_SUMMARY
           echo "| Frontend | https://lims.jagdevops.co.za |" >> $GITHUB_STEP_SUMMARY
-          echo "| Backend API | http://100.89.26.128:30007 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend API | https://lims.jagdevops.co.za/api |" >> $GITHUB_STEP_SUMMARY
           echo "| ArgoCD | http://100.89.26.128:30338 |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📦 Container Images" >> $GITHUB_STEP_SUMMARY
