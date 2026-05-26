@@ -43,29 +43,17 @@ frontend:
       memory: "256Mi"
       cpu: "200m"
 
+# Use the existing PostgreSQL deployment (same as lims-complete uses)
 postgresql:
-  enabled: true
-  # Explicitly set image to use Docker Hub (bitnami default)
-  image:
-    registry: docker.io
-    repository: bitnami/postgresql
-    tag: "16"
-  auth:
-    database: lims_db
-    username: lims_user
-    # Password synced with External Secrets from Vault
-    password: "lims_password"
-    postgresPassword: "lims_password"
-  primary:
-    persistence:
-      size: 10Gi
-    resources:
-      requests:
-        memory: "512Mi"
-        cpu: "500m"
-      limits:
-        memory: "1Gi"
-        cpu: "1000m"
+  enabled: false
+
+# External database configuration - uses existing PostgreSQL service
+externalDatabase:
+  host: postgresql
+  port: 5432
+  database: lims_db
+  username: lims_user
+  password: "lims_password"
 
 ingress:
   enabled: true
