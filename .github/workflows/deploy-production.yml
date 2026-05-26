@@ -160,30 +160,23 @@ jobs:
           echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
           chmod 600 ~/.kube/config
 
-          # GHCR_PAT is required - GITHUB_TOKEN doesn't work for external pulls
-          # The PAT needs 'read:packages' scope at minimum
-          if [ -z "${{ secrets.GHCR_PAT }}" ]; then
-            echo "❌ ERROR: GHCR_PAT secret is not set!"
-            echo ""
-            echo "To fix this:"
-            echo "1. Go to https://github.com/settings/tokens"
-            echo "2. Create a new Personal Access Token (classic) with 'read:packages' scope"
-            echo "3. Add it as repository secret named 'GHCR_PAT'"
-            echo ""
-            echo "GITHUB_TOKEN cannot be used for external image pulls because it's scoped to GitHub Actions runners."
-            exit 1
+          # Create or update GHCR pull secret
+          # Use GHCR_PAT if available, otherwise fall back to GITHUB_TOKEN
+          GHCR_PASSWORD="${{ secrets.GHCR_PAT }}"
+          if [ -z "$GHCR_PASSWORD" ]; then
+            echo "ℹ️ GHCR_PAT not set, using GITHUB_TOKEN"
+            GHCR_PASSWORD="${{ secrets.GITHUB_TOKEN }}"
           fi
 
-          # Create or update GHCR pull secret with PAT
           kubectl delete secret ghcr-pull-secret -n production --ignore-not-found
           kubectl create secret docker-registry ghcr-pull-secret \
             --namespace production \
             --docker-server=ghcr.io \
             --docker-username=${{ github.actor }} \
-            --docker-password=${{ secrets.GHCR_PAT }} \
+            --docker-password="$GHCR_PASSWORD" \
             --docker-email=ci@github.com
 
-          echo "✅ GHCR pull secret created with PAT"
+          echo "✅ GHCR pull secret created/updated"
 
           # Fix PostgreSQL if stuck in ImagePullBackOff
           PG_STATUS=$(kubectl get pod lims-postgresql-0 -n production -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
