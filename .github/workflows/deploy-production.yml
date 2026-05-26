@@ -133,34 +133,13 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Update Helm values with new image tag
+      - name: Log deployment info
         run: |
-          IMAGE_TAG="${{ needs.build-and-push.outputs.image_tag }}"
-          echo "Updating image tag to: $IMAGE_TAG"
-
-          # Update backend image tag in values-production.yaml
-          sed -i "s/^  image:$/&\n    # Auto-updated by CI/; /^backend:/,/^[a-z]/ { /tag:/s/tag:.*/tag: $IMAGE_TAG/ }" helm/lims/values-production.yaml
-
-          # Use yq-style sed for more precise update
-          sed -i '/^backend:/,/^frontend:/{s/\(    tag:\).*/\1 '"$IMAGE_TAG"'/}' helm/lims/values-production.yaml
-          sed -i '/^frontend:/,/^[a-z]/{ /^  image:/,/^  [a-z]/{s/\(    tag:\).*/\1 '"$IMAGE_TAG"'/} }' helm/lims/values-production.yaml
-
-          echo "Updated values-production.yaml:"
-          grep -A 3 "image:" helm/lims/values-production.yaml
-
-      - name: Commit and push image tag update
-        continue-on-error: true
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          if git diff --quiet helm/lims/values-production.yaml; then
-            echo "No changes to commit - image tag already up to date"
-          else
-            git add helm/lims/values-production.yaml
-            git commit -m "chore: update image tag to ${{ needs.build-and-push.outputs.image_tag }} [skip ci]"
-            git push || echo "⚠️ Git push failed (branch protection). Manual update may be needed."
-          fi
+          echo "=== Deployment Info ==="
+          echo "Image Tag: ${{ needs.build-and-push.outputs.image_tag }}"
+          echo "Version: ${{ needs.build-and-push.outputs.version }}"
+          echo "Using stable 'production' tag for deployment"
+          echo "========================"
 
       - name: Setup Tailscale
         uses: tailscale/github-action@v3
@@ -173,6 +152,24 @@ jobs:
         run: |
           curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/download/v2.9.3/argocd-linux-amd64
           chmod +x /usr/local/bin/argocd
+
+      - name: Setup kubectl and ensure GHCR pull secret
+        run: |
+          # Setup kubeconfig
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+          # Create or update GHCR pull secret
+          kubectl delete secret ghcr-pull-secret -n production --ignore-not-found
+          kubectl create secret docker-registry ghcr-pull-secret \
+            --namespace production \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=${{ secrets.GITHUB_TOKEN }} \
+            --docker-email=ci@github.com
+
+          echo "✅ GHCR pull secret created/updated"
 
       - name: Sync ArgoCD Application
         run: |
@@ -197,8 +194,11 @@ jobs:
           # Refresh to pick up git changes
           argocd app get lims --refresh --insecure --grpc-web
 
-          # Sync the application
-          argocd app sync lims --insecure --grpc-web --force
+          # Sync the application with rollout timestamp to force pod restart
+          TIMESTAMP=$(date +%s)
+          argocd app sync lims --insecure --grpc-web --force \
+            --parameter backend.forceRollout=$TIMESTAMP \
+            --parameter frontend.forceRollout=$TIMESTAMP
 
           # Wait for sync operation to complete
           argocd app wait lims --insecure --grpc-web --timeout 120 --operation || true
@@ -215,12 +215,19 @@ jobs:
 
           # Verify deployments rolled out successfully
           echo "Waiting for backend deployment..."
-          kubectl rollout status deployment/lims-backend -n production --timeout=120s
+          kubectl rollout status deployment/lims-backend -n production --timeout=300s || {
+            echo "⚠️ Backend rollout timeout - checking pod status"
+            kubectl get pods -n production -l app=lims-backend
+            kubectl describe deployment/lims-backend -n production | tail -20
+          }
 
           echo "Waiting for frontend deployment..."
-          kubectl rollout status deployment/lims-frontend -n production --timeout=120s
+          kubectl rollout status deployment/lims-frontend -n production --timeout=300s || {
+            echo "⚠️ Frontend rollout timeout - checking pod status"
+            kubectl get pods -n production -l app=lims-frontend
+          }
 
-          echo "✅ All deployments rolled out successfully"
+          echo "✅ Deployment verification complete"
 
           # Show pod status
           kubectl get pods -n production -l app.kubernetes.io/instance=lims

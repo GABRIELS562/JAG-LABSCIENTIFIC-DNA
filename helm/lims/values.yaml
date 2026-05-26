@@ -5,6 +5,9 @@
 global:
   environment: production
   imageRegistry: localhost:5000
+  # imagePullSecrets - list of secrets for pulling images from private registries
+  # Example: imagePullSecrets: [{name: ghcr-secret}]
+  imagePullSecrets: []
 
 # Backend configuration
 backend:
