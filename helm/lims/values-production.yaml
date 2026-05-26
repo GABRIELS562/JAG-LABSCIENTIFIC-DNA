@@ -45,6 +45,11 @@ frontend:
 
 postgresql:
   enabled: true
+  # Explicitly set image to use Docker Hub (bitnami default)
+  image:
+    registry: docker.io
+    repository: bitnami/postgresql
+    tag: "16"
   auth:
     database: lims_db
     username: lims_user
