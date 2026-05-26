@@ -60,9 +60,8 @@ ingress:
   enabled: true
   className: traefik
   annotations:
-    # Traefik-compatible annotations
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.tls: "true"
+    # Accept both HTTP and HTTPS (Cloudflare terminates TLS)
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
   hosts:
     - host: lims.jagdevops.co.za
       paths:
