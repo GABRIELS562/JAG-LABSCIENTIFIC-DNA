@@ -182,6 +182,18 @@ jobs:
             echo "Deleted PostgreSQL pod for recreation"
           fi
 
+          # Wait for PostgreSQL to be ready before continuing
+          echo "Waiting for PostgreSQL to be ready..."
+          for i in {1..30}; do
+            PG_READY=$(kubectl get pod lims-postgresql-0 -n production -o jsonpath='{.status.containerStatuses[0].ready}' 2>/dev/null || echo "false")
+            if [[ "$PG_READY" == "true" ]]; then
+              echo "✅ PostgreSQL is ready"
+              break
+            fi
+            echo "PostgreSQL not ready yet ($i/30)..."
+            sleep 10
+          done
+
       - name: Sync ArgoCD Application
         run: |
           # Login to ArgoCD
@@ -228,10 +240,13 @@ jobs:
           echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
           chmod 600 ~/.kube/config
 
-          # Force rollout restart to ensure new image is pulled
-          echo "Forcing rollout restart..."
-          kubectl rollout restart deployment/lims-backend -n production
-          kubectl rollout restart deployment/lims-frontend -n production
+          # Delete ALL old backend pods to force fresh start with new image
+          echo "Deleting all existing backend pods..."
+          kubectl delete pods -n production -l app.kubernetes.io/component=backend --force --grace-period=0 || true
+          kubectl delete pods -n production -l app.kubernetes.io/component=frontend --force --grace-period=0 || true
+
+          # Wait briefly for new pods to be created
+          sleep 10
 
           # Wait for rollouts to complete
           echo "Waiting for backend deployment..."
