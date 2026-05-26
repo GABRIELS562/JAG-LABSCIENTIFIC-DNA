@@ -275,14 +275,15 @@ jobs:
             # Scale down the old deployment so traffic goes to new ArgoCD deployment
             kubectl scale deployment lims-complete -n production --replicas=0
 
-            # Delete old service if it exists
-            # The old deployment was likely exposed via a service pointing to NodePort 30007
-            # But we want traffic to go through the ArgoCD-managed ingress now
-            echo "Old deployment scaled to 0 replicas"
-
             echo "✅ Old lims-complete deployment scaled down"
           else
             echo "✅ No old lims-complete deployment found"
+          fi
+
+          # Delete old lims-complete service if it exists (frees up NodePort)
+          if kubectl get svc lims-complete -n production 2>/dev/null; then
+            echo "Deleting old lims-complete service..."
+            kubectl delete svc lims-complete -n production || true
           fi
 
           # Also check for old lims-complete-backend/frontend naming (in case it exists with that pattern)
@@ -371,14 +372,14 @@ jobs:
 
           # Tailscale IP for direct access
           TAILSCALE_IP="100.89.26.128"
-          BACKEND_URL="http://${TAILSCALE_IP}:30007"
+          BACKEND_URL="http://${TAILSCALE_IP}:30017"
           FRONTEND_URL="http://${TAILSCALE_IP}:30005"
 
           echo ""
           echo "=== Testing via NodePorts (direct access) ==="
 
           # Test backend health via NodePort
-          echo "Testing backend health via NodePort 30007..."
+          echo "Testing backend health via NodePort 30017..."
           for i in {1..10}; do
             HEALTH_RESPONSE=$(curl -sf --connect-timeout 5 "${BACKEND_URL}/api/health" 2>/dev/null || echo "")
             if [ -n "$HEALTH_RESPONSE" ]; then

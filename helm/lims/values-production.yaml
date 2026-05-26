@@ -15,7 +15,7 @@ backend:
     tag: production  # Stable production tag
   service:
     type: NodePort
-    nodePort: 30007  # Now free since lims-complete is scaled down
+    nodePort: 30017  # Using 30017 since 30007 may be used by other services
   resources:
     requests:
       memory: "512Mi"
