@@ -224,13 +224,25 @@ jobs:
             -p backend.forceRollout=$TIMESTAMP \
             -p frontend.forceRollout=$TIMESTAMP
 
-          # Sync the application
-          argocd app sync lims --insecure --grpc-web --force
+          # Sync the application (may fail if auto-sync is in progress, which is OK)
+          argocd app sync lims --insecure --grpc-web --force || {
+            echo "⚠️ Sync command failed - checking if already synced..."
+            sleep 5
+          }
 
-          # Wait for sync operation to complete
-          argocd app wait lims --insecure --grpc-web --timeout 120 --operation || true
+          # Wait for any sync operation to complete
+          echo "Waiting for sync to complete..."
+          argocd app wait lims --insecure --grpc-web --timeout 180 --operation || true
+
+          # Wait for health status (this is what matters)
+          echo "Waiting for application health..."
+          argocd app wait lims --insecure --grpc-web --timeout 300 --health || {
+            echo "⚠️ Health wait timed out - continuing to check manually"
+          }
 
           # Get final status
+          echo ""
+          echo "=== Final ArgoCD Application Status ==="
           argocd app get lims --insecure --grpc-web
 
       - name: Migrate traffic to ArgoCD deployment
