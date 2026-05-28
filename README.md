@@ -305,11 +305,10 @@ This project is proprietary software developed for JAG DNA Scientific.
 
 ---
 
-## Contact
+## Author
 
-**Gabriel S.** - DevOps Engineer
+**Jaime Gabriels** — DevOps Engineer
 
-- Portfolio: [jagdevops.com](https://jagdevops.com)
-- GitHub: [@GABRIELS562](https://github.com/GABRIELS562)
-- LinkedIn: [Gabriel S.](https://linkedin.com/in/gabriels562)
-# Trigger Tue May 26 13:24:02 SAST 2026
+[![Portfolio](https://img.shields.io/badge/Portfolio-jagdevops.co.za-000000?style=for-the-badge)](https://jagdevops.co.za)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=for-the-badge&logo=linkedin)](https://linkedin.com/in/jaime-gabriels-643132386)
+[![GitHub](https://img.shields.io/badge/GitHub-Follow-181717?style=for-the-badge&logo=github)](https://github.com/GABRIELS562)
