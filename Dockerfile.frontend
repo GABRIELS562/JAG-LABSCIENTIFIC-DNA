@@ -2,8 +2,8 @@
 # Stage 1: Build the React application
 FROM node:18-alpine AS builder
 
-# Install build dependencies for native modules
-RUN apk add --no-cache python3 make g++
+# Update Alpine packages and install build dependencies
+RUN apk upgrade --no-cache && apk add --no-cache python3 make g++
 
 WORKDIR /app
 
@@ -21,6 +21,9 @@ RUN npm run build
 
 # Stage 2: Serve with nginx
 FROM nginx:alpine
+
+# Update Alpine packages to patch security vulnerabilities
+RUN apk upgrade --no-cache
 
 # Copy custom nginx config template
 COPY docker/nginx.conf /etc/nginx/templates/default.conf.template

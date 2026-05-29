@@ -1,5 +1,8 @@
 FROM node:18-alpine
 
+# Update Alpine packages to patch security vulnerabilities
+RUN apk upgrade --no-cache
+
 WORKDIR /app
 
 # Copy package files
