@@ -36,25 +36,46 @@ class HealthCheckService {
   }
 
   async checkDatabase() {
+    const startTime = Date.now();
     try {
       // Use existing PostgreSQL connection
       const databaseService = require('../services/database');
-      
+
+      // Check if database is connected
+      if (!databaseService.isConnected()) {
+        return {
+          status: 'unhealthy',
+          message: 'Database not connected',
+          details: {
+            connected: false,
+            databaseType: databaseService.getDatabaseType()
+          }
+        };
+      }
+
       // Test basic connectivity
-      const testResult = await databaseService.get('SELECT 1 as test');
-      
-      // Test a simple query on actual tables
-      const sampleResult = db.prepare('SELECT COUNT(*) as count FROM samples').get();
-      const sampleCount = parseInt(sampleResult.count);
-      
+      await databaseService.get('SELECT 1 as test');
+
+      // Test a simple query on actual tables using the database service
+      let sampleCount = 0;
+      try {
+        const sampleResult = await databaseService.get('SELECT COUNT(*) as count FROM samples');
+        sampleCount = parseInt(sampleResult?.count || 0);
+      } catch (tableError) {
+        // Table might not exist yet, that's ok for health check
+        logger.warn('Samples table not accessible', { error: tableError.message });
+      }
+
+      const responseTime = Date.now() - startTime;
+
       return {
         status: 'healthy',
-        message: 'PostgreSQL connection successful',
+        message: 'Database connection successful',
         details: {
           connected: true,
-          database: databaseService.dbPath,
+          databaseType: databaseService.getDatabaseType(),
           sampleCount: sampleCount,
-          responseTime: 0 // Will be calculated properly in actual implementation
+          responseTime: `${responseTime}ms`
         }
       };
     } catch (error) {
